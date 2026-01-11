@@ -1,5 +1,6 @@
 """Claude Code Textual UI - A terminal interface for Claude Code."""
 
+import asyncio
 import difflib
 import json
 import logging
@@ -8,6 +9,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+from dataclasses import dataclass, field
 
 # Set up file logging
 logging.basicConfig(
@@ -46,6 +48,31 @@ from claude_agent_sdk.types import (
     PermissionResultAllow,
     PermissionResultDeny,
 )
+
+
+@dataclass
+class PermissionRequest:
+    """Represents a pending permission request - for testing and UI."""
+    tool_name: str
+    tool_input: dict[str, Any]
+    _event: threading.Event = field(default_factory=threading.Event)
+    _result: str = "deny"
+
+    @property
+    def title(self) -> str:
+        return f"Allow {format_tool_header(self.tool_name, self.tool_input)}?"
+
+    def respond(self, result: str) -> None:
+        """Respond to this permission request programmatically."""
+        self._result = result
+        self._event.set()
+
+    async def wait(self) -> str:
+        """Wait for response (from UI or programmatic)."""
+        import anyio
+        while not self._event.is_set():
+            await anyio.sleep(0.05)
+        return self._result
 
 
 def is_valid_uuid(s: str) -> bool:
@@ -517,8 +544,11 @@ class ChatMessage(Static):
 
     def append_content(self, text: str) -> None:
         self._content += text
-        md = self.query_one("#content", Markdown)
-        md.update(self._content)
+        try:
+            md = self.query_one("#content", Markdown)
+            md.update(self._content)
+        except Exception:
+            pass  # Widget not mounted yet, content will show on mount
 
     def get_raw_content(self) -> str:
         """Get content without the role prefix for copying."""
@@ -670,6 +700,9 @@ class ChatApp(App):
         self.pending_tools: dict[str, ToolUseWidget] = {}  # tool_use_id -> widget
         self.recent_tools: list[ToolUseWidget] = []  # Track recent for auto-collapse
         self._resume_on_start = resume_session_id  # Session to resume on startup
+        # Event queues for testing
+        self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
+        self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
 
     async def _handle_permission(
         self, tool_name: str, tool_input: dict[str, Any], context: ToolPermissionContext
@@ -680,15 +713,28 @@ class ChatApp(App):
         if self.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
             log.info(f"Auto-approved {tool_name}")
             return PermissionResultAllow()
-        # Show prompt for everything else
-        header = format_tool_header(tool_name, tool_input)
+        # Create permission request and publish to queue (for testing)
+        request = PermissionRequest(tool_name, tool_input)
+        await self.interactions.put(request)
+        # Show UI prompt
         options = [("allow", "Yes, this time only"), ("deny", "No")]
         if tool_name in self.AUTO_EDIT_TOOLS:
             options.insert(0, ("allow_all", "Yes, all edits in this session"))
-        prompt = SelectionPrompt(f"Allow {header}?", options)
+        prompt = SelectionPrompt(request.title, options)
         self.mount(prompt)
         prompt.focus()
-        result = await prompt.wait()
+        # Wait for response from either UI or programmatic (test)
+        async def ui_response():
+            result = await prompt.wait()
+            if not request._event.is_set():
+                request.respond(result)
+        self.run_worker(ui_response(), exclusive=False)
+        result = await request.wait()
+        # Clean up UI if still mounted
+        try:
+            prompt.remove()
+        except Exception:
+            pass
         log.info(f"Permission result: {result}")
         if result == "allow_all":
             self.auto_approve_edits = True
@@ -895,6 +941,8 @@ class ChatApp(App):
                 self.query_one("#context-bar", ContextBar).tokens = total
         self.current_response = None
         self.query_one("#input", ChatInput).focus()
+        # Publish to completions queue (for testing)
+        self.completions.put_nowait(event)
 
     @work(group="resume", exclusive=True, exit_on_error=False)
     async def resume_session(self, session_id: str) -> None:
