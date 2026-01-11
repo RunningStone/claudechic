@@ -4,6 +4,7 @@ import difflib
 import json
 import logging
 import re
+import time
 from pathlib import Path
 
 # Set up file logging
@@ -22,7 +23,7 @@ from textual.message import Message
 from textual.binding import Binding
 from textual.reactive import reactive
 from textual import work, on
-from textual.events import Key
+from textual.events import MouseUp
 from textual.widget import Widget
 from rich.text import Text
 
@@ -178,14 +179,14 @@ class ContextBar(Widget):
         bar_width = 10
         filled = int(pct * bar_width)
         bar = "█" * filled + "░" * (bar_width - filled)
-        # Color based on usage: green < 50%, yellow < 80%, red >= 80%
+        # Dim when low, yellow when moderate, red when high
         if pct < 0.5:
-            color = "green"
+            color = "dim"
         elif pct < 0.8:
             color = "yellow"
         else:
             color = "red"
-        return Text.assemble((bar, color), f" {pct*100:.0f}%")
+        return Text.assemble((bar, color), (f" {pct*100:.0f}%", color))
 
 
 class ContextHeader(Header):
@@ -215,11 +216,7 @@ class ChatInput(TextArea):
     BINDINGS = [
         Binding("enter", "submit", "Send", priority=True),
         Binding("ctrl+j", "newline", "Newline", priority=True),
-        Binding("ctrl+c", "quit_app", "Quit", priority=True),
     ]
-
-    def action_quit_app(self) -> None:
-        self.app.action_quit()
 
     class Submitted(Message):
         """Posted when user presses Enter."""
@@ -316,29 +313,29 @@ def _render_word_diff(old_line: str, new_line: str, result: Text) -> None:
     new_tokens = _tokenize(new_line)
     sm = difflib.SequenceMatcher(None, old_tokens, new_tokens)
 
-    # Build old line with highlights
-    result.append("- ", style="on #3c1f1f")
+    # Build old line with subtle red background
+    result.append("- ", style="red on #2d0000")
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         chunk = ''.join(old_tokens[i1:i2])
         if tag == 'equal':
-            result.append(chunk, style="on #3c1f1f")
+            result.append(chunk, style="on #2d0000")
         elif tag in ('delete', 'replace'):
-            result.append(chunk, style="bold red on #5c2f2f")
+            result.append(chunk, style="bold red on #401010")
     result.append("\n")
 
-    # Build new line with highlights
-    result.append("+ ", style="on #1f3c1f")
+    # Build new line with subtle green background
+    result.append("+ ", style="green on #002d00")
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         chunk = ''.join(new_tokens[j1:j2])
         if tag == 'equal':
-            result.append(chunk, style="on #1f3c1f")
+            result.append(chunk, style="on #002d00")
         elif tag in ('insert', 'replace'):
-            result.append(chunk, style="bold green on #2f5c2f")
+            result.append(chunk, style="bold green on #104010")
     result.append("\n")
 
 
 def format_diff_text(old: str, new: str, max_len: int = 300) -> Text:
-    """Format a diff with red/green backgrounds and word-level highlighted changes."""
+    """Format a diff with subtle red/green backgrounds."""
     result = Text()
     old_preview = old[:max_len] + ('...' if len(old) > max_len else '')
     new_preview = new[:max_len] + ('...' if len(new) > max_len else '')
@@ -353,42 +350,25 @@ def format_diff_text(old: str, new: str, max_len: int = 300) -> Text:
                 result.append(f"  {line}\n", style="dim")
         elif tag == 'delete':
             for line in old_lines[i1:i2]:
-                result.append(f"- {line}\n", style="on #3c1f1f")
+                result.append(f"- {line}\n", style="red on #2d0000")
         elif tag == 'insert':
             for line in new_lines[j1:j2]:
-                result.append(f"+ {line}\n", style="on #1f3c1f")
+                result.append(f"+ {line}\n", style="green on #002d00")
         elif tag == 'replace':
             # For replaced lines, highlight word-level changes
             for old_line, new_line in zip(old_lines[i1:i2], new_lines[j1:j2]):
                 _render_word_diff(old_line, new_line, result)
             # Handle unequal line counts
             for line in old_lines[i1+len(new_lines[j1:j2]):i2]:
-                result.append(f"- {line}\n", style="on #3c1f1f")
+                result.append(f"- {line}\n", style="red on #2d0000")
             for line in new_lines[j1+len(old_lines[i1:i2]):j2]:
-                result.append(f"+ {line}\n", style="on #1f3c1f")
+                result.append(f"+ {line}\n", style="green on #002d00")
     return result
 
 
 def format_tool_details(name: str, input: dict) -> str:
-    """Format expanded details for a tool use."""
-    if name == "Edit":
-        path = input.get('file_path', '?')
-        old = input.get('old_string', '')
-        new = input.get('new_string', '')
-        lang = get_lang_from_path(path)
-        diff_lines = []
-        if old:
-            preview = old[:300] + ('...' if len(old) > 300 else '')
-            for line in preview.split('\n'):
-                diff_lines.append(f"- {line}")
-        if new:
-            preview = new[:300] + ('...' if len(new) > 300 else '')
-            for line in preview.split('\n'):
-                diff_lines.append(f"+ {line}")
-        if diff_lines:
-            return f"```{lang}\n" + "\n".join(diff_lines) + "\n```"
-        return f"`{path}`"
-    elif name == "Write":
+    """Format expanded details for a tool use (non-Edit tools)."""
+    if name == "Write":
         path = input.get('file_path', '?')
         content = input.get('content', '')
         lang = get_lang_from_path(path)
@@ -557,7 +537,8 @@ class ChatApp(App):
 
     CSS_PATH = "styles.tcss"
     BINDINGS = [
-        ("ctrl+c", "quit", "Quit"),
+        Binding("ctrl+y", "copy_selection", "Copy", priority=True),
+        Binding("ctrl+c", "quit", "Quit", priority=True),
         ("ctrl+l", "clear", "Clear"),
         ("ctrl+b", "toggle_sidebar", "Sessions"),
     ]
@@ -801,8 +782,26 @@ class ChatApp(App):
         chat_view = self.query_one("#chat-view", VerticalScroll)
         chat_view.remove_children()
 
+    def action_copy_selection(self) -> None:
+        """Copy selected text to clipboard."""
+        selected = self.screen.get_selected_text()
+        if selected:
+            self.copy_to_clipboard(selected)
+            self.notify("Copied to clipboard")
+
+    def on_mouse_up(self, event: MouseUp) -> None:
+        """Auto-copy selection on mouse release."""
+        # Small delay to let selection finalize
+        self.set_timer(0.05, self._check_and_copy_selection)
+
+    def _check_and_copy_selection(self) -> None:
+        """Copy selection if present."""
+        selected = self.screen.get_selected_text()
+        if selected and len(selected.strip()) > 0:
+            self.copy_to_clipboard(selected)
+
     def action_quit(self) -> None:
-        import time
+        """Quit on double Ctrl+C."""
         now = time.time()
         if hasattr(self, '_last_quit_time') and now - self._last_quit_time < 1.0:
             self.exit()

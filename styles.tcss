@@ -1,25 +1,38 @@
-/* Claude Code Textual UI Styles */
+/* Claude Code Textual UI Styles - Minimal aesthetic */
 
+/* Use terminal's default background */
 Screen {
-    background: $surface;
+    background: $background;
 }
 
+/* Header/Footer - slight contrast from background */
+Header {
+    background: #111111;
+}
 
+Footer {
+    background: #111111;
+}
+
+/* Messages */
 ChatMessage {
     padding: 1 2;
-    margin: 1 0;
-    background: $panel;
+    margin: 0;
 }
 
 ChatMessage.user-message {
-    background: $primary-darken-2;
+    background: transparent;
+    color: $text-muted;
+    text-align: right;
+    padding: 0 2 1 4;
 }
 
 ChatMessage.assistant-message {
-    background: $surface-darken-1;
+    background: transparent;
+    padding: 1 4 1 2;
 }
 
-/* Copy button */
+/* Copy buttons - hidden until hover */
 .copy-btn {
     dock: right;
     width: 3;
@@ -27,21 +40,26 @@ ChatMessage.assistant-message {
     height: 1;
     background: transparent;
     border: none;
-    color: $surface-lighten-1;
+    color: transparent;
+}
+
+ChatMessage:hover .copy-btn {
+    color: $text-muted;
 }
 
 .copy-btn:hover {
     color: $text;
 }
 
+/* Main layout */
 #main {
     height: 1fr;
 }
 
 #sidebar {
     width: 30;
-    background: $panel;
-    border-right: solid $primary;
+    background: $surface-darken-1;
+    border-right: solid $surface-lighten-1;
 }
 
 #sidebar.hidden {
@@ -54,13 +72,13 @@ ChatMessage.assistant-message {
 }
 
 #sidebar > SessionItem:hover {
-    background: $primary-darken-1;
+    background: $surface-lighten-1;
 }
 
 #chat-view {
     width: 1fr;
-    padding: 1 2;
-    background: $surface;
+    padding: 0 1;
+    background: $background;
 }
 
 #input {
@@ -70,14 +88,11 @@ ChatMessage.assistant-message {
     max-height: 10;
     min-height: 3;
     width: 100%;
+    border: solid gray;
 }
 
-Header {
-    background: $primary;
-}
-
-Footer {
-    background: $primary-darken-1;
+#input:focus {
+    border: solid white;
 }
 
 Markdown {
@@ -85,9 +100,9 @@ Markdown {
     margin: 0;
 }
 
-/* Tool use widgets */
+/* Tool use widgets - minimal, indented */
 ToolUseWidget {
-    margin: 0 1;
+    margin: 0 0 0 2;
     padding: 0;
 }
 
@@ -98,6 +113,10 @@ ToolUseWidget {
     height: 1;
     background: transparent;
     border: none;
+    color: transparent;
+}
+
+ToolUseWidget:hover .tool-copy-btn {
     color: $text-muted;
 }
 
@@ -106,13 +125,13 @@ ToolUseWidget {
 }
 
 ToolUseWidget Collapsible {
-    background: $surface-darken-2;
-    border: solid $primary-darken-2;
+    background: transparent;
+    border: none;
     padding: 0;
 }
 
 ToolUseWidget Collapsible.error {
-    border: solid $error;
+    background: $error 10%;
 }
 
 ToolUseWidget Collapsible CollapsibleTitle {
@@ -123,4 +142,8 @@ ToolUseWidget Collapsible CollapsibleTitle {
 
 ToolUseWidget Collapsible Contents {
     padding: 0 1;
+}
+
+#diff-content {
+    color: $text;
 }
