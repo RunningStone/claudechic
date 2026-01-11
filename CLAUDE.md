@@ -14,7 +14,7 @@ Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login
 
 ## Architecture
 
-- `app.py` - Single-file Textual app (~860 lines)
+- `app.py` - Single-file Textual app (~1000 lines)
 - `styles.tcss` - Textual CSS styling
 
 ### Key Components
@@ -24,6 +24,7 @@ Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login
 - `ToolUseWidget` - Collapsible tool use display with colored diffs for edits
 - `ContextHeader` / `ContextBar` - Header showing context window usage as progress bar
 - `SessionItem` - Sidebar item for session selection
+- `SelectionPrompt` - Reusable prompt with arrow/number key navigation (used for permissions)
 
 ### Message Flow
 
@@ -45,9 +46,10 @@ Sessions stored in `~/.claude/projects/-path-to-project/*.jsonl`. The app can:
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
 
 client = ClaudeSDKClient(ClaudeAgentOptions(
-    allowed_tools=["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-    permission_mode="acceptEdits",
+    permission_mode="default",  # Respects ~/.claude/settings.json
     env={"ANTHROPIC_API_KEY": ""},  # Force Max subscription
+    setting_sources=["user", "project", "local"],
+    can_use_tool=permission_callback,  # UI prompt for non-allowlisted tools
     resume=session_id,  # Optional: resume existing session
 ))
 await client.connect()
@@ -62,6 +64,7 @@ async for message in client.receive_response():
 - Ctrl+C (x2): Quit
 - Ctrl+L: Clear chat (UI only)
 - Ctrl+B: Toggle session sidebar
+- Shift+Tab: Toggle auto-edit mode (auto-approve Edit/Write, still prompt for Bash)
 
 ## Features
 
@@ -70,9 +73,9 @@ async for message in client.receive_response():
 - **Edit diffs**: Word-level highlighting with red/green backgrounds
 - **Copy buttons**: On messages and tool uses
 - **Session resume**: Via CLI flags or sidebar selection
+- **Permission prompts**: Respects `~/.claude/settings.json` and hooks; prompts for non-allowlisted tools with y/n/a keys (a = allow all edits this session)
 
 ## Future Work
 
-- Permission prompts in UI
 - Thinking blocks display
 - Tool result content display improvements

@@ -4,8 +4,10 @@ import difflib
 import json
 import logging
 import re
+import threading
 import time
 from pathlib import Path
+from typing import Any
 
 # Set up file logging
 logging.basicConfig(
@@ -22,7 +24,7 @@ from textual.containers import VerticalScroll, Horizontal
 from textual.message import Message
 from textual.binding import Binding
 from textual.reactive import reactive
-from textual import work, on
+from textual import work
 from textual.events import MouseUp
 from textual.widget import Widget
 from rich.text import Text
@@ -37,6 +39,12 @@ from claude_agent_sdk import (
     ToolUseBlock,
     ToolResultBlock,
     ResultMessage,
+)
+from claude_agent_sdk.types import (
+    ToolPermissionContext,
+    PermissionResult,
+    PermissionResultAllow,
+    PermissionResultDeny,
 )
 
 
@@ -532,6 +540,103 @@ class ChatMessage(Static):
                 self.app.notify(f"Copy failed: {e}", severity="error")
 
 
+class SelectionPrompt(Static):
+    """Reusable selection prompt with arrow/number navigation."""
+
+    can_focus = True
+
+    DEFAULT_CSS = """
+    SelectionPrompt {
+        dock: bottom;
+        height: auto;
+        background: $surface;
+        border: solid $primary;
+        padding: 0 1;
+        margin: 0 1 0 1;
+    }
+    SelectionPrompt .prompt-title {
+        color: $text;
+        padding: 0 0 0 0;
+    }
+    SelectionPrompt .prompt-option {
+        padding: 0 0 0 1;
+        color: $text-muted;
+    }
+    SelectionPrompt .prompt-option.selected {
+        color: $text;
+        background: $primary 20%;
+    }
+    """
+
+    def __init__(self, title: str, options: list[tuple[str, str]]) -> None:
+        """Create selection prompt.
+
+        Args:
+            title: Prompt title/question
+            options: List of (value, label) tuples
+        """
+        super().__init__()
+        self.title = title
+        self.options = options
+        self.selected_idx = 0
+        self._result_event = threading.Event()
+        self._result_value: str = options[0][0] if options else ""
+
+    def compose(self) -> ComposeResult:
+        yield Static(self.title, classes="prompt-title")
+        for i, (value, label) in enumerate(self.options):
+            classes = "prompt-option selected" if i == 0 else "prompt-option"
+            yield Static(f"{i + 1}. {label}", classes=classes, id=f"opt-{i}")
+
+    def _update_selection(self) -> None:
+        """Update visual selection state."""
+        for i in range(len(self.options)):
+            opt = self.query_one(f"#opt-{i}", Static)
+            if i == self.selected_idx:
+                opt.add_class("selected")
+            else:
+                opt.remove_class("selected")
+
+    def on_key(self, event) -> None:
+        if event.key == "up":
+            self.selected_idx = (self.selected_idx - 1) % len(self.options)
+            self._update_selection()
+            event.prevent_default()
+            event.stop()
+        elif event.key == "down":
+            self.selected_idx = (self.selected_idx + 1) % len(self.options)
+            self._update_selection()
+            event.prevent_default()
+            event.stop()
+        elif event.key == "enter":
+            self._resolve(self.options[self.selected_idx][0])
+            event.prevent_default()
+            event.stop()
+        elif event.key == "escape":
+            self._resolve("")  # Empty = cancelled
+            event.prevent_default()
+            event.stop()
+        elif event.key.isdigit():
+            idx = int(event.key) - 1
+            if 0 <= idx < len(self.options):
+                self._resolve(self.options[idx][0])
+                event.prevent_default()
+                event.stop()
+
+    def _resolve(self, result: str) -> None:
+        if not self._result_event.is_set():
+            self._result_value = result
+            self._result_event.set()
+        self.remove()
+
+    async def wait(self) -> str:
+        """Wait for selection. Returns value or empty string if cancelled."""
+        import anyio
+        while not self._result_event.is_set():
+            await anyio.sleep(0.05)
+        return self._result_value
+
+
 class ChatApp(App):
     """Main chat application."""
 
@@ -541,17 +646,23 @@ class ChatApp(App):
         Binding("ctrl+c", "quit", "Quit", priority=True),
         ("ctrl+l", "clear", "Clear"),
         ("ctrl+b", "toggle_sidebar", "Sessions"),
+        Binding("shift+tab", "cycle_permission_mode", "Mode", priority=True),
     ]
 
+    # Auto-approve Edit/Write tools (but still prompt for Bash, etc.)
+    AUTO_EDIT_TOOLS = {"Edit", "Write"}
+
     RECENT_TOOLS_EXPANDED = 2  # Keep last N tool uses expanded
+
+    auto_approve_edits = reactive(False)  # When True, auto-approve Edit/Write
 
     def __init__(self, resume_session_id: str | None = None) -> None:
         super().__init__()
         self.options = ClaudeAgentOptions(
-            allowed_tools=["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-            permission_mode="acceptEdits",
+            permission_mode="default",  # Respect settings.json permissions + hooks
             env={"ANTHROPIC_API_KEY": ""},  # Use Max subscription, not API key
-            setting_sources=["user", "project", "local"],  # Respect normal CC settings/hooks
+            setting_sources=["user", "project", "local"],
+            can_use_tool=self._handle_permission,
         )
         self.client: ClaudeSDKClient | None = None
         self.current_response: ChatMessage | None = None
@@ -559,6 +670,42 @@ class ChatApp(App):
         self.pending_tools: dict[str, ToolUseWidget] = {}  # tool_use_id -> widget
         self.recent_tools: list[ToolUseWidget] = []  # Track recent for auto-collapse
         self._resume_on_start = resume_session_id  # Session to resume on startup
+
+    async def _handle_permission(
+        self, tool_name: str, tool_input: dict[str, Any], context: ToolPermissionContext
+    ) -> PermissionResult:
+        """Handle permission request from SDK - shows UI prompt."""
+        log.info(f"Permission requested for {tool_name}: {str(tool_input)[:100]}")
+        # Auto-approve Edit/Write if enabled
+        if self.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
+            log.info(f"Auto-approved {tool_name}")
+            return PermissionResultAllow()
+        # Show prompt for everything else
+        header = format_tool_header(tool_name, tool_input)
+        options = [("allow", "Yes, this time only"), ("deny", "No")]
+        if tool_name in self.AUTO_EDIT_TOOLS:
+            options.insert(0, ("allow_all", "Yes, all edits in this session"))
+        prompt = SelectionPrompt(f"Allow {header}?", options)
+        self.mount(prompt)
+        prompt.focus()
+        result = await prompt.wait()
+        log.info(f"Permission result: {result}")
+        if result == "allow_all":
+            self.auto_approve_edits = True
+            self.notify("Auto-edit enabled (Shift+Tab to disable)")
+            return PermissionResultAllow()
+        elif result == "allow":
+            return PermissionResultAllow()
+        else:
+            return PermissionResultDeny(message="User denied permission")
+
+    def action_cycle_permission_mode(self) -> None:
+        """Toggle auto-approve for Edit/Write tools."""
+        self.auto_approve_edits = not self.auto_approve_edits
+        if self.auto_approve_edits:
+            self.notify("Auto-edit: ON")
+        else:
+            self.notify("Auto-edit: OFF")
 
     def compose(self) -> ComposeResult:
         yield ContextHeader()
@@ -646,7 +793,7 @@ class ChatApp(App):
         user_msg = ChatMessage("user", f"**You:** {prompt}")
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
-        chat_view.scroll_end(animate=False)
+        self.call_later(lambda: chat_view.scroll_end(animate=False))
 
         # Reset current response - will be created when first text arrives
         self.current_response = None
@@ -705,7 +852,7 @@ class ChatApp(App):
             self.current_response.add_class("assistant-message")
             chat_view.mount(self.current_response)
         self.current_response.append_content(event.text)
-        chat_view.scroll_end(animate=False)
+        self.call_later(lambda: chat_view.scroll_end(animate=False))
 
     def on_tool_use_message(self, event: ToolUseMessage) -> None:
         """Handle a tool use starting."""
@@ -719,7 +866,7 @@ class ChatApp(App):
         self.pending_tools[event.block.id] = widget
         self.recent_tools.append(widget)
         chat_view.mount(widget)
-        chat_view.scroll_end(animate=False)
+        self.call_later(lambda: chat_view.scroll_end(animate=False))
 
     def on_tool_result_message(self, event: ToolResultMessage) -> None:
         """Handle a tool result arriving."""
@@ -758,11 +905,11 @@ class ChatApp(App):
             self.client = None
 
             options = ClaudeAgentOptions(
-                allowed_tools=["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-                permission_mode="acceptEdits",
+                permission_mode="default",  # Respect settings.json permissions + hooks
                 env={"ANTHROPIC_API_KEY": ""},
                 setting_sources=["user", "project", "local"],
                 resume=session_id,
+                can_use_tool=self._handle_permission,
             )
             log.info("Creating new client")
             client = ClaudeSDKClient(options)

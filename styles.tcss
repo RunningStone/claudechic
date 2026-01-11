@@ -53,6 +53,7 @@ ChatMessage:hover .copy-btn {
 
 /* Main layout */
 #main {
+    align: center top;
     height: 1fr;
 }
 
@@ -77,8 +78,10 @@ ChatMessage:hover .copy-btn {
 
 #chat-view {
     width: 1fr;
+    max-width: 100;
     padding: 0 1;
     background: $background;
+    margin: 0;
 }
 
 #input {
