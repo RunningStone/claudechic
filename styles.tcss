@@ -1,0 +1,126 @@
+/* Claude Code Textual UI Styles */
+
+Screen {
+    background: $surface;
+}
+
+
+ChatMessage {
+    padding: 1 2;
+    margin: 1 0;
+    background: $panel;
+}
+
+ChatMessage.user-message {
+    background: $primary-darken-2;
+}
+
+ChatMessage.assistant-message {
+    background: $surface-darken-1;
+}
+
+/* Copy button */
+.copy-btn {
+    dock: right;
+    width: 3;
+    min-width: 3;
+    height: 1;
+    background: transparent;
+    border: none;
+    color: $surface-lighten-1;
+}
+
+.copy-btn:hover {
+    color: $text;
+}
+
+#main {
+    height: 1fr;
+}
+
+#sidebar {
+    width: 30;
+    background: $panel;
+    border-right: solid $primary;
+}
+
+#sidebar.hidden {
+    display: none;
+}
+
+#sidebar > SessionItem {
+    padding: 1;
+    height: auto;
+}
+
+#sidebar > SessionItem:hover {
+    background: $primary-darken-1;
+}
+
+#chat-view {
+    width: 1fr;
+    padding: 1 2;
+    background: $surface;
+}
+
+#input {
+    dock: bottom;
+    margin: 1 2;
+    height: auto;
+    max-height: 10;
+    min-height: 3;
+    width: 100%;
+}
+
+Header {
+    background: $primary;
+}
+
+Footer {
+    background: $primary-darken-1;
+}
+
+Markdown {
+    padding: 0;
+    margin: 0;
+}
+
+/* Tool use widgets */
+ToolUseWidget {
+    margin: 0 1;
+    padding: 0;
+}
+
+.tool-copy-btn {
+    dock: right;
+    width: 3;
+    min-width: 3;
+    height: 1;
+    background: transparent;
+    border: none;
+    color: $text-muted;
+}
+
+.tool-copy-btn:hover {
+    color: $text;
+}
+
+ToolUseWidget Collapsible {
+    background: $surface-darken-2;
+    border: solid $primary-darken-2;
+    padding: 0;
+}
+
+ToolUseWidget Collapsible.error {
+    border: solid $error;
+}
+
+ToolUseWidget Collapsible CollapsibleTitle {
+    color: $text-muted;
+    padding: 0 1;
+    width: 100%;
+}
+
+ToolUseWidget Collapsible Contents {
+    padding: 0 1;
+}

@@ -1,0 +1,11 @@
+[project]
+name = "cc-textual"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "claude-agent-sdk>=0.1.19",
+    "pyperclip>=1.11.0",
+    "textual>=7.1.0",
+]
