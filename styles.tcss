@@ -1,11 +1,16 @@
-/* Claude Code Textual UI Styles - Minimal aesthetic */
+/* Claude Code Textual UI Styles
+ *
+ * Visual language: All content blocks use left border bars to indicate type.
+ * - User messages: vibrant orange border
+ * - Assistant messages: dim blue border
+ * - Tool uses: subtle gray border
+ * All blocks have transparent backgrounds and consistent spacing.
+ */
 
-/* Use terminal's default background */
 Screen {
-    background: $background;
+    background: black;
 }
 
-/* Header/Footer - slight contrast from background */
 Header {
     background: #111111;
 }
@@ -14,26 +19,43 @@ Footer {
     background: #111111;
 }
 
-/* Messages */
-ChatMessage {
-    padding: 1 2;
-    margin: 0;
+/* Shared block styling - all content blocks */
+ChatMessage, ToolUseWidget, ThinkingIndicator {
+    background: transparent;
+    margin: 0 0 1 0;  /* 1 line between blocks */
+    padding: 0 2 0 1;
+    border-left: tall transparent;
 }
 
+/* User messages - vibrant orange, extra spacing */
 ChatMessage.user-message {
-    background: transparent;
-    color: $text-muted;
-    text-align: right;
-    padding: 0 2 1 4;
+    border-left: tall #cc7700;
+    margin: 2 0 2 0;
 }
 
+/* Assistant messages - softer */
 ChatMessage.assistant-message {
-    background: transparent;
-    padding: 1 4 1 2;
+    border-left: tall #334455;
+}
+
+/* Tool uses - subtle, highlight on hover */
+ToolUseWidget {
+    border-left: tall #333333;
+}
+
+ToolUseWidget.hovered {
+    border-left: tall #666666;
+    background: #111111;
+}
+
+/* Thinking indicator - subtle */
+ThinkingIndicator {
+    border-left: tall #333333;
+    color: $text-muted;
 }
 
 /* Copy buttons - hidden until hover */
-.copy-btn {
+.copy-btn, .tool-copy-btn {
     dock: right;
     width: 3;
     min-width: 3;
@@ -43,11 +65,12 @@ ChatMessage.assistant-message {
     color: transparent;
 }
 
-ChatMessage:hover .copy-btn {
+ChatMessage:hover .copy-btn,
+ToolUseWidget:hover .tool-copy-btn {
     color: $text-muted;
 }
 
-.copy-btn:hover {
+.copy-btn:hover, .tool-copy-btn:hover {
     color: $text;
 }
 
@@ -57,33 +80,39 @@ ChatMessage:hover .copy-btn {
     height: 1fr;
 }
 
-#sidebar {
-    width: 30;
-    background: $surface-darken-1;
-    border-right: solid $surface-lighten-1;
-}
-
-#sidebar.hidden {
-    display: none;
-}
-
-#sidebar > SessionItem {
-    padding: 1;
-    height: auto;
-}
-
-#sidebar > SessionItem:hover {
-    background: $surface-lighten-1;
-}
-
 #chat-view {
     width: 1fr;
     max-width: 100;
-    padding: 0 1;
-    background: $background;
-    margin: 0;
+    padding: 1 1;
 }
 
+#chat-view.hidden {
+    display: none;
+}
+
+/* Session picker */
+#session-picker {
+    width: 1fr;
+    max-width: 80;
+    padding: 1 2;
+}
+
+#session-picker.hidden {
+    display: none;
+}
+
+#session-picker > SessionItem {
+    padding: 1 2;
+    height: auto;
+    margin: 0 0 1 0;
+    background: $surface;
+}
+
+#session-picker > SessionItem:hover {
+    background: $surface-lighten-1;
+}
+
+/* Input area */
 #input {
     dock: bottom;
     margin: 1 2;
@@ -92,45 +121,24 @@ ChatMessage:hover .copy-btn {
     min-height: 3;
     width: 100%;
     border: solid gray;
+    background: $surface;
 }
 
 #input:focus {
     border: solid white;
 }
 
+/* Markdown resets */
 Markdown {
     padding: 0;
     margin: 0;
 }
 
-/* Tool use widgets - minimal, indented */
-ToolUseWidget {
-    margin: 0 0 0 2;
-    padding: 0;
-}
-
-.tool-copy-btn {
-    dock: right;
-    width: 3;
-    min-width: 3;
-    height: 1;
-    background: transparent;
-    border: none;
-    color: transparent;
-}
-
-ToolUseWidget:hover .tool-copy-btn {
-    color: $text-muted;
-}
-
-.tool-copy-btn:hover {
-    color: $text;
-}
-
+/* Tool use collapsible internals */
 ToolUseWidget Collapsible {
-    background: transparent;
     border: none;
     padding: 0;
+    background: transparent;
 }
 
 ToolUseWidget Collapsible.error {
@@ -139,12 +147,14 @@ ToolUseWidget Collapsible.error {
 
 ToolUseWidget Collapsible CollapsibleTitle {
     color: $text-muted;
-    padding: 0 1;
+    padding: 0 0;
     width: 100%;
+    background: transparent;
 }
 
 ToolUseWidget Collapsible Contents {
-    padding: 0 1;
+    padding: 0 0 0 2;
+    background: transparent;
 }
 
 #diff-content {

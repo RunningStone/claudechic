@@ -11,10 +11,13 @@ from pathlib import Path
 from typing import Any
 from dataclasses import dataclass, field
 
+import anyio
+import pyperclip
+
 # Set up file logging
 logging.basicConfig(
     filename="cc-textual.log",
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 log = logging.getLogger(__name__)
@@ -69,7 +72,6 @@ class PermissionRequest:
 
     async def wait(self) -> str:
         """Wait for response (from UI or programmatic)."""
-        import anyio
         while not self._event.is_set():
             await anyio.sleep(0.05)
         return self._result
@@ -89,13 +91,17 @@ def get_project_sessions_dir() -> Path | None:
     return sessions_dir if sessions_dir.exists() else None
 
 
-def get_recent_sessions(limit: int = 20) -> list[tuple[str, str, float, int]]:
-    """Get recent sessions from current project only. Returns [(session_id, preview, mtime, msg_count)]."""
+def get_recent_sessions(limit: int = 20, search: str = "") -> list[tuple[str, str, float, int]]:
+    """Get recent sessions from current project only. Returns [(session_id, preview, mtime, msg_count)].
+
+    If search is provided, filters to sessions containing that text in any user message.
+    """
     sessions = []
     sessions_dir = get_project_sessions_dir()
     if not sessions_dir:
         return sessions
 
+    search_lower = search.lower()
     for f in sessions_dir.glob("*.jsonl"):
         # Skip non-UUID sessions (agent-* are internal)
         if not is_valid_uuid(f.stem):
@@ -105,15 +111,19 @@ def get_recent_sessions(limit: int = 20) -> list[tuple[str, str, float, int]]:
         try:
             preview = ""
             msg_count = 0
+            matches_search = not search  # If no search, all match
             with open(f) as fh:
                 for line in fh:
                     d = json.loads(line)
-                    if d.get("type") == "user":
-                        msg_count += 1
-                        if not preview:
-                            content = d.get("message", {}).get("content", "")
-                            preview = (content[:50] if isinstance(content, str) else str(content)[:50]).replace("\n", " ")
-            if preview:
+                    if d.get("type") == "user" and not d.get("isMeta"):
+                        content = d.get("message", {}).get("content", "")
+                        if isinstance(content, str) and not content.startswith("<"):
+                            msg_count += 1
+                            if not preview:
+                                preview = content[:50].replace("\n", " ")
+                            if search and search_lower in content.lower():
+                                matches_search = True
+            if preview and msg_count > 0 and matches_search:
                 sessions.append((f.stem, preview, f.stat().st_mtime, msg_count))
         except (json.JSONDecodeError, IOError):
             continue
@@ -242,16 +252,27 @@ class SessionItem(ListItem):
         self.msg_count = msg_count
 
     def compose(self) -> ComposeResult:
-        yield Label(f"{self.session_id[:8]}… ({self.msg_count})\n{self.preview[:40]}")
+        yield Label(f"{self.preview[:50]}\n({self.msg_count} msgs)")
 
 
 class ChatInput(TextArea):
-    """Text input that submits on Enter, newline on Shift+Enter."""
+    """Text input that submits on Enter, newline on Shift+Enter, history with Up/Down."""
 
     BINDINGS = [
-        Binding("enter", "submit", "Send", priority=True),
-        Binding("ctrl+j", "newline", "Newline", priority=True),
+        Binding("enter", "submit", "Send", priority=True, show=False),
+        Binding("ctrl+j", "newline", "Newline", priority=True, show=False),
+        Binding("up", "history_prev", "Previous", priority=True, show=False),
+        Binding("down", "history_next", "Next", priority=True, show=False),
     ]
+
+    def __init__(self, *args, **kwargs) -> None:
+        # Preserve whitespace behavior for pasting
+        kwargs.setdefault("tab_behavior", "indent")
+        kwargs.setdefault("soft_wrap", True)
+        super().__init__(*args, **kwargs)
+        self._history: list[str] = []
+        self._history_index: int = -1  # -1 means not browsing history
+        self._current_input: str = ""  # Saved input when browsing history
 
     class Submitted(Message):
         """Posted when user presses Enter."""
@@ -260,10 +281,51 @@ class ChatInput(TextArea):
             super().__init__()
 
     def action_submit(self) -> None:
+        text = self.text.strip()
+        if text:
+            # Add to history (avoid duplicates of last entry)
+            if not self._history or self._history[-1] != text:
+                self._history.append(text)
+        self._history_index = -1
         self.post_message(self.Submitted(self.text))
 
     def action_newline(self) -> None:
         self.insert("\n")
+
+    def action_history_prev(self) -> None:
+        """Go to previous command in history (only when cursor at top)."""
+        # Only trigger if cursor is on the first line
+        if self.cursor_location[0] != 0:
+            self.move_cursor_relative(rows=-1)
+            return
+        if not self._history:
+            return
+        if self._history_index == -1:
+            # Starting to browse - save current input
+            self._current_input = self.text
+            self._history_index = len(self._history) - 1
+        elif self._history_index > 0:
+            self._history_index -= 1
+        self.text = self._history[self._history_index]
+        self.move_cursor(self.document.end)
+
+    def action_history_next(self) -> None:
+        """Go to next command in history (only when cursor at bottom)."""
+        # Only trigger if cursor is on the last line
+        last_line = self.document.line_count - 1
+        if self.cursor_location[0] != last_line:
+            self.move_cursor_relative(rows=1)
+            return
+        if self._history_index == -1:
+            return
+        if self._history_index < len(self._history) - 1:
+            self._history_index += 1
+            self.text = self._history[self._history_index]
+        else:
+            # Back to current input
+            self._history_index = -1
+            self.text = self._current_input
+        self.move_cursor(self.document.end)
 
 
 class StreamChunk(Message):
@@ -438,7 +500,6 @@ class ToolUseWidget(Static):
     def __init__(self, block: ToolUseBlock, collapsed: bool = False) -> None:
         super().__init__()
         self.block = block
-        self.tool_use_id = block.id
         self.result: ToolResultBlock | None = None
         self._initial_collapsed = collapsed
 
@@ -492,12 +553,19 @@ class ToolUseWidget(Static):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "tool-copy-btn":
             event.stop()
-            import pyperclip
             try:
                 pyperclip.copy(self.get_copyable_content())
                 self.app.notify("Copied tool output")
             except Exception as e:
                 self.app.notify(f"Copy failed: {e}", severity="error")
+
+    def on_mouse_move(self) -> None:
+        """Track mouse presence for hover effect."""
+        if not self.has_class("hovered"):
+            self.add_class("hovered")
+
+    def on_leave(self) -> None:
+        self.remove_class("hovered")
 
     def set_result(self, result: ToolResultBlock) -> None:
         """Update with tool result."""
@@ -530,13 +598,33 @@ class ToolUseWidget(Static):
             pass  # Widget may not be mounted yet
 
 
+class ThinkingIndicator(Static):
+    """Animated spinner shown when Claude is working."""
+
+    FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+    frame = reactive(0)
+
+    def __init__(self) -> None:
+        super().__init__("⠋ Thinking...")
+
+    def on_mount(self) -> None:
+        self.set_interval(1/10, self._tick)
+
+    def _tick(self) -> None:
+        self.frame = (self.frame + 1) % len(self.FRAMES)
+
+    def watch_frame(self, frame: int) -> None:
+        self.update(f"{self.FRAMES[frame]} Thinking...")
+        self.refresh()
+
+
 class ChatMessage(Static):
     """A single chat message."""
 
-    def __init__(self, role: str, content: str = "") -> None:
+    def __init__(self, content: str = "") -> None:
         super().__init__()
-        self.role = role
-        self._content = content
+        self._content = content.rstrip()
 
     def compose(self) -> ComposeResult:
         yield Button("⎘", id="copy-btn", classes="copy-btn")
@@ -546,23 +634,16 @@ class ChatMessage(Static):
         self._content += text
         try:
             md = self.query_one("#content", Markdown)
-            md.update(self._content)
+            md.update(self._content.rstrip())
         except Exception:
             pass  # Widget not mounted yet, content will show on mount
 
     def get_raw_content(self) -> str:
-        """Get content without the role prefix for copying."""
-        # Strip the **Claude:**\n\n or **You:** prefix
-        content = self._content
-        if content.startswith("**Claude:**\n\n"):
-            return content[13:]
-        if content.startswith("**You:** "):
-            return content[9:]
-        return content
+        """Get raw content for copying."""
+        return self._content
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "copy-btn":
-            import pyperclip
             try:
                 pyperclip.copy(self.get_raw_content())
                 self.app.notify("Copied to clipboard")
@@ -661,7 +742,6 @@ class SelectionPrompt(Static):
 
     async def wait(self) -> str:
         """Wait for selection. Returns value or empty string if cancelled."""
-        import anyio
         while not self._result_event.is_set():
             await anyio.sleep(0.05)
         return self._result_value
@@ -672,11 +752,11 @@ class ChatApp(App):
 
     CSS_PATH = "styles.tcss"
     BINDINGS = [
-        Binding("ctrl+y", "copy_selection", "Copy", priority=True),
-        Binding("ctrl+c", "quit", "Quit", priority=True),
-        ("ctrl+l", "clear", "Clear"),
-        ("ctrl+b", "toggle_sidebar", "Sessions"),
-        Binding("shift+tab", "cycle_permission_mode", "Mode", priority=True),
+        Binding("ctrl+y", "copy_selection", "Copy", priority=True, show=False),
+        Binding("ctrl+c", "quit", "Quit", priority=True, show=False),
+        Binding("ctrl+l", "clear", "Clear", show=False),
+        Binding("shift+tab", "cycle_permission_mode", "Auto-edit", priority=True),
+        Binding("escape", "cancel_picker", "Cancel", show=False),
     ]
 
     # Auto-approve Edit/Write tools (but still prompt for Bash, etc.)
@@ -700,6 +780,7 @@ class ChatApp(App):
         self.pending_tools: dict[str, ToolUseWidget] = {}  # tool_use_id -> widget
         self.recent_tools: list[ToolUseWidget] = []  # Track recent for auto-collapse
         self._resume_on_start = resume_session_id  # Session to resume on startup
+        self._session_picker_active = False  # Whether session picker is shown
         # Event queues for testing
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
@@ -722,7 +803,7 @@ class ChatApp(App):
             options.insert(0, ("allow_all", "Yes, all edits in this session"))
         prompt = SelectionPrompt(request.title, options)
         self.mount(prompt)
-        prompt.focus()
+        self.call_after_refresh(prompt.focus)
         # Wait for response from either UI or programmatic (test)
         async def ui_response():
             result = await prompt.wait()
@@ -756,7 +837,7 @@ class ChatApp(App):
     def compose(self) -> ComposeResult:
         yield ContextHeader()
         with Horizontal(id="main"):
-            yield ListView(id="sidebar", classes="hidden")
+            yield ListView(id="session-picker", classes="hidden")
             yield VerticalScroll(id="chat-view")
         yield ChatInput(id="input")
         yield Footer()
@@ -778,24 +859,18 @@ class ChatApp(App):
         chat_view.remove_children()
         for m in load_session_messages(session_id, limit=50):
             if m["type"] == "user":
-                msg = ChatMessage("user", f"**You:** {m['content'][:500]}")
+                msg = ChatMessage( m['content'][:500])
                 msg.add_class("user-message")
                 chat_view.mount(msg)
             elif m["type"] == "assistant":
-                msg = ChatMessage("assistant", f"**Claude:** {m['content'][:1000]}")
+                msg = ChatMessage( m['content'][:1000])
                 msg.add_class("assistant-message")
                 chat_view.mount(msg)
             elif m["type"] == "tool_use":
                 block = ToolUseBlock(id=m.get("id", ""), name=m["name"], input=m["input"])
                 widget = ToolUseWidget(block, collapsed=True)
-                widget.add_class("tool-use")
                 chat_view.mount(widget)
         self.call_later(lambda: chat_view.scroll_end(animate=False))
-
-    async def on_unmount(self) -> None:
-        # Don't disconnect - causes task boundary errors on Ctrl+C exit
-        # Process exit will clean up resources
-        pass
 
     @work(group="context", exclusive=True, exit_on_error=False)
     async def refresh_context(self) -> None:
@@ -825,24 +900,30 @@ class ChatApp(App):
             self.run_claude(prompt)
             return
 
-        # Handle /resume - reconnect with session ID
+        # Handle /resume - show session picker or resume specific session
         if prompt.strip().startswith("/resume"):
             parts = prompt.strip().split(maxsplit=1)
-            session_id = parts[1] if len(parts) > 1 else self.session_id
-            if session_id:
-                self.resume_session(session_id)
+            if len(parts) > 1:
+                # Resume specific session by ID
+                self._load_and_display_history(parts[1])
+                self.notify(f"Resuming {parts[1][:8]}...")
+                self.resume_session(parts[1])
             else:
-                self.notify("No session ID to resume", severity="error")
+                # Show session picker
+                self._show_session_picker()
             return
 
         # Add user message
-        user_msg = ChatMessage("user", f"**You:** {prompt}")
+        user_msg = ChatMessage(prompt)
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
         self.call_later(lambda: chat_view.scroll_end(animate=False))
 
         # Reset current response - will be created when first text arrives
         self.current_response = None
+
+        # Show thinking indicator
+        self._show_thinking()
 
         # Start the query
         self.run_claude(prompt)
@@ -890,11 +971,30 @@ class ChatApp(App):
             elif isinstance(message, ResultMessage):
                 self.post_message(ResponseComplete(message))
 
+    def _show_thinking(self) -> None:
+        """Show thinking indicator in chat view."""
+        # Don't add if one already exists
+        if self.query(ThinkingIndicator):
+            return
+        chat_view = self.query_one("#chat-view", VerticalScroll)
+        indicator = ThinkingIndicator()
+        chat_view.mount(indicator)
+        self.call_later(lambda: chat_view.scroll_end(animate=False))
+
+    def _hide_thinking(self) -> None:
+        """Hide thinking indicator."""
+        try:
+            for ind in self.query(ThinkingIndicator):
+                ind.remove()
+        except Exception:
+            pass
+
     def on_stream_chunk(self, event: StreamChunk) -> None:
+        self._hide_thinking()
         chat_view = self.query_one("#chat-view", VerticalScroll)
         # Create new message widget if needed (after tool use)
         if event.new_message or not self.current_response:
-            self.current_response = ChatMessage("assistant", "**Claude:**\n\n")
+            self.current_response = ChatMessage( "")
             self.current_response.add_class("assistant-message")
             chat_view.mount(self.current_response)
         self.current_response.append_content(event.text)
@@ -902,17 +1002,19 @@ class ChatApp(App):
 
     def on_tool_use_message(self, event: ToolUseMessage) -> None:
         """Handle a tool use starting."""
+        self._hide_thinking()
         chat_view = self.query_one("#chat-view", VerticalScroll)
         # Collapse older tools beyond the threshold
         while len(self.recent_tools) >= self.RECENT_TOOLS_EXPANDED:
             old = self.recent_tools.pop(0)
             old.collapse()
         widget = ToolUseWidget(event.block, collapsed=False)
-        widget.add_class("tool-use")
         self.pending_tools[event.block.id] = widget
         self.recent_tools.append(widget)
         chat_view.mount(widget)
         self.call_later(lambda: chat_view.scroll_end(animate=False))
+        # Show spinner while tool executes
+        self._show_thinking()
 
     def on_tool_result_message(self, event: ToolResultMessage) -> None:
         """Handle a tool result arriving."""
@@ -920,17 +1022,17 @@ class ChatApp(App):
         if widget:
             widget.set_result(event.block)
             del self.pending_tools[event.block.tool_use_id]
+        # Show spinner while Claude thinks about next step
+        self._show_thinking()
 
     def on_context_update(self, event: ContextUpdate) -> None:
         """Update context bar from /context command."""
         self.query_one("#context-bar", ContextBar).tokens = event.tokens
 
     def on_response_complete(self, event: ResponseComplete) -> None:
+        self._hide_thinking()
         if event.result:
             self.session_id = event.result.session_id
-            cost = event.result.total_cost_usd or 0
-            if cost > 0:
-                self.notify(f"Cost: ${cost:.4f}")
             # Update context bar with usage (input tokens = context window usage)
             if event.result.usage:
                 u = event.result.usage
@@ -1004,29 +1106,67 @@ class ChatApp(App):
             self._last_quit_time = now
             self.notify("Press Ctrl+C again to quit")
 
-    def action_toggle_sidebar(self) -> None:
-        sidebar = self.query_one("#sidebar", ListView)
-        if sidebar.has_class("hidden"):
-            sidebar.remove_class("hidden")
-            sidebar.clear()
-            for session_id, preview, _, msg_count in get_recent_sessions():
-                sidebar.append(SessionItem(session_id, preview, msg_count))
-            sidebar.focus()
-        else:
-            sidebar.add_class("hidden")
-            self.query_one("#input", ChatInput).focus()
+    def _show_session_picker(self) -> None:
+        """Show the session picker, hiding the chat view."""
+        picker = self.query_one("#session-picker", ListView)
+        chat_view = self.query_one("#chat-view", VerticalScroll)
+        picker.remove_class("hidden")
+        chat_view.add_class("hidden")
+        self._session_picker_active = True
+        self._update_session_picker("")
+
+    def _update_session_picker(self, search: str) -> None:
+        """Update session picker with filtered results."""
+        picker = self.query_one("#session-picker", ListView)
+        picker.clear()
+        for session_id, preview, _, msg_count in get_recent_sessions(search=search):
+            picker.append(SessionItem(session_id, preview, msg_count))
+
+    def _hide_session_picker(self) -> None:
+        """Hide the session picker, show chat view."""
+        self._session_picker_active = False
+        self.query_one("#session-picker", ListView).add_class("hidden")
+        self.query_one("#chat-view", VerticalScroll).remove_class("hidden")
+        self.query_one("#input", ChatInput).clear()
+        self.query_one("#input", ChatInput).focus()
+
+    def action_cancel_picker(self) -> None:
+        """Cancel the session picker with Escape."""
+        if self._session_picker_active:
+            self._hide_session_picker()
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Filter session picker as user types."""
+        if self._session_picker_active and event.text_area.id == "input":
+            self._update_session_picker(event.text_area.text)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if isinstance(event.item, SessionItem):
             session_id = event.item.session_id
             log.info(f"Resuming session: {session_id}")
-            self.query_one("#sidebar", ListView).add_class("hidden")
+            self._hide_session_picker()
             self._load_and_display_history(session_id)
             self.notify(f"Resuming {session_id[:8]}...")
             self.resume_session(session_id)
 
     def on_app_focus(self) -> None:
         self.query_one("#input", ChatInput).focus()
+
+    def on_key(self, event) -> None:
+        """Redirect typing to input unless a dialog is active."""
+        # Don't intercept if SelectionPrompt is active (it handles its own keys)
+        if self.query(SelectionPrompt):
+            return
+        # Don't intercept if input is already focused
+        input_widget = self.query_one("#input", ChatInput)
+        if self.focused == input_widget:
+            return
+        # For printable characters, focus input and let it handle the key
+        if len(event.character or "") == 1 and event.character.isprintable():
+            input_widget.focus()
+            input_widget.insert(event.character)
+            event.prevent_default()
+            event.stop()
 
 
 if __name__ == "__main__":
