@@ -41,6 +41,7 @@ ChatMessage.assistant-message {
 /* Tool uses - subtle, highlight on hover */
 ToolUseWidget {
     border-left: tall #333333;
+    margin: 0;
 }
 
 ToolUseWidget.hovered {
@@ -48,10 +49,26 @@ ToolUseWidget.hovered {
     background: #111111;
 }
 
+/* Task widgets - slightly more prominent */
+TaskWidget {
+    border-left: tall #445566;
+    margin: 0;
+}
+
+/* Nested content inside tasks is indented */
+TaskWidget #task-content {
+    padding-left: 2;
+}
+
 /* Thinking indicator - subtle */
 ThinkingIndicator {
     border-left: tall #333333;
     color: $text-muted;
+}
+
+/* Add spacing when following tool uses */
+ChatMessage.after-tool, ThinkingIndicator.after-tool {
+    margin-top: 1;
 }
 
 /* Copy buttons - hidden until hover */
@@ -112,20 +129,33 @@ ToolUseWidget:hover .tool-copy-btn {
     background: $surface-lighten-1;
 }
 
+/* Input wrapper for centering */
+#input-wrapper {
+    dock: bottom;
+    width: 100%;
+    height: auto;
+    min-height: 5;
+    max-height: 12;
+    align: center top;
+    padding: 0 0 1 0;
+}
+
 /* Input area */
 #input {
-    dock: bottom;
-    margin: 1 2;
     height: auto;
-    max-height: 10;
     min-height: 3;
-    width: 100%;
+    max-height: 10;
+    width: 100;
     border: solid gray;
     background: $surface;
 }
 
 #input:focus {
     border: solid white;
+}
+
+#input.hidden {
+    display: none;
 }
 
 /* Markdown resets */
@@ -159,4 +189,48 @@ ToolUseWidget Collapsible Contents {
 
 #diff-content {
     color: $text;
+}
+
+/* Header indicators */
+CPUBar {
+    width: 10;
+    padding: 0 1;
+    content-align: right middle;
+}
+
+ContextBar {
+    width: 18;
+    padding: 0 1;
+    content-align: right middle;
+}
+
+HeaderIndicators {
+    dock: right;
+    width: 30;
+    height: 1;
+    layout: horizontal;
+}
+
+/* Selection prompt */
+SelectionPrompt {
+    height: auto;
+    width: 100;
+    background: $surface;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+SelectionPrompt .prompt-title {
+    color: $text;
+    padding: 0 0 0 0;
+}
+
+SelectionPrompt .prompt-option {
+    padding: 0 0 0 1;
+    color: $text-muted;
+}
+
+SelectionPrompt .prompt-option.selected {
+    color: $text;
+    background: #333366;
 }

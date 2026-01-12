@@ -11,3 +11,6 @@ wheels/
 
 # Logs
 *.log
+
+# Test artifacts
+test_write*.txt

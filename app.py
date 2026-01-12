@@ -12,6 +12,7 @@ from typing import Any
 from dataclasses import dataclass, field
 
 import anyio
+import psutil
 import pyperclip
 
 # Set up file logging
@@ -204,17 +205,35 @@ def parse_context_tokens(content: str) -> int | None:
     return None
 
 
+class CPUBar(Widget):
+    """Display CPU usage in the header."""
+
+    cpu_pct = reactive(0.0)
+
+    def on_mount(self) -> None:
+        self._process = psutil.Process()
+        self._process.cpu_percent()  # Prime the measurement
+        self.set_interval(2.0, self._update_cpu)
+
+    def _update_cpu(self) -> None:
+        try:
+            self.cpu_pct = self._process.cpu_percent()
+        except Exception:
+            pass
+
+    def render(self) -> RenderResult:
+        pct = min(self.cpu_pct / 100.0, 1.0)
+        if pct < 0.3:
+            color = "dim"
+        elif pct < 0.7:
+            color = "yellow"
+        else:
+            color = "red"
+        return Text.assemble(("CPU ", "dim"), (f"{self.cpu_pct:3.0f}%", color))
+
+
 class ContextBar(Widget):
     """Display context usage as a progress bar in the header."""
-
-    DEFAULT_CSS = """
-    ContextBar {
-        dock: right;
-        width: 20;
-        padding: 0 1;
-        content-align: right middle;
-    }
-    """
 
     tokens = reactive(0)
     max_tokens = reactive(MAX_CONTEXT_TOKENS)
@@ -234,13 +253,21 @@ class ContextBar(Widget):
         return Text.assemble((bar, color), (f" {pct*100:.0f}%", color))
 
 
+class HeaderIndicators(Widget):
+    """Right-side header indicators container."""
+
+    def compose(self) -> ComposeResult:
+        yield CPUBar(id="cpu-bar")
+        yield ContextBar(id="context-bar")
+
+
 class ContextHeader(Header):
-    """Header with context bar instead of clock."""
+    """Header with context bar and CPU indicator."""
 
     def compose(self) -> ComposeResult:
         yield HeaderIcon().data_bind(Header.icon)
         yield HeaderTitle()
-        yield ContextBar(id="context-bar")
+        yield HeaderIndicators()
 
 
 class SessionItem(ListItem):
@@ -330,9 +357,10 @@ class ChatInput(TextArea):
 
 class StreamChunk(Message):
     """Message sent when a chunk of text is received."""
-    def __init__(self, text: str, new_message: bool = False) -> None:
+    def __init__(self, text: str, new_message: bool = False, parent_tool_use_id: str | None = None) -> None:
         self.text = text
         self.new_message = new_message  # Start a new ChatMessage widget
+        self.parent_tool_use_id = parent_tool_use_id  # If set, belongs to a Task
         super().__init__()
 
 
@@ -345,15 +373,17 @@ class ResponseComplete(Message):
 
 class ToolUseMessage(Message):
     """Message sent when a tool use starts."""
-    def __init__(self, block: ToolUseBlock) -> None:
+    def __init__(self, block: ToolUseBlock, parent_tool_use_id: str | None = None) -> None:
         self.block = block
+        self.parent_tool_use_id = parent_tool_use_id
         super().__init__()
 
 
 class ToolResultMessage(Message):
     """Message sent when a tool result arrives."""
-    def __init__(self, block: ToolResultBlock) -> None:
+    def __init__(self, block: ToolResultBlock, parent_tool_use_id: str | None = None) -> None:
         self.block = block
+        self.parent_tool_use_id = parent_tool_use_id
         super().__init__()
 
 
@@ -598,6 +628,82 @@ class ToolUseWidget(Static):
             pass  # Widget may not be mounted yet
 
 
+class TaskWidget(Static):
+    """A collapsible widget showing a Task with nested subagent content."""
+
+    RECENT_EXPANDED = 2  # Keep last N tool uses expanded within task
+
+    def __init__(self, block: ToolUseBlock, collapsed: bool = False) -> None:
+        super().__init__()
+        self.block = block
+        self.result: ToolResultBlock | None = None
+        self._initial_collapsed = collapsed
+        self._current_message: ChatMessage | None = None
+        self._recent_tools: list[ToolUseWidget] = []
+        self._pending_tools: dict[str, ToolUseWidget] = {}
+
+    def compose(self) -> ComposeResult:
+        desc = self.block.input.get('description', 'Task')
+        agent_type = self.block.input.get('subagent_type', '')
+        title = f"Task: {desc}" + (f" ({agent_type})" if agent_type else "")
+        with Collapsible(title=title, collapsed=self._initial_collapsed):
+            yield Static("", id="task-content")
+
+    def collapse(self) -> None:
+        """Collapse this widget."""
+        try:
+            self.query_one(Collapsible).collapsed = True
+        except Exception:
+            pass
+
+    def add_text(self, text: str, new_message: bool = False) -> None:
+        """Add text content from subagent."""
+        try:
+            content = self.query_one("#task-content", Static)
+            if new_message or self._current_message is None:
+                self._current_message = ChatMessage("")
+                self._current_message.add_class("assistant-message")
+                if new_message:
+                    self._current_message.add_class("after-tool")
+                content.mount(self._current_message)
+            self._current_message.append_content(text)
+        except Exception:
+            pass
+
+    def add_tool_use(self, block: ToolUseBlock) -> None:
+        """Add a tool use from subagent."""
+        try:
+            content = self.query_one("#task-content", Static)
+            # Collapse older tools
+            while len(self._recent_tools) >= self.RECENT_EXPANDED:
+                old = self._recent_tools.pop(0)
+                old.collapse()
+            widget = ToolUseWidget(block, collapsed=False)
+            self._pending_tools[block.id] = widget
+            self._recent_tools.append(widget)
+            content.mount(widget)
+            self._current_message = None  # Next text starts fresh
+        except Exception:
+            pass
+
+    def add_tool_result(self, block: ToolResultBlock) -> None:
+        """Add a tool result from subagent."""
+        widget = self._pending_tools.get(block.tool_use_id)
+        if widget:
+            widget.set_result(block)
+            del self._pending_tools[block.tool_use_id]
+
+    def set_result(self, result: ToolResultBlock) -> None:
+        """Set the Task's own result."""
+        self.result = result
+        try:
+            collapsible = self.query_one(Collapsible)
+            if result.is_error:
+                collapsible.add_class("error")
+        except Exception:
+            pass  # Widget may not be mounted yet
+
+
 class ThinkingIndicator(Static):
     """Animated spinner shown when Claude is working."""
 
@@ -609,7 +715,10 @@ class ThinkingIndicator(Static):
         super().__init__("⠋ Thinking...")
 
     def on_mount(self) -> None:
-        self.set_interval(1/10, self._tick)
+        self._timer = self.set_interval(1/10, self._tick)
+
+    def on_unmount(self) -> None:
+        self._timer.stop()
 
     def _tick(self) -> None:
         self.frame = (self.frame + 1) % len(self.FRAMES)
@@ -656,29 +765,6 @@ class SelectionPrompt(Static):
 
     can_focus = True
 
-    DEFAULT_CSS = """
-    SelectionPrompt {
-        dock: bottom;
-        height: auto;
-        background: $surface;
-        border: solid $primary;
-        padding: 0 1;
-        margin: 0 1 0 1;
-    }
-    SelectionPrompt .prompt-title {
-        color: $text;
-        padding: 0 0 0 0;
-    }
-    SelectionPrompt .prompt-option {
-        padding: 0 0 0 1;
-        color: $text-muted;
-    }
-    SelectionPrompt .prompt-option.selected {
-        color: $text;
-        background: $primary 20%;
-    }
-    """
-
     def __init__(self, title: str, options: list[tuple[str, str]]) -> None:
         """Create selection prompt.
 
@@ -698,6 +784,10 @@ class SelectionPrompt(Static):
         for i, (value, label) in enumerate(self.options):
             classes = "prompt-option selected" if i == 0 else "prompt-option"
             yield Static(f"{i + 1}. {label}", classes=classes, id=f"opt-{i}")
+
+    def on_mount(self) -> None:
+        """Auto-focus on mount to capture keys immediately."""
+        self.focus()
 
     def _update_selection(self) -> None:
         """Update visual selection state."""
@@ -777,8 +867,9 @@ class ChatApp(App):
         self.client: ClaudeSDKClient | None = None
         self.current_response: ChatMessage | None = None
         self.session_id: str | None = None
-        self.pending_tools: dict[str, ToolUseWidget] = {}  # tool_use_id -> widget
-        self.recent_tools: list[ToolUseWidget] = []  # Track recent for auto-collapse
+        self.pending_tools: dict[str, ToolUseWidget | TaskWidget] = {}  # tool_use_id -> widget
+        self.active_tasks: dict[str, TaskWidget] = {}  # tool_use_id -> TaskWidget for routing
+        self.recent_tools: list[ToolUseWidget | TaskWidget] = []  # Track recent for auto-collapse
         self._resume_on_start = resume_session_id  # Session to resume on startup
         self._session_picker_active = False  # Whether session picker is shown
         # Event queues for testing
@@ -802,8 +893,9 @@ class ChatApp(App):
         if tool_name in self.AUTO_EDIT_TOOLS:
             options.insert(0, ("allow_all", "Yes, all edits in this session"))
         prompt = SelectionPrompt(request.title, options)
-        self.mount(prompt)
-        self.call_after_refresh(prompt.focus)
+        input_widget = self.query_one("#input", ChatInput)
+        input_widget.add_class("hidden")
+        self.query_one("#input-wrapper").mount(prompt)
         # Wait for response from either UI or programmatic (test)
         async def ui_response():
             result = await prompt.wait()
@@ -811,11 +903,12 @@ class ChatApp(App):
                 request.respond(result)
         self.run_worker(ui_response(), exclusive=False)
         result = await request.wait()
-        # Clean up UI if still mounted
+        # Clean up UI and restore input
         try:
             prompt.remove()
         except Exception:
             pass
+        input_widget.remove_class("hidden")
         log.info(f"Permission result: {result}")
         if result == "allow_all":
             self.auto_approve_edits = True
@@ -839,7 +932,8 @@ class ChatApp(App):
         with Horizontal(id="main"):
             yield ListView(id="session-picker", classes="hidden")
             yield VerticalScroll(id="chat-view")
-        yield ChatInput(id="input")
+        with Horizontal(id="input-wrapper"):
+            yield ChatInput(id="input")
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -870,7 +964,7 @@ class ChatApp(App):
                 block = ToolUseBlock(id=m.get("id", ""), name=m["name"], input=m["input"])
                 widget = ToolUseWidget(block, collapsed=True)
                 chat_view.mount(widget)
-        self.call_later(lambda: chat_view.scroll_end(animate=False))
+        self.call_after_refresh(chat_view.scroll_end, animate=False)
 
     @work(group="context", exclusive=True, exit_on_error=False)
     async def refresh_context(self) -> None:
@@ -917,7 +1011,7 @@ class ChatApp(App):
         user_msg = ChatMessage(prompt)
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
-        self.call_later(lambda: chat_view.scroll_end(animate=False))
+        self.call_after_refresh(chat_view.scroll_end, animate=False)
 
         # Reset current response - will be created when first text arrives
         self.current_response = None
@@ -934,23 +1028,23 @@ class ChatApp(App):
             return
 
         await self.client.query(prompt)
-        had_tool_use = False
+        # Track had_tool_use per parent (None = top-level, or parent_tool_use_id)
+        had_tool_use: dict[str | None, bool] = {}
         async for message in self.client.receive_response():
             log.info(f"Message type: {type(message).__name__}")
             if isinstance(message, AssistantMessage):
+                parent_id = message.parent_tool_use_id
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         # After tool use, need fresh message widget
-                        if had_tool_use:
-                            self.post_message(StreamChunk(block.text, new_message=True))
-                            had_tool_use = False
-                        else:
-                            self.post_message(StreamChunk(block.text))
+                        new_msg = had_tool_use.get(parent_id, False)
+                        self.post_message(StreamChunk(block.text, new_message=new_msg, parent_tool_use_id=parent_id))
+                        had_tool_use[parent_id] = False
                     elif isinstance(block, ToolUseBlock):
-                        self.post_message(ToolUseMessage(block))
-                        had_tool_use = True
+                        self.post_message(ToolUseMessage(block, parent_tool_use_id=parent_id))
+                        had_tool_use[parent_id] = True
                     elif isinstance(block, ToolResultBlock):
-                        self.post_message(ToolResultMessage(block))
+                        self.post_message(ToolResultMessage(block, parent_tool_use_id=parent_id))
             elif isinstance(message, UserMessage):
                 # Check for /context response
                 content = getattr(message, 'content', '')
@@ -973,13 +1067,11 @@ class ChatApp(App):
 
     def _show_thinking(self) -> None:
         """Show thinking indicator in chat view."""
-        # Don't add if one already exists
         if self.query(ThinkingIndicator):
             return
         chat_view = self.query_one("#chat-view", VerticalScroll)
-        indicator = ThinkingIndicator()
-        chat_view.mount(indicator)
-        self.call_later(lambda: chat_view.scroll_end(animate=False))
+        chat_view.mount(ThinkingIndicator())
+        self.call_after_refresh(chat_view.scroll_end, animate=False)
 
     def _hide_thinking(self) -> None:
         """Hide thinking indicator."""
@@ -991,37 +1083,64 @@ class ChatApp(App):
 
     def on_stream_chunk(self, event: StreamChunk) -> None:
         self._hide_thinking()
+        # Route to TaskWidget if this belongs to a subagent
+        if event.parent_tool_use_id and event.parent_tool_use_id in self.active_tasks:
+            task = self.active_tasks[event.parent_tool_use_id]
+            task.add_text(event.text, new_message=event.new_message)
+            return
+        # Top-level message
         chat_view = self.query_one("#chat-view", VerticalScroll)
-        # Create new message widget if needed (after tool use)
         if event.new_message or not self.current_response:
-            self.current_response = ChatMessage( "")
+            self.current_response = ChatMessage("")
             self.current_response.add_class("assistant-message")
+            if event.new_message:
+                self.current_response.add_class("after-tool")
             chat_view.mount(self.current_response)
         self.current_response.append_content(event.text)
-        self.call_later(lambda: chat_view.scroll_end(animate=False))
+        self.call_after_refresh(chat_view.scroll_end, animate=False)
 
     def on_tool_use_message(self, event: ToolUseMessage) -> None:
         """Handle a tool use starting."""
         self._hide_thinking()
+        # Route to TaskWidget if this belongs to a subagent
+        if event.parent_tool_use_id and event.parent_tool_use_id in self.active_tasks:
+            task = self.active_tasks[event.parent_tool_use_id]
+            task.add_tool_use(event.block)
+            return
+        # Top-level tool use
         chat_view = self.query_one("#chat-view", VerticalScroll)
         # Collapse older tools beyond the threshold
         while len(self.recent_tools) >= self.RECENT_TOOLS_EXPANDED:
             old = self.recent_tools.pop(0)
             old.collapse()
-        widget = ToolUseWidget(event.block, collapsed=False)
+        # Create TaskWidget for Task tool, otherwise ToolUseWidget
+        if event.block.name == "Task":
+            widget = TaskWidget(event.block, collapsed=False)
+            self.active_tasks[event.block.id] = widget
+        else:
+            widget = ToolUseWidget(event.block, collapsed=False)
         self.pending_tools[event.block.id] = widget
         self.recent_tools.append(widget)
         chat_view.mount(widget)
-        self.call_later(lambda: chat_view.scroll_end(animate=False))
+        self.call_after_refresh(chat_view.scroll_end, animate=False)
         # Show spinner while tool executes
         self._show_thinking()
 
     def on_tool_result_message(self, event: ToolResultMessage) -> None:
         """Handle a tool result arriving."""
+        # Route to TaskWidget if this belongs to a subagent
+        if event.parent_tool_use_id and event.parent_tool_use_id in self.active_tasks:
+            task = self.active_tasks[event.parent_tool_use_id]
+            task.add_tool_result(event.block)
+            return
+        # Top-level tool result
         widget = self.pending_tools.get(event.block.tool_use_id)
         if widget:
             widget.set_result(event.block)
             del self.pending_tools[event.block.tool_use_id]
+            # Clean up active_tasks if this was a Task
+            if event.block.tool_use_id in self.active_tasks:
+                del self.active_tasks[event.block.tool_use_id]
         # Show spinner while Claude thinks about next step
         self._show_thinking()
 
@@ -1033,14 +1152,8 @@ class ChatApp(App):
         self._hide_thinking()
         if event.result:
             self.session_id = event.result.session_id
-            # Update context bar with usage (input tokens = context window usage)
-            if event.result.usage:
-                u = event.result.usage
-                # Context = input + cached input (output doesn't count toward limit)
-                total = (u.get("input_tokens", 0) +
-                        u.get("cache_creation_input_tokens", 0) +
-                        u.get("cache_read_input_tokens", 0))
-                self.query_one("#context-bar", ContextBar).tokens = total
+            # Refresh context from /context command (authoritative source)
+            self.refresh_context()
         self.current_response = None
         self.query_one("#input", ChatInput).focus()
         # Publish to completions queue (for testing)
