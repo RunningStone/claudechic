@@ -342,6 +342,9 @@ class ChatApp(App):
                     elif isinstance(block, ToolResultBlock):
                         self.post_message(ToolResultMessage(block, parent_tool_use_id=parent_id))
             elif isinstance(message, UserMessage):
+                # UserMessage after ToolUseBlock means tool execution completed
+                for widget in self.pending_tools.values():
+                    widget.stop_spinner()
                 content = getattr(message, "content", "")
                 if "<local-command-stdout>" in content:
                     tokens = parse_context_tokens(content)
@@ -359,6 +362,7 @@ class ChatApp(App):
                 self.post_message(ResponseComplete(message))
 
     def _show_thinking(self) -> None:
+        """Show the thinking indicator."""
         if self.query(ThinkingIndicator):
             return
         chat_view = self.query_one("#chat-view", VerticalScroll)
@@ -435,7 +439,7 @@ class ChatApp(App):
         self.recent_tools.append(widget)
         chat_view.mount(widget)
         self.call_after_refresh(chat_view.scroll_end, animate=False)
-        self._show_thinking()
+        self._hide_thinking()  # Tool widget has its own spinner
 
     def on_tool_result_message(self, event: ToolResultMessage) -> None:
         if event.parent_tool_use_id and event.parent_tool_use_id in self.active_tasks:

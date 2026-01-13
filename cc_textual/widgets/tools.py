@@ -24,16 +24,20 @@ log = logging.getLogger(__name__)
 class ToolUseWidget(Static):
     """A collapsible widget showing a tool use."""
 
+    SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
     def __init__(self, block: ToolUseBlock, collapsed: bool = False) -> None:
         super().__init__()
         self.block = block
         self.result: ToolResultBlock | None = None
         self._initial_collapsed = collapsed
+        self._header = format_tool_header(self.block.name, self.block.input)
+        self._spinner_frame = 0
+        self._spinner_timer = None
 
     def compose(self) -> ComposeResult:
         yield Button("\u238c", id="tool-copy-btn", classes="tool-copy-btn")
-        header = format_tool_header(self.block.name, self.block.input)
-        with Collapsible(title=header, collapsed=self._initial_collapsed):
+        with Collapsible(title=f"{self.SPINNER_FRAMES[0]} {self._header}", collapsed=self._initial_collapsed):
             if self.block.name == "Edit":
                 diff = format_diff_text(
                     self.block.input.get("old_string", ""),
@@ -43,6 +47,40 @@ class ToolUseWidget(Static):
             else:
                 details = format_tool_details(self.block.name, self.block.input)
                 yield Markdown(details, id="md-content")
+
+    def on_mount(self) -> None:
+        self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
+
+    def _tick_spinner(self) -> None:
+        if self.result is not None or self._spinner_timer is None:
+            return
+        self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
+        try:
+            from textual.widgets._collapsible import CollapsibleTitle
+            collapsible = self.query_one(Collapsible)
+            new_title = f"{self.SPINNER_FRAMES[self._spinner_frame]} {self._header}"
+            collapsible.title = new_title
+            title_widget = collapsible.query_one(CollapsibleTitle)
+            title_widget.label = new_title
+        except Exception:
+            pass
+
+    def stop_spinner(self) -> None:
+        """Stop the spinner and show static header."""
+        if self.result is not None:
+            return
+        self.result = True  # Mark as complete
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+        try:
+            from textual.widgets._collapsible import CollapsibleTitle
+            collapsible = self.query_one(Collapsible)
+            collapsible.title = self._header
+            title_widget = collapsible.query_one(CollapsibleTitle)
+            title_widget.label = self._header
+        except Exception:
+            pass
 
     def collapse(self) -> None:
         """Collapse this widget."""
@@ -100,11 +138,18 @@ class ToolUseWidget(Static):
     def set_result(self, result: ToolResultBlock) -> None:
         """Update with tool result."""
         self.result = result
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
         log.info(
             f"Tool result for {self.block.name}: {type(result.content)} - {str(result.content)[:200]}"
         )
         try:
+            from textual.widgets._collapsible import CollapsibleTitle
             collapsible = self.query_one(Collapsible)
+            collapsible.title = self._header  # Remove spinner
+            title_widget = collapsible.query_one(CollapsibleTitle)
+            title_widget.label = self._header
             if result.is_error:
                 collapsible.add_class("error")
             # Edit uses Static for diff, others use Markdown
