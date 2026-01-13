@@ -5,40 +5,110 @@ Terminal UI for Claude Code built with Textual, wrapping the `claude-agent-sdk`.
 ## Run
 
 ```bash
-uv run python app.py
-uv run python app.py --resume     # Resume most recent session
-uv run python app.py -s <uuid>    # Resume specific session
+uv run python -m cc_textual
+uv run python -m cc_textual --resume     # Resume most recent session
+uv run python -m cc_textual -s <uuid>    # Resume specific session
 ```
 
 Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login`).
 
+## File Map
+
+```
+cc_textual/
+├── __init__.py        # Package entry, exports ChatApp
+├── __main__.py        # CLI entry point
+├── app.py             # ChatApp - main application, event handlers
+├── formatting.py      # Tool formatting, diff rendering (pure functions)
+├── messages.py        # Custom Textual Message types for SDK events
+├── permissions.py     # PermissionRequest dataclass for tool approval
+├── sessions.py        # Session file loading and listing (pure functions)
+├── styles.tcss        # Textual CSS - visual styling
+└── widgets/
+    ├── __init__.py    # Re-exports all widgets
+    ├── chat.py        # ChatMessage, ChatInput, ThinkingIndicator
+    ├── header.py      # CPUBar, ContextBar, ContextHeader
+    ├── prompts.py     # SelectionPrompt, QuestionPrompt, SessionItem
+    └── tools.py       # ToolUseWidget, TaskWidget
+
+tests/
+├── conftest.py        # Shared fixtures (wait_for)
+└── test_app.py        # E2E tests
+```
+
 ## Architecture
 
-- `app.py` - Single-file Textual app (~1000 lines)
-- `styles.tcss` - Textual CSS styling
+### Module Boundaries
 
-### Key Components
+**Pure functions (no UI dependencies):**
+- `formatting.py` - Tool header formatting, diff rendering, language detection
+- `sessions.py` - Session file I/O, listing, filtering
 
-- `ChatApp` - Main app, manages SDK client and UI state
-- `ChatMessage` - User/assistant message with copy button
-- `ToolUseWidget` - Collapsible tool use display with colored diffs for edits
-- `ContextHeader` / `ContextBar` - Header showing context window usage as progress bar
-- `SessionItem` - Sidebar item for session selection
-- `SelectionPrompt` - Reusable prompt with arrow/number key navigation (used for permissions)
+**Internal protocol:**
+- `messages.py` - Custom `Message` subclasses for thread communication
+- `permissions.py` - `PermissionRequest` dataclass bridging SDK callbacks to UI
 
-### Message Flow
+**UI components:**
+- `widgets/` - Textual widgets with associated styles
+- `app.py` - Main app orchestrating widgets and SDK
 
-1. User types in `ChatInput`, Enter submits
-2. `run_claude()` worker calls SDK in background
-3. SDK responses post custom messages: `StreamChunk`, `ToolUseMessage`, `ToolResultMessage`, `ResponseComplete`
-4. Main thread handlers update UI widgets
+### Widget Hierarchy
 
-### Session Management
+```
+ChatApp
+├── ContextHeader (custom Header)
+│   └── HeaderIndicators
+│       ├── CPUBar
+│       └── ContextBar
+├── Horizontal #main
+│   ├── ListView #session-picker (hidden by default)
+│   └── VerticalScroll #chat-view
+│       ├── ChatMessage (user/assistant)
+│       ├── ToolUseWidget (collapsible tool display)
+│       │   └── Collapsible with diff or markdown content
+│       ├── TaskWidget (for Task tool - contains nested content)
+│       │   └── #task-content with ChatMessages and ToolUseWidgets
+│       └── ThinkingIndicator (animated spinner)
+├── Horizontal #input-wrapper
+│   ├── ChatInput (or SelectionPrompt/QuestionPrompt when prompting)
+└── Footer
+```
 
-Sessions stored in `~/.claude/projects/-path-to-project/*.jsonl`. The app can:
-- List recent sessions in sidebar (Ctrl+B)
-- Resume sessions by loading history + reconnecting SDK with `resume=session_id`
-- Filter out `/context` and other internal commands from history display
+### Message Flow (Thread Communication)
+
+The SDK runs in a background worker. Custom `Message` types communicate to the main thread:
+
+```
+SDK Worker Thread                    Main Thread (UI)
+─────────────────                    ────────────────
+receive AssistantMessage  ──post──>  on_stream_chunk() -> update ChatMessage
+receive ToolUseBlock      ──post──>  on_tool_use_message() -> mount ToolUseWidget
+receive ToolResultBlock   ──post──>  on_tool_result_message() -> update widget
+receive ResultMessage     ──post──>  on_response_complete() -> cleanup
+```
+
+### Permission Flow
+
+When SDK needs tool approval:
+1. `can_use_tool` callback creates `PermissionRequest`
+2. Request queued to `app.interactions` (for testing)
+3. `SelectionPrompt` mounted, replacing input
+4. User selects allow/deny/allow-all
+5. Callback returns `PermissionResultAllow` or `PermissionResultDeny`
+
+For `AskUserQuestion` tool: `QuestionPrompt` handles multi-question flow.
+
+### Styling
+
+Visual language uses left border bars to indicate content type:
+- **Orange** (`#cc7700`) - User messages
+- **Blue** (`#334455`) - Assistant messages
+- **Gray** (`#333333`) - Tool uses (brightens on hover)
+- **Blue-gray** (`#445566`) - Task widgets
+
+Context/CPU bars color-code by threshold (dim → yellow → red).
+
+Copy buttons appear on hover. Collapsibles auto-collapse older tool uses.
 
 ## Key SDK Usage
 
@@ -46,11 +116,10 @@ Sessions stored in `~/.claude/projects/-path-to-project/*.jsonl`. The app can:
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
 
 client = ClaudeSDKClient(ClaudeAgentOptions(
-    permission_mode="default",  # Respects ~/.claude/settings.json
-    env={"ANTHROPIC_API_KEY": ""},  # Force Max subscription
-    setting_sources=["user", "project", "local"],
-    can_use_tool=permission_callback,  # UI prompt for non-allowlisted tools
-    resume=session_id,  # Optional: resume existing session
+    permission_mode="default",
+    env={"ANTHROPIC_API_KEY": ""},
+    can_use_tool=permission_callback,
+    resume=session_id,
 ))
 await client.connect()
 await client.query("prompt")
@@ -63,19 +132,12 @@ async for message in client.receive_response():
 - Enter: Send message
 - Ctrl+C (x2): Quit
 - Ctrl+L: Clear chat (UI only)
-- Ctrl+B: Toggle session sidebar
-- Shift+Tab: Toggle auto-edit mode (auto-approve Edit/Write, still prompt for Bash)
+- Shift+Tab: Toggle auto-edit mode
 
-## Features
+## Testing
 
-- **Context bar**: Shows token usage in header (green/yellow/red by %)
-- **Tool use display**: Collapsible widgets, last 2 expanded, older auto-collapsed
-- **Edit diffs**: Word-level highlighting with red/green backgrounds
-- **Copy buttons**: On messages and tool uses
-- **Session resume**: Via CLI flags or sidebar selection
-- **Permission prompts**: Respects `~/.claude/settings.json` and hooks; prompts for non-allowlisted tools with y/n/a keys (a = allow all edits this session)
+```bash
+uv run pytest tests/ -v
+```
 
-## Future Work
-
-- Thinking blocks display
-- Tool result content display improvements
+Tests use `app.interactions` queue to programmatically respond to permission prompts, and `app.completions` queue to wait for response completion. Real SDK required.

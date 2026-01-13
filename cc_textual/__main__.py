@@ -1,0 +1,47 @@
+"""Entry point for python -m cc_textual."""
+
+import argparse
+import logging
+
+from cc_textual.app import ChatApp
+from cc_textual.sessions import get_recent_sessions
+
+# Set up file logging
+logging.basicConfig(
+    filename="cc-textual.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Claude Code Textual UI")
+    parser.add_argument(
+        "--resume", "-r", action="store_true", help="Resume the most recent session"
+    )
+    parser.add_argument("--session", "-s", type=str, help="Resume a specific session ID")
+    args = parser.parse_args()
+
+    resume_id = None
+    if args.session:
+        resume_id = args.session
+    elif args.resume:
+        sessions = get_recent_sessions(limit=1)
+        if sessions:
+            resume_id = sessions[0][0]
+
+    try:
+        app = ChatApp(resume_session_id=resume_id)
+        app.run()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    except Exception:
+        import traceback
+
+        with open("/tmp/cc-textual-crash.log", "w") as f:
+            traceback.print_exc(file=f)
+        raise
+
+
+if __name__ == "__main__":
+    main()

@@ -3,18 +3,10 @@
 import asyncio
 import pytest
 from pathlib import Path
-from app import ChatApp, ChatInput
 
-
-async def wait_for(condition, timeout=5, poll=0.01):
-    """Wait for a condition to be true, with fast polling."""
-    import time
-    start = time.monotonic()
-    while time.monotonic() - start < timeout:
-        if condition():
-            return True
-        await asyncio.sleep(poll)
-    raise TimeoutError(f"Condition not met within {timeout}s")
+from cc_textual import ChatApp
+from cc_textual.widgets import ChatInput
+from tests.conftest import wait_for
 
 
 @pytest.mark.asyncio
