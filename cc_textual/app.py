@@ -71,7 +71,7 @@ class ChatApp(App):
         Binding("ctrl+c", "quit", "Quit", priority=True, show=False),
         Binding("ctrl+l", "clear", "Clear", show=False),
         Binding("shift+tab", "cycle_permission_mode", "Auto-edit", priority=True),
-        Binding("escape", "cancel_picker", "Cancel", show=False),
+        Binding("escape", "escape", "Cancel", show=False),
     ]
 
     # Auto-approve Edit/Write tools (but still prompt for Bash, etc.)
@@ -563,7 +563,7 @@ class ChatApp(App):
             # Interrupt old client first (like pressing Escape)
             if old_client:
                 try:
-                    old_client.interrupt()
+                    await old_client.interrupt()
                 except Exception:
                     pass
 
@@ -588,7 +588,7 @@ class ChatApp(App):
                 self.session_id = resume_id
                 self.notify(f"Resumed session in {new_cwd.name}")
             else:
-                # Clear chat view only if not resuming (resume does its own clear)
+                # Clear chat view only if not resuming(resume does its own clear)
                 chat_view = self.query_one("#chat-view", VerticalScroll)
                 chat_view.remove_children()
                 self.session_id = None
@@ -597,9 +597,28 @@ class ChatApp(App):
             log.exception(f"SDK reconnect failed: {e}")
             self.notify(f"SDK reconnect failed: {e}", severity="error")
 
-    def action_cancel_picker(self) -> None:
+    def action_escape(self) -> None:
+        """Handle Escape: cancel picker, dismiss prompts, or interrupt agent."""
+        # Session picker takes priority
         if self._session_picker_active:
             self._hide_session_picker()
+            return
+
+        # Cancel any active prompts
+        for prompt in list(self.query(SelectionPrompt)) + list(self.query(QuestionPrompt)):
+            prompt.cancel()
+            return
+
+        # Interrupt running agent (check for active "claude" worker)
+        claude_workers = [w for w in self.workers if w.group == "claude" and w.is_running]
+        if self.client and claude_workers:
+            # Cancel workers and send interrupt signal to SDK
+            for worker in claude_workers:
+                worker.cancel()
+            self.run_worker(self.client.interrupt(), exclusive=False)
+            self._hide_thinking()
+            self.notify("Interrupted")
+            self.query_one("#input", ChatInput).focus()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if self._session_picker_active and event.text_area.id == "input":

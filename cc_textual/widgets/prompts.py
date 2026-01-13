@@ -221,10 +221,6 @@ class SelectionPrompt(Static):
             self._resolve(self.options[self.selected_idx][0])
             event.prevent_default()
             event.stop()
-        elif event.key == "escape":
-            self._resolve("")  # Empty = cancelled
-            event.prevent_default()
-            event.stop()
         elif event.key.isdigit():
             idx = int(event.key) - 1
             if 0 <= idx < len(self.options):
@@ -237,6 +233,10 @@ class SelectionPrompt(Static):
             self._result_value = result
             self._result_event.set()
         self.remove()
+
+    def cancel(self) -> None:
+        """Cancel this prompt (called by app on Escape)."""
+        self._resolve("")
 
     async def wait(self) -> str:
         """Wait for selection. Returns value or empty string if cancelled."""
@@ -307,6 +307,7 @@ class QuestionPrompt(Static):
     def on_key(self, event) -> None:
         if self._in_other_mode:
             if event.key == "escape":
+                # Exit text input, return to option selection
                 self._exit_other_mode()
                 event.prevent_default()
                 event.stop()
@@ -332,10 +333,6 @@ class QuestionPrompt(Static):
             event.stop()
         elif event.key == "enter":
             self._select_current()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "escape":
-            self._resolve_cancelled()
             event.prevent_default()
             event.stop()
         elif event.key.isdigit():
@@ -402,7 +399,8 @@ class QuestionPrompt(Static):
             self._result_event.set()
         self.remove()
 
-    def _resolve_cancelled(self) -> None:
+    def cancel(self) -> None:
+        """Cancel this prompt (called by app on Escape)."""
         self.answers = {}
         self._resolve()
 
