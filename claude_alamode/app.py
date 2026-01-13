@@ -88,7 +88,7 @@ class ChatApp(App):
     AUTO_EDIT_TOOLS = {"Edit", "Write"}
 
     # Tools to collapse by default
-    COLLAPSE_BY_DEFAULT = {"WebSearch", "WebFetch", "AskUserQuestion"}
+    COLLAPSE_BY_DEFAULT = {"WebSearch", "WebFetch", "AskUserQuestion", "Read", "Glob", "Grep"}
 
     RECENT_TOOLS_EXPANDED = 2
 
