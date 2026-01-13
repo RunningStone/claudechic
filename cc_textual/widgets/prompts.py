@@ -75,6 +75,10 @@ class BasePrompt(Static):
         """Auto-focus on mount to capture keys immediately."""
         self.focus()
 
+    def on_blur(self) -> None:
+        """Refocus when focus is lost - prompt must stay focused."""
+        self.focus()
+
     def cancel(self) -> None:
         """Cancel this prompt."""
         self._resolve(None)
