@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -41,7 +42,7 @@ from cc_textual.messages import (
     ContextUpdate,
 )
 from cc_textual.sessions import get_recent_sessions, load_session_messages
-from cc_textual.worktree import start_worktree, finish_worktree, list_worktrees
+from cc_textual.worktree import start_worktree, get_finish_worktree_info, list_worktrees
 from cc_textual.formatting import parse_context_tokens
 from cc_textual.permissions import PermissionRequest, dummy_hook
 from cc_textual.widgets import (
@@ -96,6 +97,7 @@ class ChatApp(App):
         self.recent_tools: list[ToolUseWidget | TaskWidget] = []
         self._resume_on_start = resume_session_id
         self._session_picker_active = False
+        self._pending_worktree_finish: dict | None = None  # Info for cleanup after merge
         # Event queues for testing
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
@@ -186,7 +188,7 @@ class ChatApp(App):
         self.notify(f"Auto-edit: {'ON' if self.auto_approve_edits else 'OFF'}")
 
     # Built-in slash commands (local to this app)
-    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree start", "/worktree finish"]
+    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish"]
 
     def compose(self) -> ComposeResult:
         yield ContextHeader()
@@ -381,6 +383,12 @@ class ChatApp(App):
         self.current_response.append_content(event.text)
         self.call_after_refresh(chat_view.scroll_end, animate=False)
 
+        # Check for MERGE_COMPLETE signal from worktree finish
+        if self._pending_worktree_finish and "MERGE_COMPLETE" in event.text:
+            info = self._pending_worktree_finish
+            self._pending_worktree_finish = None
+            self._finish_worktree_cleanup(info)
+
     def on_tool_use_message(self, event: ToolUseMessage) -> None:
         self._hide_thinking()
         if event.parent_tool_use_id and event.parent_tool_use_id in self.active_tasks:
@@ -517,13 +525,34 @@ class ChatApp(App):
 
         subcommand = parts[1]
         if subcommand == "finish":
-            success, message, original_cwd = finish_worktree(self.sdk_cwd)
-            if success and original_cwd:
-                self.notify("Worktree merged and cleaned up")
-                self.sub_title = ""
-                self._reconnect_sdk(original_cwd)
-            else:
+            success, message, info = get_finish_worktree_info(self.sdk_cwd)
+            if not success:
                 self.notify(message, severity="error")
+                return
+            # Store info for cleanup after Claude confirms merge success
+            self._pending_worktree_finish = info
+            # Send prompt to Claude for rebase/merge only
+            prompt = f"""Rebase and merge this feature branch:
+
+Branch: {info['branch_name']}
+Base branch: {info['base_branch']}
+Worktree dir: {info['worktree_dir']}
+Main dir: {info['main_dir']}
+
+Steps:
+1. Check for uncommitted changes in the worktree (fail if any)
+2. Rebase {info['branch_name']} onto {info['base_branch']} (resolve any conflicts)
+3. In the main dir ({info['main_dir']}), merge {info['branch_name']}:
+   cd {info['main_dir']} && git merge {info['branch_name']}
+
+After the merge succeeds, say exactly "MERGE_COMPLETE" on its own line.
+Do NOT remove the worktree or delete the branch - the app will handle cleanup."""
+            chat_view = self.query_one("#chat-view", VerticalScroll)
+            user_msg = ChatMessage(f"/worktree finish")
+            user_msg.add_class("user-message")
+            chat_view.mount(user_msg)
+            self._show_thinking()
+            self.run_claude(prompt)
         else:
             self._switch_or_create_worktree(subcommand)
 
@@ -543,6 +572,31 @@ class ChatApp(App):
                 self._reconnect_sdk(new_cwd)
             else:
                 self.notify(message, severity="error")
+
+    @work(group="cleanup", exclusive=True, exit_on_error=False)
+    async def _finish_worktree_cleanup(self, info: dict) -> None:
+        """Remove worktree and delete branch after successful merge."""
+        main_dir = Path(info["main_dir"])
+        worktree_dir = info["worktree_dir"]
+        branch_name = info["branch_name"]
+
+        try:
+            # Remove the worktree (from main dir since current dir will be deleted)
+            subprocess.run(
+                ["git", "worktree", "remove", worktree_dir],
+                cwd=main_dir, check=True, capture_output=True, text=True
+            )
+            # Delete the feature branch
+            subprocess.run(
+                ["git", "branch", "-d", branch_name],
+                cwd=main_dir, check=True, capture_output=True, text=True
+            )
+            self.notify(f"Cleaned up {branch_name}")
+            self.sub_title = ""
+            # Switch SDK back to main directory
+            self._reconnect_sdk(main_dir)
+        except subprocess.CalledProcessError as e:
+            self.notify(f"Cleanup failed: {e.stderr}", severity="error")
 
     def _show_worktree_modal(self) -> None:
         """Show worktree selection modal."""

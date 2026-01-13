@@ -68,20 +68,22 @@ def get_main_worktree() -> tuple[Path, str] | None:
     return None
 
 
-def finish_worktree(cwd: Path | None = None) -> tuple[bool, str, Path | None]:
+def get_finish_worktree_info(cwd: Path | None = None) -> tuple[bool, str, dict | None]:
     """
-    Finish worktree: rebase, merge back, cleanup.
+    Get info needed to finish a worktree (for Claude to execute).
 
     Args:
         cwd: Current working directory (SDK's cwd). If None, uses Path.cwd().
 
-    Returns (success, message, original_path).
+    Returns (success, message, info_dict or None).
+    info_dict contains: branch_name, base_branch, worktree_dir, main_dir
     """
     # Detect current worktree from git
     if cwd is None:
         cwd = Path.cwd()
+    cwd = cwd.resolve()  # Normalize for comparison with git output
     worktrees = list_worktrees()
-    current_wt = next((wt for wt in worktrees if wt.path == cwd), None)
+    current_wt = next((wt for wt in worktrees if wt.path.resolve() == cwd), None)
 
     if current_wt is None or current_wt.is_main:
         return False, "Not in a feature worktree. Switch to a worktree first.", None
@@ -91,56 +93,13 @@ def finish_worktree(cwd: Path | None = None) -> tuple[bool, str, Path | None]:
         return False, "Cannot find main worktree.", None
 
     original_dir, base_branch = main_wt
-    worktree_dir = current_wt.path
-    branch_name = current_wt.branch
-    messages = []
 
-    try:
-        # Check for uncommitted changes
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True, text=True, check=True,
-            cwd=worktree_dir
-        )
-        if result.stdout.strip():
-            return False, "Uncommitted changes in worktree. Commit or stash first.", None
-
-        # Rebase feature branch onto main
-        rebase_result = subprocess.run(
-            ["git", "rebase", base_branch],
-            capture_output=True, text=True, cwd=worktree_dir
-        )
-        if rebase_result.returncode != 0:
-            subprocess.run(["git", "rebase", "--abort"], capture_output=True, cwd=worktree_dir)
-            return False, f"Rebase conflict. Resolve manually:\n{rebase_result.stderr}", None
-        messages.append(f"Rebased {branch_name} onto {base_branch}")
-
-        # Merge into main
-        merge_result = subprocess.run(
-            ["git", "merge", branch_name],
-            capture_output=True, text=True, cwd=original_dir
-        )
-        if merge_result.returncode != 0:
-            return False, f"Merge failed:\n{merge_result.stderr}", None
-        messages.append(f"Merged {branch_name} into {base_branch}")
-
-        # Cleanup worktree and branch
-        subprocess.run(
-            ["git", "worktree", "remove", str(worktree_dir)],
-            capture_output=True, text=True, check=True, cwd=original_dir
-        )
-        subprocess.run(
-            ["git", "branch", "-d", branch_name],
-            capture_output=True, text=True, check=True, cwd=original_dir
-        )
-        messages.append("Cleaned up worktree and branch")
-
-        return True, "\n".join(messages), original_dir
-
-    except subprocess.CalledProcessError as e:
-        return False, f"Git error: {e.stderr}", None
-    except Exception as e:
-        return False, f"Error: {e}", None
+    return True, "Ready to finish worktree", {
+        "branch_name": current_wt.branch,
+        "base_branch": base_branch,
+        "worktree_dir": str(current_wt.path),
+        "main_dir": str(original_dir),
+    }
 
 
 @dataclass
