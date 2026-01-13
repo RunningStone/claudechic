@@ -47,7 +47,7 @@ class ToolUseWidget(Static):
                 yield Static(diff, id="diff-content")
             else:
                 details = format_tool_details(self.block.name, self.block.input)
-                yield Markdown(details, id="md-content")
+                yield Markdown(details.rstrip(), id="md-content")
 
     def on_mount(self) -> None:
         if self.result is None:  # Only start spinner for in-progress tools
@@ -175,7 +175,7 @@ class ToolUseWidget(Static):
                     details += f"\n\n```\n{preview}\n```"
                 else:
                     details += f"\n\n{preview}"
-            md.update(details)
+            md.update(details.rstrip())
         except Exception:
             pass
 

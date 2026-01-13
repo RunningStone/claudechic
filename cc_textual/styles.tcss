@@ -35,34 +35,34 @@ ChatMessage, ToolUseWidget, ThinkingIndicator {
     background: transparent;
     margin: 0 0 1 0;  /* 1 line between blocks */
     padding: 0 2 0 1;
-    border-left: tall transparent;
+    border-left: wide transparent;
 }
 
 /* User messages - vibrant orange, extra spacing */
 ChatMessage.user-message {
-    border-left: tall #cc7700;
+    border-left: thick #cc7700;
     margin: 2 0 2 0;
 }
 
 /* Assistant messages - softer */
 ChatMessage.assistant-message {
-    border-left: tall #334455;
+    border-left: wide #334455;
 }
 
 /* Tool uses - subtle, highlight on hover */
 ToolUseWidget {
-    border-left: tall #333333;
+    border-left: wide #333333;
     margin: 0;
 }
 
 ToolUseWidget.hovered {
-    border-left: tall #666666;
+    border-left: wide #666666;
     background: #111111;
 }
 
 /* Task widgets - slightly more prominent */
 TaskWidget {
-    border-left: tall #445566;
+    border-left: wide #445566;
     margin: 0;
 }
 
@@ -73,7 +73,7 @@ TaskWidget #task-content {
 
 /* Thinking indicator - subtle */
 ThinkingIndicator {
-    border-left: tall #333333;
+    border-left: wide #333333;
     color: $text-muted;
 }
 
@@ -188,6 +188,14 @@ ToolUseWidget:hover .tool-copy-btn {
 Markdown {
     padding: 0;
     margin: 0;
+}
+
+/* Remove bottom margin from last element in markdown containers */
+ChatMessage MarkdownParagraph:last-of-type,
+ChatMessage MarkdownFence:last-of-type,
+ToolUseWidget MarkdownParagraph:last-of-type,
+ToolUseWidget MarkdownFence:last-of-type {
+    margin-bottom: 0;
 }
 
 /* Tool use collapsible internals */
