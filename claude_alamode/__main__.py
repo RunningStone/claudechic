@@ -1,4 +1,4 @@
-"""Entry point for alamode CLI."""
+"""Entry point for claude-alamode CLI."""
 
 import argparse
 import logging
@@ -8,7 +8,7 @@ from claude_alamode.sessions import get_recent_sessions
 
 # Set up file logging
 logging.basicConfig(
-    filename="alamode.log",
+    filename="claude-alamode.log",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
@@ -41,7 +41,7 @@ def main():
     except Exception:
         import traceback
 
-        with open("/tmp/alamode-crash.log", "w") as f:
+        with open("/tmp/claude-alamode-crash.log", "w") as f:
             traceback.print_exc(file=f)
         raise
 

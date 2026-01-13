@@ -5,9 +5,9 @@ A stylish terminal UI for Claude Code, built with Textual and wrapping the `clau
 ## Run
 
 ```bash
-uv run alamode
-uv run alamode --resume     # Resume most recent session
-uv run alamode -s <uuid>    # Resume specific session
+uv run claude-alamode
+uv run claude-alamode --resume     # Resume most recent session
+uv run claude-alamode -s <uuid>    # Resume specific session
 ```
 
 Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login`).

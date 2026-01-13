@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-alamode = "claude_alamode.__main__:main"
+claude-alamode = "claude_alamode.__main__:main"
 
 [dependency-groups]
 dev = [
