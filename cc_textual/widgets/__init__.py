@@ -3,7 +3,7 @@
 from cc_textual.widgets.header import CPUBar, ContextBar, HeaderIndicators, ContextHeader
 from cc_textual.widgets.chat import ChatMessage, ChatInput, ThinkingIndicator
 from cc_textual.widgets.tools import ToolUseWidget, TaskWidget
-from cc_textual.widgets.prompts import SelectionPrompt, QuestionPrompt, SessionItem, WorktreeItem, WorktreePrompt
+from cc_textual.widgets.prompts import SelectionPrompt, QuestionPrompt, SessionItem, WorktreePrompt
 
 __all__ = [
     "CPUBar",
@@ -18,6 +18,5 @@ __all__ = [
     "SelectionPrompt",
     "QuestionPrompt",
     "SessionItem",
-    "WorktreeItem",
     "WorktreePrompt",
 ]

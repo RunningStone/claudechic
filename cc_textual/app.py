@@ -41,7 +41,7 @@ from cc_textual.messages import (
     ContextUpdate,
 )
 from cc_textual.sessions import get_recent_sessions, load_session_messages
-from cc_textual.worktree import start_worktree, finish_worktree, get_worktree_status, list_worktrees
+from cc_textual.worktree import start_worktree, finish_worktree, list_worktrees
 from cc_textual.formatting import parse_context_tokens
 from cc_textual.permissions import PermissionRequest, dummy_hook
 from cc_textual.widgets import (
@@ -96,6 +96,7 @@ class ChatApp(App):
         self.client: ClaudeSDKClient | None = None
         self.current_response: ChatMessage | None = None
         self.session_id: str | None = None
+        self.sdk_cwd: Path = Path.cwd()  # Track SDK's working directory
         self.pending_tools: dict[str, ToolUseWidget | TaskWidget] = {}
         self.active_tasks: dict[str, TaskWidget] = {}
         self.recent_tools: list[ToolUseWidget | TaskWidget] = []
@@ -494,7 +495,7 @@ class ChatApp(App):
 
         subcommand = parts[1]
         if subcommand == "finish":
-            success, message, original_cwd = finish_worktree()
+            success, message, original_cwd = finish_worktree(self.sdk_cwd)
             if success and original_cwd:
                 self.notify("Worktree merged and cleaned up")
                 self.sub_title = ""
@@ -590,6 +591,7 @@ class ChatApp(App):
             self.active_tasks.clear()
             self.recent_tools.clear()
             self.session_id = None
+            self.sdk_cwd = new_cwd
 
             self.notify(f"SDK reconnected in {new_cwd.name}")
         except Exception as e:

@@ -254,13 +254,15 @@ QuestionPrompt .prompt-title {
 }
 
 SelectionPrompt .prompt-option,
-QuestionPrompt .prompt-option {
+QuestionPrompt .prompt-option,
+WorktreePrompt .prompt-option {
     padding: 0 0 0 1;
     color: $text-muted;
 }
 
 SelectionPrompt .prompt-option.selected,
-QuestionPrompt .prompt-option.selected {
+QuestionPrompt .prompt-option.selected,
+WorktreePrompt .prompt-option.selected {
     color: $text;
     background: #333366;
 }

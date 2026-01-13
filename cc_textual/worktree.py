@@ -5,18 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-@dataclass
-class WorktreeState:
-    """State for an active worktree session."""
-    original_dir: Path
-    worktree_dir: Path
-    branch_name: str
-    base_branch: str
-
-
-_active_worktree: WorktreeState | None = None
-
-
 def get_repo_name() -> str:
     """Get the current repository name."""
     result = subprocess.run(
@@ -41,16 +29,18 @@ def start_worktree(feature_name: str) -> tuple[bool, str, Path | None]:
 
     Returns (success, message, worktree_path).
     """
-    global _active_worktree
-
-    if _active_worktree is not None:
-        return False, f"Already in worktree for '{_active_worktree.branch_name}'. Run /worktree finish first.", None
-
     try:
-        original_dir = Path.cwd()
         repo_name = get_repo_name()
         base_branch = get_current_branch()
-        worktree_dir = original_dir.parent / f"{repo_name}-{feature_name}"
+
+        # Find main worktree to put new worktree next to it
+        main_wt = get_main_worktree()
+        if main_wt:
+            parent_dir = main_wt[0].parent
+        else:
+            parent_dir = Path.cwd().parent
+
+        worktree_dir = parent_dir / f"{repo_name}-{feature_name}"
 
         if worktree_dir.exists():
             return False, f"Directory {worktree_dir} already exists", None
@@ -61,14 +51,7 @@ def start_worktree(feature_name: str) -> tuple[bool, str, Path | None]:
             check=True, capture_output=True, text=True
         )
 
-        _active_worktree = WorktreeState(
-            original_dir=original_dir,
-            worktree_dir=worktree_dir,
-            branch_name=feature_name,
-            base_branch=base_branch,
-        )
-
-        return True, f"Created worktree at {worktree_dir}\nBranch: {feature_name}\nBase: {base_branch}", worktree_dir
+        return True, f"Created worktree at {worktree_dir}", worktree_dir
 
     except subprocess.CalledProcessError as e:
         return False, f"Git error: {e.stderr}", None
@@ -76,88 +59,88 @@ def start_worktree(feature_name: str) -> tuple[bool, str, Path | None]:
         return False, f"Error: {e}", None
 
 
-def finish_worktree() -> tuple[bool, str, Path | None]:
+def get_main_worktree() -> tuple[Path, str] | None:
+    """Find the main worktree (non-feature) path and its branch."""
+    worktrees = list_worktrees()
+    for wt in worktrees:
+        if wt.is_main:
+            return wt.path, wt.branch
+    return None
+
+
+def finish_worktree(cwd: Path | None = None) -> tuple[bool, str, Path | None]:
     """
     Finish worktree: rebase, merge back, cleanup.
 
+    Args:
+        cwd: Current working directory (SDK's cwd). If None, uses Path.cwd().
+
     Returns (success, message, original_path).
     """
-    global _active_worktree
+    # Detect current worktree from git
+    if cwd is None:
+        cwd = Path.cwd()
+    worktrees = list_worktrees()
+    current_wt = next((wt for wt in worktrees if wt.path == cwd), None)
 
-    if _active_worktree is None:
-        return False, "No active worktree. Run /worktree start <name> first.", None
+    if current_wt is None or current_wt.is_main:
+        return False, "Not in a feature worktree. Switch to a worktree first.", None
 
-    state = _active_worktree
+    main_wt = get_main_worktree()
+    if main_wt is None:
+        return False, "Cannot find main worktree.", None
+
+    original_dir, base_branch = main_wt
+    worktree_dir = current_wt.path
+    branch_name = current_wt.branch
     messages = []
 
     try:
-        # Check for uncommitted changes (run in worktree dir)
+        # Check for uncommitted changes
         result = subprocess.run(
             ["git", "status", "--porcelain"],
             capture_output=True, text=True, check=True,
-            cwd=state.worktree_dir
+            cwd=worktree_dir
         )
         if result.stdout.strip():
             return False, "Uncommitted changes in worktree. Commit or stash first.", None
 
-        # Fetch and rebase onto base branch
-        subprocess.run(["git", "fetch", "origin"], capture_output=True, text=True, cwd=state.worktree_dir)
-
-        # Try to rebase - first check if remote branch exists
-        result = subprocess.run(
-            ["git", "rev-parse", "--verify", f"origin/{state.base_branch}"],
-            capture_output=True, text=True, cwd=state.worktree_dir
+        # Rebase feature branch onto main
+        rebase_result = subprocess.run(
+            ["git", "rebase", base_branch],
+            capture_output=True, text=True, cwd=worktree_dir
         )
-        if result.returncode == 0:
-            rebase_result = subprocess.run(
-                ["git", "rebase", f"origin/{state.base_branch}"],
-                capture_output=True, text=True, cwd=state.worktree_dir
-            )
-            if rebase_result.returncode != 0:
-                # Abort rebase and report
-                subprocess.run(["git", "rebase", "--abort"], capture_output=True, cwd=state.worktree_dir)
-                return False, f"Rebase conflict. Resolve manually:\n{rebase_result.stderr}", None
-            messages.append("Rebased onto origin/" + state.base_branch)
+        if rebase_result.returncode != 0:
+            subprocess.run(["git", "rebase", "--abort"], capture_output=True, cwd=worktree_dir)
+            return False, f"Rebase conflict. Resolve manually:\n{rebase_result.stderr}", None
+        messages.append(f"Rebased {branch_name} onto {base_branch}")
 
-        # Merge with fast-forward (in original dir)
+        # Merge into main
         merge_result = subprocess.run(
-            ["git", "merge", "--ff-only", state.branch_name],
-            capture_output=True, text=True, cwd=state.original_dir
+            ["git", "merge", branch_name],
+            capture_output=True, text=True, cwd=original_dir
         )
         if merge_result.returncode != 0:
-            return False, f"Fast-forward merge failed (branch diverged?):\n{merge_result.stderr}", None
-        messages.append(f"Merged {state.branch_name} into {state.base_branch}")
+            return False, f"Merge failed:\n{merge_result.stderr}", None
+        messages.append(f"Merged {branch_name} into {base_branch}")
 
         # Cleanup worktree and branch
         subprocess.run(
-            ["git", "worktree", "remove", str(state.worktree_dir)],
-            capture_output=True, text=True, check=True, cwd=state.original_dir
+            ["git", "worktree", "remove", str(worktree_dir)],
+            capture_output=True, text=True, check=True, cwd=original_dir
         )
         subprocess.run(
-            ["git", "branch", "-d", state.branch_name],
-            capture_output=True, text=True, check=True, cwd=state.original_dir
+            ["git", "branch", "-d", branch_name],
+            capture_output=True, text=True, check=True, cwd=original_dir
         )
-        messages.append(f"Cleaned up worktree and branch")
+        messages.append("Cleaned up worktree and branch")
 
-        original_dir = state.original_dir
-        _active_worktree = None
         return True, "\n".join(messages), original_dir
 
     except subprocess.CalledProcessError as e:
         return False, f"Git error: {e.stderr}", None
     except Exception as e:
         return False, f"Error: {e}", None
-
-
-def get_worktree_status() -> str:
-    """Get current worktree status."""
-    if _active_worktree is None:
-        return "No active worktree"
-    return (
-        f"Active worktree: {_active_worktree.branch_name}\n"
-        f"Directory: {_active_worktree.worktree_dir}\n"
-        f"Base branch: {_active_worktree.base_branch}"
-    )
 
 
 @dataclass

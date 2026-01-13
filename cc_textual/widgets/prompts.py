@@ -21,20 +21,6 @@ class SessionItem(ListItem):
         yield Label(f"{self.preview[:50]}\n({self.msg_count} msgs)")
 
 
-class WorktreeItem(ListItem):
-    """A worktree in the picker."""
-
-    def __init__(self, path: str, branch: str, is_main: bool = False) -> None:
-        super().__init__()
-        self.path = path
-        self.branch = branch
-        self.is_main = is_main
-
-    def compose(self) -> ComposeResult:
-        marker = " (main)" if self.is_main else ""
-        yield Label(f"{self.branch}{marker}")
-
-
 class WorktreePrompt(Static):
     """Modal prompt for selecting or creating worktrees."""
 
