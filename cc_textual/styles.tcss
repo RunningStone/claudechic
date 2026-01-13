@@ -136,23 +136,11 @@ ToolUseWidget:hover .tool-copy-btn {
     width: 100%;
     height: 100%;
     align: center middle;
+    background: rgba(0, 0, 0, 0.7);
 }
 
-WorktreePrompt {
-    width: 50;
-    height: auto;
-    background: $surface;
-    border: solid $primary;
-    padding: 1 2;
-}
-
-WorktreePrompt .wt-title {
-    text-style: bold;
-    color: $text;
-    padding: 0 0 1 0;
-}
-
-WorktreePrompt .wt-placeholder {
+/* Shared prompt placeholder style */
+.prompt-placeholder {
     color: $text-muted;
 }
 
@@ -239,39 +227,36 @@ HeaderIndicators {
     layout: horizontal;
 }
 
-/* Selection/Question prompts */
-SelectionPrompt, QuestionPrompt {
+/* Selection/Question/Worktree prompts - shared styles */
+SelectionPrompt, QuestionPrompt, WorktreePrompt {
     height: auto;
     width: 100;
-    background: $surface;
-    border: solid $primary;
-    padding: 0 1;
+    max-width: 100;
+    background: #111111;
+    border-left: tall #333333;
+    padding: 0 2 0 1;
 }
 
-SelectionPrompt .prompt-title,
-QuestionPrompt .prompt-title {
+WorktreePrompt {
+    width: 50;
+    padding: 1 2 1 1;
+}
+
+.prompt-title {
     color: $text;
+    padding: 0 0 1 0;
 }
 
-SelectionPrompt .prompt-option,
-QuestionPrompt .prompt-option,
-WorktreePrompt .prompt-option {
+.prompt-option {
     padding: 0 0 0 1;
     color: $text-muted;
+    border-left: tall #333333;
 }
 
-SelectionPrompt .prompt-option.selected,
-QuestionPrompt .prompt-option.selected,
-WorktreePrompt .prompt-option.selected {
+.prompt-option.selected {
     color: $text;
-    background: #333366;
-}
-
-QuestionPrompt #other-input {
-    margin: 0 0 0 1;
-    width: 60;
-    height: 1;
-    border: solid $primary;
+    background: #222222;
+    border-left: tall #cc7700;
 }
 
 /* Todo panel - floats right of centered chat via layer */

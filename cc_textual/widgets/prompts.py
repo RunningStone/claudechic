@@ -1,11 +1,12 @@
 """Selection and question prompts for user interaction."""
 
 import threading
+from typing import Any
 
 import anyio
 
 from textual.app import ComposeResult
-from textual.widgets import Static, Label, ListItem, Input
+from textual.widgets import Static, Label, ListItem
 
 
 class SessionItem(ListItem):
@@ -21,45 +22,41 @@ class SessionItem(ListItem):
         yield Label(f"{self.preview[:50]}\n({self.msg_count} msgs)")
 
 
-class WorktreePrompt(Static):
-    """Modal prompt for selecting or creating worktrees."""
+class BasePrompt(Static):
+    """Base class for selection prompts with arrow/number navigation and optional text input."""
 
     can_focus = True
 
-    def __init__(self, worktrees: list[tuple[str, str]]) -> None:
-        """Create worktree prompt.
-
-        Args:
-            worktrees: List of (path, branch) tuples for existing worktrees
-        """
+    def __init__(self) -> None:
         super().__init__()
-        self.worktrees = worktrees
         self.selected_idx = 0
         self._result_event = threading.Event()
-        self._result_value: tuple[str, str] | None = None  # (action, value)
-        self._in_new_mode = False
-        self._new_text = ""
-
-    def compose(self) -> ComposeResult:
-        yield Static("Worktrees", classes="wt-title")
-        for i, (path, branch) in enumerate(self.worktrees):
-            classes = "prompt-option selected" if i == 0 else "prompt-option"
-            yield Static(f"{i + 1}. {branch}", classes=classes, id=f"wt-{i}")
-        # "New" option at the end - placeholder style
-        new_idx = len(self.worktrees)
-        classes = "prompt-option wt-placeholder selected" if new_idx == 0 else "prompt-option wt-placeholder"
-        yield Static(f"{new_idx + 1}. Enter name...", classes=classes, id=f"wt-{new_idx}")
-
-    def on_mount(self) -> None:
-        self.focus()
+        self._result_value: Any = None
+        # Text input mode (for "Other" / "New" options)
+        self._in_text_mode = False
+        self._text_buffer = ""
 
     def _total_options(self) -> int:
-        return len(self.worktrees) + 1  # +1 for "New"
+        """Return total number of selectable options. Override in subclasses."""
+        return 0
+
+    def _get_option_id(self, idx: int) -> str:
+        """Return the DOM id for option at index."""
+        return f"opt-{idx}"
+
+    def _text_option_idx(self) -> int | None:
+        """Return index of text input option, or None if no text input. Override in subclasses."""
+        return None
+
+    def _text_option_placeholder(self) -> str:
+        """Return placeholder text for text input option. Override in subclasses."""
+        return "Enter text..."
 
     def _update_selection(self) -> None:
+        """Update visual selection state."""
         for i in range(self._total_options()):
             try:
-                opt = self.query_one(f"#wt-{i}", Static)
+                opt = self.query_one(f"#{self._get_option_id(i)}", Static)
                 if i == self.selected_idx:
                     opt.add_class("selected")
                 else:
@@ -67,111 +64,137 @@ class WorktreePrompt(Static):
             except Exception:
                 pass
 
-    def _enter_new_mode(self) -> None:
-        self._in_new_mode = True
-        new_idx = len(self.worktrees)
-        opt = self.query_one(f"#wt-{new_idx}", Static)
-        opt.remove_class("wt-placeholder")
-        opt.update(f"{new_idx + 1}. {self._new_text}_")
-
-    def _update_new_display(self) -> None:
-        new_idx = len(self.worktrees)
-        opt = self.query_one(f"#wt-{new_idx}", Static)
-        opt.update(f"{new_idx + 1}. {self._new_text}_")
-
-    def _exit_new_mode(self) -> None:
-        self._in_new_mode = False
-        self._new_text = ""
-        new_idx = len(self.worktrees)
-        opt = self.query_one(f"#wt-{new_idx}", Static)
-        opt.add_class("wt-placeholder")
-        opt.update(f"{new_idx + 1}. Enter name...")
-
-    def on_key(self, event) -> None:
-        if self._in_new_mode:
-            if event.key == "escape":
-                self._exit_new_mode()
-                event.prevent_default()
-                event.stop()
-            elif event.key == "enter":
-                if self._new_text.strip():
-                    self._resolve(("new", self._new_text.strip()))
-                else:
-                    self._exit_new_mode()
-                event.prevent_default()
-                event.stop()
-            elif event.key == "backspace":
-                self._new_text = self._new_text[:-1]
-                self._update_new_display()
-                event.prevent_default()
-                event.stop()
-            elif len(event.character or "") == 1 and event.character.isprintable():
-                self._new_text += event.character
-                self._update_new_display()
-                event.prevent_default()
-                event.stop()
-            return
-
-        # Normal mode
-        if event.key == "up":
-            self.selected_idx = (self.selected_idx - 1) % self._total_options()
-            self._update_selection()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "down":
-            self.selected_idx = (self.selected_idx + 1) % self._total_options()
-            self._update_selection()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "enter":
-            if self.selected_idx < len(self.worktrees):
-                path, branch = self.worktrees[self.selected_idx]
-                self._resolve(("switch", path))
-            else:
-                self._enter_new_mode()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "escape":
-            self._resolve(None)
-            event.prevent_default()
-            event.stop()
-        elif event.key.isdigit():
-            idx = int(event.key) - 1
-            if 0 <= idx < len(self.worktrees):
-                path, branch = self.worktrees[idx]
-                self._resolve(("switch", path))
-                event.prevent_default()
-                event.stop()
-            elif idx == len(self.worktrees):
-                self._enter_new_mode()
-                event.prevent_default()
-                event.stop()
-        elif len(event.character or "") == 1 and event.character.isalpha():
-            # Start typing -> go to new mode with this character
-            self.selected_idx = len(self.worktrees)
-            self._update_selection()
-            self._new_text = event.character
-            self._enter_new_mode()
-            event.prevent_default()
-            event.stop()
-
-    def _resolve(self, result: tuple[str, str] | None) -> None:
+    def _resolve(self, result: Any) -> None:
+        """Set result and signal completion."""
         if not self._result_event.is_set():
             self._result_value = result
             self._result_event.set()
         self.remove()
 
-    async def wait(self) -> tuple[str, str] | None:
-        """Wait for selection. Returns (action, value) or None if cancelled."""
+    def on_mount(self) -> None:
+        """Auto-focus on mount to capture keys immediately."""
+        self.focus()
+
+    def cancel(self) -> None:
+        """Cancel this prompt."""
+        self._resolve(None)
+
+    def _select_option(self, idx: int) -> None:
+        """Handle selection of option at index. Override in subclasses."""
+        pass
+
+    def _submit_text(self, text: str) -> None:
+        """Handle text submission. Override in subclasses that support text input."""
+        pass
+
+    # Text mode methods
+    def _enter_text_mode(self) -> None:
+        """Enter inline text input mode."""
+        self._in_text_mode = True
+        text_idx = self._text_option_idx()
+        if text_idx is not None:
+            opt = self.query_one(f"#{self._get_option_id(text_idx)}", Static)
+            opt.remove_class("prompt-placeholder")
+
+    def _update_text_display(self) -> None:
+        """Update the text input display with current buffer."""
+        text_idx = self._text_option_idx()
+        if text_idx is not None:
+            opt = self.query_one(f"#{self._get_option_id(text_idx)}", Static)
+            opt.update(f"{text_idx + 1}. {self._text_buffer}_")
+
+    def _exit_text_mode(self) -> None:
+        """Exit text mode and restore placeholder."""
+        self._in_text_mode = False
+        self._text_buffer = ""
+        text_idx = self._text_option_idx()
+        if text_idx is not None:
+            opt = self.query_one(f"#{self._get_option_id(text_idx)}", Static)
+            opt.add_class("prompt-placeholder")
+            opt.update(f"{text_idx + 1}. {self._text_option_placeholder()}")
+
+    def _handle_text_mode_key(self, event) -> bool:
+        """Handle keys in text mode. Returns True if handled."""
+        if event.key in ("escape", "up", "down"):
+            self._exit_text_mode()
+            if event.key in ("up", "down"):
+                # Let navigation happen after exiting text mode
+                return False
+            return True
+        elif event.key == "enter":
+            if self._text_buffer.strip():
+                self._submit_text(self._text_buffer.strip())
+            else:
+                self._exit_text_mode()
+            return True
+        elif event.key == "backspace":
+            self._text_buffer = self._text_buffer[:-1]
+            self._update_text_display()
+            return True
+        elif len(event.character or "") == 1 and event.character.isprintable():
+            self._text_buffer += event.character
+            self._update_text_display()
+            return True
+        return True  # Consume other keys in text mode
+
+    def _handle_key(self, event) -> bool:
+        """Handle common navigation keys. Returns True if handled."""
+        if event.key == "up":
+            self.selected_idx = (self.selected_idx - 1) % self._total_options()
+            self._update_selection()
+            return True
+        elif event.key == "down":
+            self.selected_idx = (self.selected_idx + 1) % self._total_options()
+            self._update_selection()
+            return True
+        elif event.key == "enter":
+            self._select_option(self.selected_idx)
+            return True
+        elif event.key == "escape":
+            self.cancel()
+            return True
+        elif event.key.isdigit():
+            idx = int(event.key) - 1
+            if 0 <= idx < self._total_options():
+                self._select_option(idx)
+                return True
+        return False
+
+    def on_key(self, event) -> None:
+        # Text mode takes priority
+        if self._in_text_mode:
+            if self._handle_text_mode_key(event):
+                event.prevent_default()
+                event.stop()
+                return
+            # Fall through for up/down navigation
+
+        # Start typing to enter text mode (if text option exists)
+        text_idx = self._text_option_idx()
+        if text_idx is not None and len(event.character or "") == 1 and event.character.isalpha():
+            self.selected_idx = text_idx
+            self._update_selection()
+            self._text_buffer = event.character
+            self._enter_text_mode()
+            self._update_text_display()
+            event.prevent_default()
+            event.stop()
+            return
+
+        # Default navigation
+        if self._handle_key(event):
+            event.prevent_default()
+            event.stop()
+
+    async def wait(self) -> Any:
+        """Wait for selection. Returns result or None if cancelled."""
         while not self._result_event.is_set():
             await anyio.sleep(0.05)
         return self._result_value
 
 
-class SelectionPrompt(Static):
-    """Reusable selection prompt with arrow/number navigation."""
-
-    can_focus = True
+class SelectionPrompt(BasePrompt):
+    """Simple selection prompt with arrow/number navigation."""
 
     def __init__(self, title: str, options: list[tuple[str, str]]) -> None:
         """Create selection prompt.
@@ -183,9 +206,7 @@ class SelectionPrompt(Static):
         super().__init__()
         self.title = title
         self.options = options
-        self.selected_idx = 0
-        self._result_event = threading.Event()
-        self._result_value: str = options[0][0] if options else ""
+        self._result_value = options[0][0] if options else ""
 
     def compose(self) -> ComposeResult:
         yield Static(self.title, classes="prompt-title")
@@ -193,71 +214,80 @@ class SelectionPrompt(Static):
             classes = "prompt-option selected" if i == 0 else "prompt-option"
             yield Static(f"{i + 1}. {label}", classes=classes, id=f"opt-{i}")
 
-    def on_mount(self) -> None:
-        """Auto-focus on mount to capture keys immediately."""
-        self.focus()
+    def _total_options(self) -> int:
+        return len(self.options)
 
-    def _update_selection(self) -> None:
-        """Update visual selection state."""
-        for i in range(len(self.options)):
-            opt = self.query_one(f"#opt-{i}", Static)
-            if i == self.selected_idx:
-                opt.add_class("selected")
-            else:
-                opt.remove_class("selected")
-
-    def on_key(self, event) -> None:
-        if event.key == "up":
-            self.selected_idx = (self.selected_idx - 1) % len(self.options)
-            self._update_selection()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "down":
-            self.selected_idx = (self.selected_idx + 1) % len(self.options)
-            self._update_selection()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "enter":
-            self._resolve(self.options[self.selected_idx][0])
-            event.prevent_default()
-            event.stop()
-        elif event.key.isdigit():
-            idx = int(event.key) - 1
-            if 0 <= idx < len(self.options):
-                self._resolve(self.options[idx][0])
-                event.prevent_default()
-                event.stop()
-
-    def _resolve(self, result: str) -> None:
-        if not self._result_event.is_set():
-            self._result_value = result
-            self._result_event.set()
-        self.remove()
+    def _select_option(self, idx: int) -> None:
+        self._resolve(self.options[idx][0])
 
     def cancel(self) -> None:
-        """Cancel this prompt (called by app on Escape)."""
         self._resolve("")
 
     async def wait(self) -> str:
         """Wait for selection. Returns value or empty string if cancelled."""
-        while not self._result_event.is_set():
-            await anyio.sleep(0.05)
+        await super().wait()
         return self._result_value
 
 
-class QuestionPrompt(Static):
-    """Multi-question prompt for AskUserQuestion tool."""
+class WorktreePrompt(BasePrompt):
+    """Prompt for selecting or creating worktrees."""
 
-    can_focus = True
+    def __init__(self, worktrees: list[tuple[str, str]]) -> None:
+        """Create worktree prompt.
+
+        Args:
+            worktrees: List of (path, branch) tuples for existing worktrees
+        """
+        super().__init__()
+        self.worktrees = worktrees
+
+    def compose(self) -> ComposeResult:
+        yield Static("Worktrees", classes="prompt-title")
+        for i, (path, branch) in enumerate(self.worktrees):
+            classes = "prompt-option selected" if i == 0 else "prompt-option"
+            yield Static(f"{i + 1}. {branch}", classes=classes, id=f"opt-{i}")
+        # "New" option at the end
+        new_idx = len(self.worktrees)
+        classes = "prompt-option prompt-placeholder"
+        if new_idx == 0:
+            classes += " selected"
+        yield Static(f"{new_idx + 1}. {self._text_option_placeholder()}", classes=classes, id=f"opt-{new_idx}")
+
+    def _total_options(self) -> int:
+        return len(self.worktrees) + 1  # +1 for "New"
+
+    def _text_option_idx(self) -> int:
+        return len(self.worktrees)
+
+    def _text_option_placeholder(self) -> str:
+        return "Enter name..."
+
+    def _select_option(self, idx: int) -> None:
+        if idx < len(self.worktrees):
+            path, branch = self.worktrees[idx]
+            self._resolve(("switch", path))
+        else:
+            self._text_buffer = ""
+            self._enter_text_mode()
+            self._update_text_display()
+
+    def _submit_text(self, text: str) -> None:
+        self._resolve(("new", text))
+
+    async def wait(self) -> tuple[str, str] | None:
+        """Wait for selection. Returns (action, value) or None if cancelled."""
+        await super().wait()
+        return self._result_value
+
+
+class QuestionPrompt(BasePrompt):
+    """Multi-question prompt for AskUserQuestion tool."""
 
     def __init__(self, questions: list[dict]) -> None:
         super().__init__()
         self.questions = questions
         self.current_q = 0
-        self.selected_idx = 0
         self.answers: dict[str, str] = {}
-        self._result_event = threading.Event()
-        self._in_other_mode = False
 
     def compose(self) -> ComposeResult:
         yield from self._render_question()
@@ -277,110 +307,35 @@ class QuestionPrompt(Static):
             yield Static(text, classes=classes, id=f"opt-{i}")
         # "Other" option
         other_idx = len(q.get("options", []))
-        classes = "prompt-option selected" if self.selected_idx == other_idx else "prompt-option"
-        yield Static(f"{other_idx + 1}. Other:", classes=classes, id=f"opt-{other_idx}")
+        classes = "prompt-option prompt-placeholder"
+        if self.selected_idx == other_idx:
+            classes += " selected"
+        yield Static(f"{other_idx + 1}. {self._text_option_placeholder()}", classes=classes, id=f"opt-{other_idx}")
 
-    def on_mount(self) -> None:
-        self.focus()
-
-    def _update_display(self) -> None:
-        """Refresh display for current question."""
-        self._in_other_mode = False
-        self.remove_children()
-        for w in self._render_question():
-            self.mount(w)
-
-    def _update_selection(self) -> None:
-        """Update visual selection."""
+    def _total_options(self) -> int:
         q = self.questions[self.current_q]
-        total = len(q.get("options", [])) + 1
-        for i in range(total):
-            try:
-                opt = self.query_one(f"#opt-{i}", Static)
-                if i == self.selected_idx:
-                    opt.add_class("selected")
-                else:
-                    opt.remove_class("selected")
-            except Exception:
-                pass
+        return len(q.get("options", [])) + 1  # +1 for "Other"
 
-    def on_key(self, event) -> None:
-        if self._in_other_mode:
-            if event.key == "escape":
-                # Exit text input, return to option selection
-                self._exit_other_mode()
-                event.prevent_default()
-                event.stop()
-            elif event.key == "enter":
-                self._submit_other()
-                event.prevent_default()
-                event.stop()
-            return
+    def _text_option_idx(self) -> int:
+        q = self.questions[self.current_q]
+        return len(q.get("options", []))
 
+    def _text_option_placeholder(self) -> str:
+        return "Other..."
+
+    def _select_option(self, idx: int) -> None:
         q = self.questions[self.current_q]
         options = q.get("options", [])
-        total = len(options) + 1
-
-        if event.key == "up":
-            self.selected_idx = (self.selected_idx - 1) % total
-            self._update_selection()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "down":
-            self.selected_idx = (self.selected_idx + 1) % total
-            self._update_selection()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "enter":
-            self._select_current()
-            event.prevent_default()
-            event.stop()
-        elif event.key.isdigit():
-            idx = int(event.key) - 1
-            if 0 <= idx < total:
-                self.selected_idx = idx
-                self._select_current()
-                event.prevent_default()
-                event.stop()
-
-    def _select_current(self) -> None:
-        """Select current option and advance to next question or finish."""
-        q = self.questions[self.current_q]
-        options = q.get("options", [])
-
-        if self.selected_idx < len(options):
-            answer = options[self.selected_idx].get("label", "?")
+        if idx < len(options):
+            answer = options[idx].get("label", "?")
             self._record_answer(answer)
         else:
-            self._enter_other_mode()
+            self._text_buffer = ""
+            self._enter_text_mode()
+            self._update_text_display()
 
-    def _enter_other_mode(self) -> None:
-        """Show text input for custom answer."""
-        self._in_other_mode = True
-        input_widget = Input(placeholder="Type your answer...", id="other-input")
-        self.mount(input_widget)
-        input_widget.focus()
-
-    def _exit_other_mode(self) -> None:
-        """Cancel other mode and return to selection."""
-        self._in_other_mode = False
-        try:
-            self.query_one("#other-input").remove()
-        except Exception:
-            pass
-        self.focus()
-
-    def _submit_other(self) -> None:
-        """Submit the custom answer from text input."""
-        try:
-            input_widget = self.query_one("#other-input", Input)
-            answer = input_widget.value.strip()
-            if answer:
-                self._record_answer(answer)
-            else:
-                self._exit_other_mode()
-        except Exception:
-            self._exit_other_mode()
+    def _submit_text(self, text: str) -> None:
+        self._record_answer(text)
 
     def _record_answer(self, answer: str) -> None:
         """Record answer and advance to next question or finish."""
@@ -390,22 +345,19 @@ class QuestionPrompt(Static):
         if self.current_q < len(self.questions) - 1:
             self.current_q += 1
             self.selected_idx = 0
-            self._update_display()
+            self._in_text_mode = False
+            self._text_buffer = ""
+            self.remove_children()
+            for w in self._render_question():
+                self.mount(w)
         else:
-            self._resolve()
-
-    def _resolve(self) -> None:
-        if not self._result_event.is_set():
-            self._result_event.set()
-        self.remove()
+            self._resolve(self.answers)
 
     def cancel(self) -> None:
-        """Cancel this prompt (called by app on Escape)."""
         self.answers = {}
-        self._resolve()
+        self._resolve({})
 
     async def wait(self) -> dict[str, str]:
         """Wait for all answers. Returns answers dict or empty if cancelled."""
-        while not self._result_event.is_set():
-            await anyio.sleep(0.05)
-        return self.answers
+        await super().wait()
+        return self._result_value if self._result_value else {}
