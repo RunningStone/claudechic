@@ -3,7 +3,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 import logging
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -44,8 +43,9 @@ from cc_textual.messages import (
 )
 from cc_textual.sessions import get_recent_sessions, load_session_messages
 from cc_textual.worktree import (
-    start_worktree, get_finish_worktree_info, list_worktrees,
-    cleanup_worktrees, remove_worktree,
+    FinishInfo,
+    start_worktree, get_finish_info, get_finish_prompt, get_cleanup_fix_prompt,
+    finish_cleanup, list_worktrees, cleanup_worktrees, remove_worktree,
 )
 from cc_textual.formatting import parse_context_tokens
 from cc_textual.permissions import PermissionRequest, dummy_hook
@@ -109,7 +109,7 @@ class ChatApp(App):
         self.recent_tools: list[ToolUseWidget | TaskWidget] = []
         self._resume_on_start = resume_session_id
         self._session_picker_active = False
-        self._pending_worktree_finish: dict | None = None  # Info for cleanup after merge
+        self._pending_worktree_finish: FinishInfo | None = None  # Info for cleanup after merge
         self._worktree_cleanup_attempts: int = 0  # Track retry attempts
         # Event queues for testing
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
@@ -588,34 +588,18 @@ class ChatApp(App):
 
         subcommand = parts[1]
         if subcommand == "finish":
-            success, message, info = get_finish_worktree_info(self.sdk_cwd)
+            success, message, info = get_finish_info(self.sdk_cwd)
             if not success:
                 self.notify(message, severity="error")
                 return
-            # Store info for cleanup after Claude completes
             self._pending_worktree_finish = info
             self._worktree_cleanup_attempts = 0
-            # Send prompt to Claude for rebase/merge only
-            prompt = f"""Rebase and merge this feature branch:
-
-Branch: {info['branch_name']}
-Base branch: {info['base_branch']}
-Worktree dir: {info['worktree_dir']}
-Main dir: {info['main_dir']}
-
-Steps:
-1. Check for uncommitted changes in the worktree (fail if any)
-2. Rebase {info['branch_name']} onto {info['base_branch']} (resolve any conflicts)
-3. In the main dir ({info['main_dir']}), merge {info['branch_name']}:
-   cd {info['main_dir']} && git merge {info['branch_name']}
-
-Do NOT remove the worktree or delete the branch - the app will handle cleanup."""
             chat_view = self.query_one("#chat-view", VerticalScroll)
-            user_msg = ChatMessage(f"/worktree finish")
+            user_msg = ChatMessage("/worktree finish")
             user_msg.add_class("user-message")
             chat_view.mount(user_msg)
             self._show_thinking()
-            self.run_claude(prompt)
+            self.run_claude(get_finish_prompt(info))
         elif subcommand == "cleanup":
             branches = parts[2].split() if len(parts) > 2 else None
             self._handle_worktree_cleanup(branches)
@@ -692,37 +676,24 @@ Do NOT remove the worktree or delete the branch - the app will handle cleanup.""
         info = self._pending_worktree_finish
         if not info:
             return
-        main_dir = Path(info["main_dir"])
-        worktree_dir = info["worktree_dir"]
-        branch_name = info["branch_name"]
 
-        # Try worktree removal - this is the critical step
-        result = subprocess.run(
-            ["git", "worktree", "remove", worktree_dir],
-            cwd=main_dir, capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            self._handle_cleanup_failure(result.stderr, info)
+        success, message = finish_cleanup(info)
+        if not success:
+            self._handle_cleanup_failure(message, info)
             return
 
-        # Worktree removed - clear pending state before branch deletion
         self._pending_worktree_finish = None
         self._worktree_cleanup_attempts = 0
 
-        # Try branch deletion - less critical, just warn if it fails
-        result = subprocess.run(
-            ["git", "branch", "-d", branch_name],
-            cwd=main_dir, capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            self.notify(f"Branch {branch_name} not deleted: {result.stderr.strip()}", severity="warning")
+        if message:  # Branch deletion warning
+            self.notify(f"Cleaned up {info.branch_name}{message}", severity="warning")
         else:
-            self.notify(f"Cleaned up {branch_name}")
+            self.notify(f"Cleaned up {info.branch_name}")
 
         self.sub_title = ""
-        self._reconnect_sdk(main_dir)
+        self._reconnect_sdk(info.main_dir)
 
-    def _handle_cleanup_failure(self, error: str, info: dict) -> None:
+    def _handle_cleanup_failure(self, error: str, info: FinishInfo) -> None:
         """Handle cleanup failure by asking Claude to fix it or giving up."""
         self._worktree_cleanup_attempts += 1
 
@@ -732,21 +703,12 @@ Do NOT remove the worktree or delete the branch - the app will handle cleanup.""
             self.notify(f"Cleanup failed after {self.MAX_CLEANUP_ATTEMPTS} attempts: {error}", severity="error")
             return
 
-        # Ask Claude to fix the issue
-        prompt = f"""The worktree cleanup failed with this error:
-
-{error}
-
-Worktree dir: {info['worktree_dir']}
-
-Please fix this issue (e.g., remove untracked files, resolve uncommitted changes) so the worktree can be removed cleanly."""
-
         chat_view = self.query_one("#chat-view", VerticalScroll)
         user_msg = ChatMessage(f"[Cleanup attempt {self._worktree_cleanup_attempts}/{self.MAX_CLEANUP_ATTEMPTS} failed]")
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
         self._show_thinking()
-        self.run_claude(prompt)
+        self.run_claude(get_cleanup_fix_prompt(error, info.worktree_dir))
 
     def _show_worktree_modal(self) -> None:
         """Show worktree selection modal."""

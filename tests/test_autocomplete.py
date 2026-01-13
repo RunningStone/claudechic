@@ -30,14 +30,14 @@ async def test_slash_command_autocomplete(tmp_path: Path):
         input_widget.text = "/worktree"
         await pilot.pause()
 
-        # Should show worktree commands (start and finish)
-        assert autocomplete.option_list.option_count == 2
+        # Should show worktree commands (base, finish, cleanup)
+        assert autocomplete.option_list.option_count == 3
 
         # Type even more to narrow to just one
-        input_widget.text = "/worktree st"
+        input_widget.text = "/worktree f"
         await pilot.pause()
 
-        # Should show just /worktree start
+        # Should show just /worktree finish
         assert autocomplete.option_list.option_count == 1
 
         # Clear input - should hide
@@ -87,16 +87,16 @@ async def test_tab_completion():
         autocomplete = app.query_one(TextAreaAutoComplete)
 
         # Type enough to filter to a unique match
-        input_widget.text = "/worktree st"
+        input_widget.text = "/worktree f"
         await pilot.pause()
 
-        # Should show just /worktree start
+        # Should show just /worktree finish
         assert autocomplete.option_list.option_count == 1
 
         # Press Tab to complete
         await pilot.press("tab")
         await pilot.pause()
 
-        # Input should now be /worktree start
-        assert input_widget.text == "/worktree start"
+        # Input should now be /worktree finish
+        assert input_widget.text == "/worktree finish"
         assert autocomplete.styles.display == "none"

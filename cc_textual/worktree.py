@@ -5,6 +5,23 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+@dataclass
+class WorktreeInfo:
+    """Info about an existing worktree."""
+    path: Path
+    branch: str
+    is_main: bool
+
+
+@dataclass
+class FinishInfo:
+    """Info needed to finish a worktree."""
+    branch_name: str
+    base_branch: str
+    worktree_dir: Path
+    main_dir: Path
+
+
 def get_repo_name() -> str:
     """Get the current repository name."""
     result = subprocess.run(
@@ -14,24 +31,62 @@ def get_repo_name() -> str:
     return Path(result.stdout.strip()).name
 
 
-def get_current_branch() -> str:
-    """Get the current git branch."""
+def _is_main_worktree(worktree_path: Path) -> bool:
+    """Check if a worktree is the main one (not a linked worktree).
+
+    Main worktrees have .git as a directory; linked worktrees have .git as a file
+    pointing to the main repo's .git/worktrees/<name>.
+    """
+    git_path = worktree_path / ".git"
+    return git_path.is_dir()
+
+
+def list_worktrees() -> list[WorktreeInfo]:
+    """List all git worktrees for this repo."""
     result = subprocess.run(
-        ["git", "branch", "--show-current"],
+        ["git", "worktree", "list", "--porcelain"],
         capture_output=True, text=True, check=True
     )
-    return result.stdout.strip()
+
+    worktrees = []
+    current_path = None
+    current_branch = None
+
+    for line in result.stdout.strip().split("\n"):
+        if line.startswith("worktree "):
+            current_path = Path(line[9:])
+        elif line.startswith("branch refs/heads/"):
+            current_branch = line[18:]
+        elif line == "":
+            if current_path and current_branch:
+                is_main = _is_main_worktree(current_path)
+                worktrees.append(WorktreeInfo(current_path, current_branch, is_main))
+            current_path = None
+            current_branch = None
+
+    # Handle last entry if no trailing newline
+    if current_path and current_branch:
+        is_main = _is_main_worktree(current_path)
+        worktrees.append(WorktreeInfo(current_path, current_branch, is_main))
+
+    return worktrees
+
+
+def get_main_worktree() -> tuple[Path, str] | None:
+    """Find the main worktree (non-feature) path and its branch."""
+    for wt in list_worktrees():
+        if wt.is_main:
+            return wt.path, wt.branch
+    return None
 
 
 def start_worktree(feature_name: str) -> tuple[bool, str, Path | None]:
-    """
-    Create a worktree for the given feature.
+    """Create a worktree for the given feature.
 
     Returns (success, message, worktree_path).
     """
     try:
         repo_name = get_repo_name()
-        base_branch = get_current_branch()
 
         # Find main worktree to put new worktree next to it
         main_wt = get_main_worktree()
@@ -59,29 +114,17 @@ def start_worktree(feature_name: str) -> tuple[bool, str, Path | None]:
         return False, f"Error: {e}", None
 
 
-def get_main_worktree() -> tuple[Path, str] | None:
-    """Find the main worktree (non-feature) path and its branch."""
-    worktrees = list_worktrees()
-    for wt in worktrees:
-        if wt.is_main:
-            return wt.path, wt.branch
-    return None
-
-
-def get_finish_worktree_info(cwd: Path | None = None) -> tuple[bool, str, dict | None]:
-    """
-    Get info needed to finish a worktree (for Claude to execute).
+def get_finish_info(cwd: Path | None = None) -> tuple[bool, str, FinishInfo | None]:
+    """Get info needed to finish a worktree.
 
     Args:
         cwd: Current working directory (SDK's cwd). If None, uses Path.cwd().
 
-    Returns (success, message, info_dict or None).
-    info_dict contains: branch_name, base_branch, worktree_dir, main_dir
+    Returns (success, message, FinishInfo or None).
     """
-    # Detect current worktree from git
     if cwd is None:
         cwd = Path.cwd()
-    cwd = cwd.resolve()  # Normalize for comparison with git output
+    cwd = cwd.resolve()
     worktrees = list_worktrees()
     current_wt = next((wt for wt in worktrees if wt.path.resolve() == cwd), None)
 
@@ -92,22 +135,65 @@ def get_finish_worktree_info(cwd: Path | None = None) -> tuple[bool, str, dict |
     if main_wt is None:
         return False, "Cannot find main worktree.", None
 
-    original_dir, base_branch = main_wt
+    main_dir, base_branch = main_wt
+    return True, "Ready to finish worktree", FinishInfo(
+        branch_name=current_wt.branch,
+        base_branch=base_branch,
+        worktree_dir=current_wt.path,
+        main_dir=main_dir,
+    )
 
-    return True, "Ready to finish worktree", {
-        "branch_name": current_wt.branch,
-        "base_branch": base_branch,
-        "worktree_dir": str(current_wt.path),
-        "main_dir": str(original_dir),
-    }
+
+def get_finish_prompt(info: FinishInfo) -> str:
+    """Generate the prompt for Claude to rebase and merge a feature branch."""
+    return f"""Rebase and merge this feature branch:
+
+Branch: {info.branch_name}
+Base branch: {info.base_branch}
+Worktree dir: {info.worktree_dir}
+Main dir: {info.main_dir}
+
+Steps:
+1. Check for uncommitted changes in the worktree (fail if any)
+2. Rebase {info.branch_name} onto {info.base_branch} (resolve any conflicts)
+3. In the main dir ({info.main_dir}), merge {info.branch_name}:
+   cd {info.main_dir} && git merge {info.branch_name}
+
+Do NOT remove the worktree or delete the branch - the app will handle cleanup."""
 
 
-@dataclass
-class WorktreeInfo:
-    """Info about an existing worktree."""
-    path: Path
-    branch: str
-    is_main: bool
+def get_cleanup_fix_prompt(error: str, worktree_dir: Path) -> str:
+    """Generate prompt for Claude to fix a cleanup failure."""
+    return f"""The worktree cleanup failed with this error:
+
+{error}
+
+Worktree dir: {worktree_dir}
+
+Please fix this issue (e.g., remove untracked files, resolve uncommitted changes) so the worktree can be removed cleanly."""
+
+
+def finish_cleanup(info: FinishInfo) -> tuple[bool, str]:
+    """Attempt to clean up a finished worktree.
+
+    Returns (success, error_message). On success, error_message is empty.
+    """
+    # Try worktree removal
+    result = subprocess.run(
+        ["git", "worktree", "remove", str(info.worktree_dir)],
+        cwd=info.main_dir, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return False, result.stderr.strip()
+
+    # Try branch deletion (less critical)
+    result = subprocess.run(
+        ["git", "branch", "-d", info.branch_name],
+        cwd=info.main_dir, capture_output=True, text=True
+    )
+    branch_warning = "" if result.returncode == 0 else f" (branch not deleted: {result.stderr.strip()})"
+
+    return True, branch_warning
 
 
 def has_uncommitted_changes(worktree_path: Path) -> bool:
@@ -132,13 +218,11 @@ def is_branch_merged(branch: str, into_branch: str = "main") -> bool:
 def remove_worktree(worktree: WorktreeInfo, force: bool = False) -> tuple[bool, str]:
     """Remove a worktree and its branch. Returns (success, message)."""
     try:
-        # Remove the worktree
         cmd = ["git", "worktree", "remove", str(worktree.path)]
         if force:
             cmd.append("--force")
         subprocess.run(cmd, check=True, capture_output=True, text=True)
 
-        # Delete the branch
         delete_flag = "-D" if force else "-d"
         subprocess.run(
             ["git", "branch", delete_flag, worktree.branch],
@@ -150,8 +234,7 @@ def remove_worktree(worktree: WorktreeInfo, force: bool = False) -> tuple[bool, 
 
 
 def cleanup_worktrees(branches: list[str] | None = None) -> list[tuple[str, bool, str, bool]]:
-    """
-    Clean up worktrees.
+    """Clean up worktrees.
 
     Args:
         branches: Specific branches to remove. If None, removes all safe worktrees.
@@ -164,7 +247,6 @@ def cleanup_worktrees(branches: list[str] | None = None) -> list[tuple[str, bool
     main_wt = get_main_worktree()
     main_branch = main_wt[1] if main_wt else "main"
 
-    # If no branches specified, target all non-main worktrees
     if branches is None:
         branches = [wt.branch for wt in worktrees if not wt.is_main]
 
@@ -182,7 +264,6 @@ def cleanup_worktrees(branches: list[str] | None = None) -> list[tuple[str, bool
         dirty = has_uncommitted_changes(wt.path)
 
         if dirty or not merged:
-            # Needs confirmation - don't remove yet
             reason = []
             if dirty:
                 reason.append("has uncommitted changes")
@@ -194,37 +275,3 @@ def cleanup_worktrees(branches: list[str] | None = None) -> list[tuple[str, bool
             results.append((branch, success, msg, False))
 
     return results
-
-
-def list_worktrees() -> list[WorktreeInfo]:
-    """List all git worktrees for this repo."""
-    result = subprocess.run(
-        ["git", "worktree", "list", "--porcelain"],
-        capture_output=True, text=True, check=True
-    )
-
-    worktrees = []
-    current_path = None
-    current_branch = None
-
-    for line in result.stdout.strip().split("\n"):
-        if line.startswith("worktree "):
-            current_path = Path(line[9:])
-        elif line.startswith("branch refs/heads/"):
-            current_branch = line[18:]
-        elif line == "":
-            if current_path and current_branch:
-                # Main worktree is the one without a hyphenated name pattern
-                main_repo = get_repo_name()
-                is_main = current_path.name == main_repo
-                worktrees.append(WorktreeInfo(current_path, current_branch, is_main))
-            current_path = None
-            current_branch = None
-
-    # Handle last entry if no trailing newline
-    if current_path and current_branch:
-        main_repo = get_repo_name()
-        is_main = current_path.name == main_repo
-        worktrees.append(WorktreeInfo(current_path, current_branch, is_main))
-
-    return worktrees
