@@ -12,6 +12,16 @@ Screen {
     layers: below above modal;
 }
 
+/* Scrollbar styling - applied to scrollable containers */
+* {
+    scrollbar-background: #111111;
+    scrollbar-background-hover: #111111;
+    scrollbar-background-active: #111111;
+    scrollbar-color: #333333;
+    scrollbar-color-hover: #444444;
+    scrollbar-color-active: #555555;
+}
+
 Header {
     background: #111111;
 }
