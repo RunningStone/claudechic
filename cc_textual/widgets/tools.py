@@ -26,10 +26,10 @@ class ToolUseWidget(Static):
 
     SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
-    def __init__(self, block: ToolUseBlock, collapsed: bool = False) -> None:
+    def __init__(self, block: ToolUseBlock, collapsed: bool = False, completed: bool = False) -> None:
         super().__init__()
         self.block = block
-        self.result: ToolResultBlock | None = None
+        self.result: ToolResultBlock | bool | None = True if completed else None
         self._initial_collapsed = collapsed
         self._header = format_tool_header(self.block.name, self.block.input)
         self._spinner_frame = 0
@@ -37,7 +37,8 @@ class ToolUseWidget(Static):
 
     def compose(self) -> ComposeResult:
         yield Button("\u238c", id="tool-copy-btn", classes="tool-copy-btn")
-        with Collapsible(title=f"{self.SPINNER_FRAMES[0]} {self._header}", collapsed=self._initial_collapsed):
+        title = self._header if self.result else f"{self.SPINNER_FRAMES[0]} {self._header}"
+        with Collapsible(title=title, collapsed=self._initial_collapsed):
             if self.block.name == "Edit":
                 diff = format_diff_text(
                     self.block.input.get("old_string", ""),
@@ -49,7 +50,8 @@ class ToolUseWidget(Static):
                 yield Markdown(details, id="md-content")
 
     def on_mount(self) -> None:
-        self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
+        if self.result is None:  # Only start spinner for in-progress tools
+            self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
 
     def _tick_spinner(self) -> None:
         if self.result is not None or self._spinner_timer is None:

@@ -290,7 +290,7 @@ class ChatApp(App):
                 chat_view.mount(msg)
             elif m["type"] == "tool_use":
                 block = ToolUseBlock(id=m.get("id", ""), name=m["name"], input=m["input"])
-                widget = ToolUseWidget(block, collapsed=True)
+                widget = ToolUseWidget(block, collapsed=True, completed=True)
                 chat_view.mount(widget)
         self.call_after_refresh(chat_view.scroll_end, animate=False)
 
