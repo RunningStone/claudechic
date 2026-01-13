@@ -86,13 +86,6 @@ class ChatApp(App):
 
     def __init__(self, resume_session_id: str | None = None) -> None:
         super().__init__()
-        self.options = ClaudeAgentOptions(
-            permission_mode="default",
-            env={"ANTHROPIC_API_KEY": ""},
-            setting_sources=["user", "project", "local"],
-            can_use_tool=self._handle_permission,
-            hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[dummy_hook])]},
-        )
         self.client: ClaudeSDKClient | None = None
         self.current_response: ChatMessage | None = None
         self.session_id: str | None = None
@@ -200,8 +193,22 @@ class ChatApp(App):
             yield ChatInput(id="input")
         yield Footer()
 
+    def _make_options(
+        self, cwd: Path | None = None, resume: str | None = None
+    ) -> ClaudeAgentOptions:
+        """Create SDK options with common settings."""
+        return ClaudeAgentOptions(
+            permission_mode="default",
+            env={"ANTHROPIC_API_KEY": ""},
+            setting_sources=["user", "project", "local"],
+            cwd=cwd,
+            resume=resume,
+            can_use_tool=self._handle_permission,
+            hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[dummy_hook])]},
+        )
+
     async def on_mount(self) -> None:
-        self.client = ClaudeSDKClient(self.options)
+        self.client = ClaudeSDKClient(self._make_options())
         await self.client.connect()
         self.query_one("#input", ChatInput).focus()
         if self._resume_on_start:
@@ -211,11 +218,11 @@ class ChatApp(App):
         else:
             self.refresh_context()
 
-    def _load_and_display_history(self, session_id: str) -> None:
+    def _load_and_display_history(self, session_id: str, cwd: Path | None = None) -> None:
         """Load session history and display in chat view."""
         chat_view = self.query_one("#chat-view", VerticalScroll)
         chat_view.remove_children()
-        for m in load_session_messages(session_id, limit=50):
+        for m in load_session_messages(session_id, limit=50, cwd=cwd):
             if m["type"] == "user":
                 msg = ChatMessage(m["content"][:500])
                 msg.add_class("user-message")
@@ -411,14 +418,7 @@ class ChatApp(App):
             if self.client:
                 await self.client.disconnect()
             self.client = None
-            options = ClaudeAgentOptions(
-                permission_mode="default",
-                env={"ANTHROPIC_API_KEY": ""},
-                setting_sources=["user", "project", "local"],
-                resume=session_id,
-                can_use_tool=self._handle_permission,
-            )
-            client = ClaudeSDKClient(options)
+            client = ClaudeSDKClient(self._make_options(resume=session_id))
             await client.connect()
             self.client = client
             self.session_id = session_id
@@ -567,33 +567,32 @@ class ChatApp(App):
                 except Exception:
                     pass
 
-            # Create new client
-            options = ClaudeAgentOptions(
-                permission_mode="default",
-                env={"ANTHROPIC_API_KEY": ""},
-                setting_sources=["user", "project", "local"],
-                cwd=new_cwd,
-                can_use_tool=self._handle_permission,
-                hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[dummy_hook])]},
-            )
-            new_client = ClaudeSDKClient(options)
+            # Check for existing session BEFORE creating client
+            sessions = get_recent_sessions(limit=1, cwd=new_cwd)
+            resume_id = sessions[0][0] if sessions else None
+
+            # Create new client with resume if session exists
+            new_client = ClaudeSDKClient(self._make_options(cwd=new_cwd, resume=resume_id))
             await new_client.connect()
             self.client = new_client
 
-            # Don't disconnect old client - let it be garbage collected
-            # The disconnect() seems to cause the app to exit
-
-            # Clear UI state - this is effectively a new session
-            chat_view = self.query_one("#chat-view", VerticalScroll)
-            chat_view.remove_children()
+            # Clear internal state
             self.current_response = None
             self.pending_tools.clear()
             self.active_tasks.clear()
             self.recent_tools.clear()
-            self.session_id = None
             self.sdk_cwd = new_cwd
 
-            self.notify(f"SDK reconnected in {new_cwd.name}")
+            if resume_id:
+                self._load_and_display_history(resume_id, cwd=new_cwd)
+                self.session_id = resume_id
+                self.notify(f"Resumed session in {new_cwd.name}")
+            else:
+                # Clear chat view only if not resuming (resume does its own clear)
+                chat_view = self.query_one("#chat-view", VerticalScroll)
+                chat_view.remove_children()
+                self.session_id = None
+                self.notify(f"SDK reconnected in {new_cwd.name}")
         except Exception as e:
             log.exception(f"SDK reconnect failed: {e}")
             self.notify(f"SDK reconnect failed: {e}", severity="error")

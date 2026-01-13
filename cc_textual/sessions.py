@@ -14,33 +14,40 @@ def is_valid_uuid(s: str) -> bool:
     )
 
 
-def get_project_sessions_dir() -> Path | None:
-    """Get the sessions directory for the current project.
+def get_project_sessions_dir(cwd: Path | None = None) -> Path | None:
+    """Get the sessions directory for a project.
 
     Claude stores sessions in ~/.claude/projects/-path-to-project
     with dashes instead of slashes.
+
+    Args:
+        cwd: Project directory. If None, uses current working directory.
     """
-    cwd = Path.cwd().absolute()
+    if cwd is None:
+        cwd = Path.cwd().absolute()
+    else:
+        cwd = cwd.absolute()
     project_key = str(cwd).replace("/", "-")
     sessions_dir = Path.home() / ".claude/projects" / project_key
     return sessions_dir if sessions_dir.exists() else None
 
 
 def get_recent_sessions(
-    limit: int = 20, search: str = ""
+    limit: int = 20, search: str = "", cwd: Path | None = None
 ) -> list[tuple[str, str, float, int]]:
-    """Get recent sessions from current project.
+    """Get recent sessions from a project.
 
     Args:
         limit: Maximum number of sessions to return
         search: Optional text to filter sessions by content
+        cwd: Project directory. If None, uses current working directory.
 
     Returns:
         List of (session_id, preview, mtime, msg_count) tuples,
         sorted by modification time descending.
     """
     sessions = []
-    sessions_dir = get_project_sessions_dir()
+    sessions_dir = get_project_sessions_dir(cwd)
     if not sessions_dir:
         return sessions
 
@@ -75,12 +82,13 @@ def get_recent_sessions(
     return sessions[:limit]
 
 
-def load_session_messages(session_id: str, limit: int = 10) -> list[dict]:
+def load_session_messages(session_id: str, limit: int = 10, cwd: Path | None = None) -> list[dict]:
     """Load recent messages from a session file.
 
     Args:
         session_id: UUID of the session
         limit: Maximum number of messages to return
+        cwd: Project directory. If None, uses current working directory.
 
     Returns:
         List of message dicts with 'type' key:
@@ -88,7 +96,7 @@ def load_session_messages(session_id: str, limit: int = 10) -> list[dict]:
         - assistant: {'type': 'assistant', 'content': str}
         - tool_use: {'type': 'tool_use', 'name': str, 'input': dict, 'id': str}
     """
-    sessions_dir = get_project_sessions_dir()
+    sessions_dir = get_project_sessions_dir(cwd)
     if not sessions_dir:
         return []
 
