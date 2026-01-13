@@ -61,6 +61,7 @@ dependencies = [
     { name = "psutil" },
     { name = "pyperclip" },
     { name = "textual" },
+    { name = "textual-autocomplete" },
 ]
 
 [package.dev-dependencies]
@@ -76,6 +77,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=5.9.0" },
     { name = "pyperclip", specifier = ">=1.11.0" },
     { name = "textual", specifier = ">=7.1.0" },
+    { name = "textual-autocomplete", specifier = ">=4.0.6" },
 ]
 
 [package.metadata.requires-dev]
@@ -762,6 +764,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/71/13/b5cb4995d1390dd6e43c89bfa879ae41fc1b97551ce1f6d29bd01d0f9395/textual-7.1.0.tar.gz", hash = "sha256:3c7148ef00a9277b45fd78a1a6adc7c419c451d3ed714a0b015b16eaa2a8a73b", size = 1582455, upload-time = "2026-01-10T10:32:36.791Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a9/f4/48e4a4c77ab7eea48d3b0a77f8dea0be101c83421abc64da0888c77c47cf/textual-7.1.0-py3-none-any.whl", hash = "sha256:9209dd0d1d958316832f7e59328f3911112f8e951abef7c3fbe54effd4e4caed", size = 715555, upload-time = "2026-01-10T10:32:35.117Z" },
+]
+
+[[package]]
+name = "textual-autocomplete"
+version = "4.0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "textual" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/3a/80411bc7b94969eb116ad1b18db90f8dce8a1de441278c4a81fee55a27ca/textual_autocomplete-4.0.6.tar.gz", hash = "sha256:2ba2f0d767be4480ecacb3e4b130cf07340e033c3500fc424fed9125d27a4586", size = 97967, upload-time = "2025-09-24T21:19:20.213Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9f/66/ebe744d79c87f25a42d2654dddbd09462edd595f2ded715245a51a546461/textual_autocomplete-4.0.6-py3-none-any.whl", hash = "sha256:bff69c19386e2cbb4a007503b058dc37671d480a4fa2ddb3959c15ceb4aff9b5", size = 16499, upload-time = "2025-09-24T21:19:18.489Z" },
 ]
 
 [[package]]

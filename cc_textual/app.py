@@ -56,6 +56,7 @@ from cc_textual.widgets import (
     QuestionPrompt,
     SessionItem,
     WorktreePrompt,
+    TextAreaAutoComplete,
 )
 
 log = logging.getLogger(__name__)
@@ -184,6 +185,9 @@ class ChatApp(App):
         self.auto_approve_edits = not self.auto_approve_edits
         self.notify(f"Auto-edit: {'ON' if self.auto_approve_edits else 'OFF'}")
 
+    # Built-in slash commands (local to this app)
+    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree start", "/worktree finish"]
+
     def compose(self) -> ComposeResult:
         yield ContextHeader()
         with Horizontal(id="main"):
@@ -191,6 +195,11 @@ class ChatApp(App):
             yield VerticalScroll(id="chat-view")
         with Horizontal(id="input-wrapper"):
             yield ChatInput(id="input")
+            yield TextAreaAutoComplete(
+                "#input",
+                slash_commands=self.LOCAL_COMMANDS,  # Updated in on_mount
+                base_path=Path.cwd(),
+            )
         yield Footer()
 
     def _make_options(
@@ -210,7 +219,20 @@ class ChatApp(App):
     async def on_mount(self) -> None:
         self.client = ClaudeSDKClient(self._make_options())
         await self.client.connect()
+        # Fetch SDK commands and update autocomplete
+        await self._update_slash_commands()
         self.query_one("#input", ChatInput).focus()
+
+    async def _update_slash_commands(self) -> None:
+        """Fetch available commands from SDK and update autocomplete."""
+        try:
+            info = await self.client.get_server_info()
+            sdk_commands = ["/" + cmd["name"] for cmd in info.get("commands", [])]
+            all_commands = self.LOCAL_COMMANDS + sdk_commands
+            autocomplete = self.query_one(TextAreaAutoComplete)
+            autocomplete.slash_commands = all_commands
+        except Exception as e:
+            log.warning(f"Failed to fetch SDK commands: {e}")
         if self._resume_on_start:
             self._load_and_display_history(self._resume_on_start)
             self.notify(f"Resuming {self._resume_on_start[:8]}...")

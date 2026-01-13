@@ -90,6 +90,15 @@ class ChatInput(TextArea):
         self._history: list[str] = []
         self._history_index: int = -1  # -1 means not browsing history
         self._current_input: str = ""  # Saved input when browsing history
+        self._autocomplete = None  # Set by TextAreaAutoComplete on mount
+
+    def _on_key(self, event) -> None:
+        """Intercept keys for autocomplete before normal processing."""
+        if self._autocomplete and self._autocomplete.handle_key(event.key):
+            event.prevent_default()
+            event.stop()
+            return
+        super()._on_key(event)
 
     def action_submit(self) -> None:
         text = self.text.strip()
