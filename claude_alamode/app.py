@@ -11,7 +11,7 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll, Horizontal, Center
+from textual.containers import VerticalScroll, Vertical, Horizontal, Center
 from textual.events import MouseUp
 from textual.reactive import reactive
 from textual.widgets import Footer, ListView, TextArea
@@ -230,12 +230,13 @@ class ChatApp(App):
             yield VerticalScroll(id="chat-view")
         yield TodoPanel(id="todo-panel", classes="hidden")
         with Horizontal(id="input-wrapper"):
-            yield ChatInput(id="input")
-            yield TextAreaAutoComplete(
-                "#input",
-                slash_commands=self.LOCAL_COMMANDS,  # Updated in on_mount
-                base_path=Path.cwd(),
-            )
+            with Vertical(id="input-container"):
+                yield ChatInput(id="input")
+                yield TextAreaAutoComplete(
+                    "#input",
+                    slash_commands=self.LOCAL_COMMANDS,  # Updated in on_mount
+                    base_path=Path.cwd(),
+                )
         yield Footer()
 
     def _make_options(

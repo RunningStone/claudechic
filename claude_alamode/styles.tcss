@@ -159,25 +159,38 @@ ToolUseWidget:hover .tool-copy-btn {
     dock: bottom;
     width: 100%;
     height: auto;
-    min-height: 5;
+    min-height: 3;
     max-height: 12;
     align: center top;
-    padding: 0 0 1 0;
+}
+
+#input-container {
+    width: 100%;
+    max-width: 100;
+    height: auto;
+    padding: 1 0;
+    margin: 1 0;
+    border-left: wide #333333;
+    background: #1a1408;  /* Slight orange tint */
+}
+
+#input-container:focus-within {
+    border-left: wide #cc7700;
 }
 
 /* Input area */
 #input {
     height: auto;
-    min-height: 3;
+    min-height: 1;
     max-height: 10;
     width: 100%;
-    max-width: 100;
-    border: solid gray;
-    background: $surface;
+    border: none;
+    padding: 0 1;
+    background: transparent;
 }
 
-#input:focus {
-    border: solid white;
+#input .text-area--cursor-line {
+    background: transparent;
 }
 
 #input.hidden {

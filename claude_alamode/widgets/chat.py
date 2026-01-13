@@ -86,6 +86,7 @@ class ChatInput(TextArea):
     def __init__(self, *args, **kwargs) -> None:
         kwargs.setdefault("tab_behavior", "indent")
         kwargs.setdefault("soft_wrap", True)
+        kwargs.setdefault("show_line_numbers", False)
         super().__init__(*args, **kwargs)
         self._history: list[str] = []
         self._history_index: int = -1  # -1 means not browsing history
