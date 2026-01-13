@@ -53,6 +53,8 @@ from cc_textual.widgets import (
     ThinkingIndicator,
     ToolUseWidget,
     TaskWidget,
+    TodoWidget,
+    TodoPanel,
     SelectionPrompt,
     QuestionPrompt,
     SessionItem,
@@ -83,6 +85,9 @@ class ChatApp(App):
     COLLAPSE_BY_DEFAULT = {"WebSearch", "WebFetch", "AskUserQuestion"}
 
     RECENT_TOOLS_EXPANDED = 2
+
+    # Width threshold for showing sidebar
+    SIDEBAR_MIN_WIDTH = 140
 
     auto_approve_edits = reactive(False)
 
@@ -195,6 +200,7 @@ class ChatApp(App):
         with Horizontal(id="main"):
             yield ListView(id="session-picker", classes="hidden")
             yield VerticalScroll(id="chat-view")
+        yield TodoPanel(id="todo-panel", classes="hidden")
         with Horizontal(id="input-wrapper"):
             yield ChatInput(id="input")
             yield TextAreaAutoComplete(
@@ -397,6 +403,23 @@ class ChatApp(App):
             return
 
         chat_view = self.query_one("#chat-view", VerticalScroll)
+
+        # TodoWrite gets special handling - update sidebar panel and/or inline widget
+        if event.block.name == "TodoWrite":
+            todos = event.block.input.get("todos", [])
+            panel = self.query_one("#todo-panel", TodoPanel)
+            panel.update_todos(todos)
+            self._position_todo_panel()
+            # Also update inline widget if exists, or create if narrow
+            existing = self.query(TodoWidget)
+            if existing:
+                existing[0].update_todos(todos)
+            elif self.size.width < self.SIDEBAR_MIN_WIDTH:
+                chat_view.mount(TodoWidget(todos))
+            self.call_after_refresh(chat_view.scroll_end, animate=False)
+            self._show_thinking()
+            return
+
         while len(self.recent_tools) >= self.RECENT_TOOLS_EXPANDED:
             old = self.recent_tools.pop(0)
             old.collapse()
@@ -430,6 +453,20 @@ class ChatApp(App):
 
     def on_context_update(self, event: ContextUpdate) -> None:
         self.query_one("#context-bar", ContextBar).tokens = event.tokens
+
+    def on_resize(self, event) -> None:
+        """Reposition todo panel on resize."""
+        self._position_todo_panel()
+
+    def _position_todo_panel(self) -> None:
+        """Show/hide and position todo panel based on terminal width."""
+        panel = self.query_one("#todo-panel", TodoPanel)
+        if self.size.width >= self.SIDEBAR_MIN_WIDTH and panel.todos:
+            panel.remove_class("hidden")
+            chat_left = (self.size.width - 100) // 2
+            panel.styles.offset = (chat_left + 100, 2)
+        else:
+            panel.add_class("hidden")
 
     def on_response_complete(self, event: ResponseComplete) -> None:
         self._hide_thinking()

@@ -273,3 +273,34 @@ QuestionPrompt #other-input {
     height: 1;
     border: solid $primary;
 }
+
+/* Todo panel - floats right of centered chat via layer */
+#todo-panel {
+    layer: above;
+    width: 32;
+    height: auto;
+    max-height: 80%;
+    border-left: tall #555588;
+    padding: 1;
+}
+
+#todo-panel.hidden {
+    display: none;
+}
+
+#todo-panel .todo-title {
+    color: $text-muted;
+    text-style: bold;
+    padding: 0 0 1 0;
+}
+
+/* Todo widget - inline checklist */
+TodoWidget {
+    border-left: tall #555588;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
+TodoItem {
+    height: 1;
+}
