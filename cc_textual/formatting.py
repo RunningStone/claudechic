@@ -47,6 +47,27 @@ def format_tool_header(name: str, input: dict) -> str:
         return f"Glob: {input.get('pattern', '?')}"
     elif name == "Grep":
         return f"Grep: {input.get('pattern', '?')}"
+    elif name == "WebSearch":
+        return f"WebSearch: {input.get('query', '?')}"
+    elif name == "WebFetch":
+        return f"WebFetch: {input.get('url', '?')[:50]}"
+    elif name == "Task":
+        desc = input.get("description", "")
+        agent = input.get("subagent_type", "")
+        if desc:
+            return f"Task: {desc}" + (f" ({agent})" if agent else "")
+        return f"Task" + (f" ({agent})" if agent else "")
+    elif name == "TodoWrite":
+        todos = input.get("todos", [])
+        return f"TodoWrite: {len(todos)} items"
+    elif name == "AskUserQuestion":
+        questions = input.get("questions", [])
+        if questions and questions[0].get("question"):
+            q = questions[0]["question"][:40]
+            return f"AskUserQuestion: {q}..."
+        return "AskUserQuestion"
+    elif name == "Skill":
+        return f"Skill: {input.get('skill', '?')}"
     else:
         return f"{name}"
 
