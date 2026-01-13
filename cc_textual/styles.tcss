@@ -299,3 +299,18 @@ TodoWidget {
 TodoItem {
     height: 1;
 }
+
+/* Toast notifications */
+Toast {
+    background: #111111;
+    border-left: tall #333333;
+    padding: 0 1;
+}
+
+Toast.-error {
+    border-left: tall #cc3333;
+}
+
+ToastRack {
+    margin-bottom: 6;
+}
