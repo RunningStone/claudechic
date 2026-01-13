@@ -20,7 +20,10 @@ def main():
         "--resume", "-r", action="store_true", help="Resume the most recent session"
     )
     parser.add_argument("--session", "-s", type=str, help="Resume a specific session ID")
+    parser.add_argument("prompt", nargs="*", help="Initial prompt to send")
     args = parser.parse_args()
+
+    initial_prompt = " ".join(args.prompt) if args.prompt else None
 
     resume_id = None
     if args.session:
@@ -31,7 +34,7 @@ def main():
             resume_id = sessions[0][0]
 
     try:
-        app = ChatApp(resume_session_id=resume_id)
+        app = ChatApp(resume_session_id=resume_id, initial_prompt=initial_prompt)
         app.run()
     except (KeyboardInterrupt, SystemExit):
         pass

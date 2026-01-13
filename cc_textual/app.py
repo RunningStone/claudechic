@@ -100,7 +100,7 @@ class ChatApp(App):
 
     auto_approve_edits = reactive(False)
 
-    def __init__(self, resume_session_id: str | None = None) -> None:
+    def __init__(self, resume_session_id: str | None = None, initial_prompt: str | None = None) -> None:
         super().__init__()
         self.client: ClaudeSDKClient | None = None
         self.current_response: ChatMessage | None = None
@@ -110,6 +110,7 @@ class ChatApp(App):
         self.active_tasks: dict[str, TaskWidget] = {}
         self.recent_tools: list[ToolUseWidget | TaskWidget] = []
         self._resume_on_start = resume_session_id
+        self._initial_prompt = initial_prompt
         self._session_picker_active = False
         self._pending_worktree_finish: FinishInfo | None = None  # Info for cleanup after merge
         self._worktree_cleanup_attempts: int = 0  # Track retry attempts
@@ -263,6 +264,9 @@ class ChatApp(App):
         # Fetch SDK commands and update autocomplete
         await self._update_slash_commands()
         self.query_one("#input", ChatInput).focus()
+        # Send initial prompt if provided
+        if self._initial_prompt:
+            self._send_initial_prompt()
 
     async def _update_slash_commands(self) -> None:
         """Fetch available commands from SDK and update autocomplete."""
@@ -308,12 +312,20 @@ class ChatApp(App):
                 if tokens is not None:
                     self.post_message(ContextUpdate(tokens))
 
+    def _send_initial_prompt(self) -> None:
+        """Send the initial prompt from CLI args."""
+        prompt = self._initial_prompt
+        self._initial_prompt = None  # Clear so it doesn't re-send
+        self._handle_prompt(prompt)
+
     def on_chat_input_submitted(self, event: ChatInput.Submitted) -> None:
         if not event.text.strip():
             return
-
-        prompt = event.text
         self.query_one("#input", ChatInput).clear()
+        self._handle_prompt(event.text)
+
+    def _handle_prompt(self, prompt: str) -> None:
+        """Process a prompt - handles local commands or sends to Claude."""
         chat_view = self.query_one("#chat-view", VerticalScroll)
 
         if prompt.strip() == "/clear":
