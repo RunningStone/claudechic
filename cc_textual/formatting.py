@@ -178,7 +178,8 @@ def format_tool_details(name: str, input: dict) -> str:
         limit = input.get("limit")
         details = f"**File:** `{path}`"
         if offset or limit:
-            details += f"\nLines: {offset or 0} - {(offset or 0) + (limit or 'end')}"
+            end = (offset or 0) + limit if limit else "end"
+            details += f"\nLines: {offset or 0} - {end}"
         return details
     elif name == "Bash":
         cmd = input.get("command", "?")
