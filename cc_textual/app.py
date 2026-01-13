@@ -41,6 +41,7 @@ from cc_textual.messages import (
     ContextUpdate,
 )
 from cc_textual.sessions import get_recent_sessions, load_session_messages
+from cc_textual.worktree import start_worktree, finish_worktree, get_worktree_status
 from cc_textual.formatting import parse_context_tokens
 from cc_textual.permissions import PermissionRequest, dummy_hook
 from cc_textual.widgets import (
@@ -264,6 +265,10 @@ class ChatApp(App):
                 self._show_session_picker()
             return
 
+        if prompt.strip().startswith("/worktree"):
+            self._handle_worktree_command(prompt.strip())
+            return
+
         user_msg = ChatMessage(prompt)
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
@@ -401,6 +406,8 @@ class ChatApp(App):
         """Resume a session by creating a new client."""
         log.info(f"resume_session started: {session_id}")
         try:
+            if self.client:
+                await self.client.disconnect()
             self.client = None
             options = ClaudeAgentOptions(
                 permission_mode="default",
@@ -441,10 +448,19 @@ class ChatApp(App):
     def action_quit(self) -> None:
         now = time.time()
         if hasattr(self, "_last_quit_time") and now - self._last_quit_time < 1.0:
-            self.exit()
+            self.run_worker(self._cleanup_and_exit())
         else:
             self._last_quit_time = now
             self.notify("Press Ctrl+C again to quit")
+
+    async def _cleanup_and_exit(self) -> None:
+        """Disconnect SDK and exit."""
+        if self.client:
+            try:
+                await self.client.disconnect()
+            except Exception:
+                pass  # Best effort cleanup
+        self.exit()
 
     def _show_session_picker(self) -> None:
         picker = self.query_one("#session-picker", ListView)
@@ -466,6 +482,78 @@ class ChatApp(App):
         self.query_one("#chat-view", VerticalScroll).remove_class("hidden")
         self.query_one("#input", ChatInput).clear()
         self.query_one("#input", ChatInput).focus()
+
+    def _handle_worktree_command(self, command: str) -> None:
+        """Handle /worktree commands."""
+        parts = command.split(maxsplit=2)
+        chat_view = self.query_one("#chat-view", VerticalScroll)
+
+        if len(parts) == 1:
+            # Just /worktree - show status
+            msg = ChatMessage(get_worktree_status())
+            msg.add_class("system-message")
+            chat_view.mount(msg)
+            return
+
+        subcommand = parts[1]
+
+        if subcommand == "start":
+            if len(parts) < 3:
+                self.notify("Usage: /worktree start <feature-name>", severity="error")
+                return
+            feature_name = parts[2]
+            success, message, new_cwd = start_worktree(feature_name)
+            msg = ChatMessage(message)
+            msg.add_class("system-message")
+            chat_view.mount(msg)
+            if success and new_cwd:
+                self.notify(f"Worktree ready: {feature_name}")
+                self.sub_title = f"[worktree: {feature_name}]"
+                self._reconnect_sdk(new_cwd)
+            else:
+                self.notify(message, severity="error")
+
+        elif subcommand == "finish":
+            success, message, original_cwd = finish_worktree()
+            msg = ChatMessage(message)
+            msg.add_class("system-message")
+            chat_view.mount(msg)
+            if success and original_cwd:
+                self.notify("Worktree merged and cleaned up")
+                self.sub_title = ""
+                self._reconnect_sdk(original_cwd)
+            else:
+                self.notify(message, severity="error")
+
+        else:
+            self.notify(f"Unknown subcommand: {subcommand}. Use: start <name>, finish", severity="error")
+
+        self.call_after_refresh(chat_view.scroll_end, animate=False)
+
+    @work(group="reconnect", exclusive=True, exit_on_error=False)
+    async def _reconnect_sdk(self, new_cwd: Path) -> None:
+        """Reconnect SDK with a new working directory."""
+        log.info(f"Reconnecting SDK with cwd: {new_cwd}")
+        try:
+            if self.client:
+                await self.client.disconnect()
+            self.client = None
+            options = ClaudeAgentOptions(
+                permission_mode="default",
+                env={"ANTHROPIC_API_KEY": ""},
+                setting_sources=["user", "project", "local"],
+                cwd=new_cwd,
+                can_use_tool=self._handle_permission,
+                hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[dummy_hook])]},
+            )
+            client = ClaudeSDKClient(options)
+            await client.connect()
+            self.client = client
+            self.notify(f"SDK reconnected in {new_cwd.name}")
+            log.info(f"SDK reconnected with cwd: {new_cwd}")
+        except Exception as e:
+            log.exception(f"SDK reconnect failed: {e}")
+            self.notify(f"SDK reconnect failed: {e}", severity="error")
 
     def action_cancel_picker(self) -> None:
         if self._session_picker_active:
