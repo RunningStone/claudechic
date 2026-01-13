@@ -1,6 +1,7 @@
 """Claude Code Textual UI - Main application."""
 
 import asyncio
+from contextlib import asynccontextmanager
 import logging
 import subprocess
 import time
@@ -136,6 +137,21 @@ class ChatApp(App):
         await new_client.connect()
         self.client = new_client
 
+    @asynccontextmanager
+    async def _show_prompt(self, prompt):
+        """Show a prompt widget, hiding input. Restores input on exit."""
+        input_widget = self.query_one("#input", ChatInput)
+        input_widget.add_class("hidden")
+        self.query_one("#input-wrapper").mount(prompt)
+        try:
+            yield prompt
+        finally:
+            try:
+                prompt.remove()
+            except Exception:
+                pass
+            input_widget.remove_class("hidden")
+
     async def _handle_permission(
         self, tool_name: str, tool_input: dict[str, Any], context: ToolPermissionContext
     ) -> PermissionResult:
@@ -156,24 +172,14 @@ class ChatApp(App):
         if tool_name in self.AUTO_EDIT_TOOLS:
             options.insert(0, ("allow_all", "Yes, all edits in this session"))
 
-        prompt = SelectionPrompt(request.title, options)
-        input_widget = self.query_one("#input", ChatInput)
-        input_widget.add_class("hidden")
-        self.query_one("#input-wrapper").mount(prompt)
+        async with self._show_prompt(SelectionPrompt(request.title, options)) as prompt:
+            async def ui_response():
+                result = await prompt.wait()
+                if not request._event.is_set():
+                    request.respond(result)
 
-        async def ui_response():
-            result = await prompt.wait()
-            if not request._event.is_set():
-                request.respond(result)
-
-        self.run_worker(ui_response(), exclusive=False)
-        result = await request.wait()
-
-        try:
-            prompt.remove()
-        except Exception:
-            pass
-        input_widget.remove_class("hidden")
+            self.run_worker(ui_response(), exclusive=False)
+            result = await request.wait()
 
         log.info(f"Permission result: {result}")
         if result == "allow_all":
@@ -195,18 +201,8 @@ class ChatApp(App):
 
         log.info(f"AskUserQuestion with {len(questions)} questions")
 
-        prompt = QuestionPrompt(questions)
-        input_widget = self.query_one("#input", ChatInput)
-        input_widget.add_class("hidden")
-        self.query_one("#input-wrapper").mount(prompt)
-
-        answers = await prompt.wait()
-
-        try:
-            prompt.remove()
-        except Exception:
-            pass
-        input_widget.remove_class("hidden")
+        async with self._show_prompt(QuestionPrompt(questions)) as prompt:
+            answers = await prompt.wait()
 
         if not answers:
             return PermissionResultDeny(message="User cancelled questions")
@@ -669,24 +665,14 @@ Do NOT remove the worktree or delete the branch - the app will handle cleanup.""
     @work(group="cleanup_prompt", exclusive=True, exit_on_error=False)
     async def _run_cleanup_prompt(self, needs_confirm: list[tuple[str, str]]) -> None:
         """Show prompt for confirming worktree removal."""
-        from cc_textual.widgets import SelectionPrompt
-        input_wrapper = self.query_one("#input-wrapper", Horizontal)
-        try:
-            input_wrapper.query_one("#input", ChatInput).remove()
-        except Exception:
-            pass
-
-        # Build options: (value, label) tuples
         branches_to_confirm = [b for b, _ in needs_confirm]
         options = [("all", f"Remove all ({len(needs_confirm)})")]
         options.extend((b, f"Remove {b} ({msg})") for b, msg in needs_confirm)
         options.append(("cancel", "Cancel"))
 
-        prompt = SelectionPrompt("Worktrees with changes or unmerged:", options)
-        input_wrapper.mount(prompt)
-        prompt.focus()
-
-        selected = await prompt.wait()
+        async with self._show_prompt(SelectionPrompt("Worktrees with changes or unmerged:", options)) as prompt:
+            prompt.focus()
+            selected = await prompt.wait()
 
         if selected and selected != "cancel":
             to_remove = branches_to_confirm if selected == "all" else [selected]
@@ -699,7 +685,7 @@ Do NOT remove the worktree or delete the branch - the app will handle cleanup.""
         else:
             self.notify("Cleanup cancelled")
 
-        self._restore_chat_input()
+        self.query_one("#input", ChatInput).focus()
 
     def _attempt_worktree_cleanup(self) -> None:
         """Attempt to clean up worktree, asking Claude for help if it fails."""
@@ -865,12 +851,17 @@ Please fix this issue (e.g., remove untracked files, resolve uncommitted changes
             self.resume_session(session_id)
 
     def on_app_focus(self) -> None:
-        self.query_one("#input", ChatInput).focus()
+        input_widgets = self.query("#input")
+        if input_widgets:
+            input_widgets.first(ChatInput).focus()
 
     def on_key(self, event) -> None:
-        if self.query(SelectionPrompt):
+        if self.query(SelectionPrompt) or self.query(QuestionPrompt):
             return
-        input_widget = self.query_one("#input", ChatInput)
+        input_widgets = self.query("#input")
+        if not input_widgets:
+            return
+        input_widget = input_widgets.first(ChatInput)
         if self.focused == input_widget:
             return
         if len(event.character or "") == 1 and event.character.isprintable():
