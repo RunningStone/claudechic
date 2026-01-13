@@ -145,7 +145,8 @@ ToolUseWidget:hover .tool-copy-btn {
     height: auto;
     min-height: 3;
     max-height: 10;
-    width: 100;
+    width: 100%;
+    max-width: 100;
     border: solid gray;
     background: $surface;
 }
