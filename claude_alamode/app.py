@@ -578,6 +578,7 @@ class ChatApp(App):
             else:
                 await agent.client.query(prompt)
             had_tool_use: dict[str | None, bool] = {}
+            agent.response_had_tools = False
 
             async for message in agent.client.receive_response():
                 if isinstance(message, AssistantMessage):
@@ -592,6 +593,7 @@ class ChatApp(App):
                         elif isinstance(block, ToolUseBlock):
                             self.post_message(ToolUseMessage(block, parent_tool_use_id=parent_id, agent_id=agent_id))
                             had_tool_use[parent_id] = True
+                            agent.response_had_tools = True
                         elif isinstance(block, ToolResultBlock):
                             self.post_message(ToolResultMessage(block, parent_tool_use_id=parent_id, agent_id=agent_id))
                 elif isinstance(message, UserMessage):
@@ -753,6 +755,9 @@ class ChatApp(App):
             agent.session_id = event.result.session_id
             self.refresh_context()
         if agent:
+            # Mark final message as summary if tools were used
+            if agent.response_had_tools and agent.current_response:
+                agent.current_response.add_class("summary")
             agent.current_response = None
         self.query_one("#input", ChatInput).focus()
         self.completions.put_nowait(event)

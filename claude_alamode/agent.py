@@ -34,6 +34,9 @@ class AgentSession:
     recent_tools: list["ToolUseWidget | TaskWidget"] = field(default_factory=list)
     todos: list[dict] = field(default_factory=list)
 
+    # Track if current response used tools (for summary styling)
+    response_had_tools: bool = False
+
     # Worktree finish state (scoped to this agent)
     pending_worktree_finish: "FinishInfo | None" = None
     worktree_cleanup_attempts: int = 0

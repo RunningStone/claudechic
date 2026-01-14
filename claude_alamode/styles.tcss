@@ -82,6 +82,12 @@ ChatMessage.assistant-message {
     border-left: wide #334455;
 }
 
+/* Summary messages - final text after tool uses, emphasized like user messages */
+ChatMessage.summary {
+    border-left: thick #334455;
+    margin: 2 0 1 0;
+}
+
 /* Tool uses - subtle, highlight on hover */
 ToolUseWidget {
     border-left: wide #333333;
