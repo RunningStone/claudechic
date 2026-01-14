@@ -134,7 +134,7 @@ class ImageAttachments(Horizontal):
                 else:
                     display_name = name
                 btn = Button(f"📎 {display_name} ×", id=f"img-{self._counter}", classes="image-tag")
-                btn._image_name = name  # Store actual name for removal
+                btn._image_name = name  # type: ignore[attr-defined]  # Store actual name for removal
                 self.mount(btn)
             self.remove_class("hidden")
         else:
@@ -143,7 +143,7 @@ class ImageAttachments(Horizontal):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle click on image tag to remove it."""
         if hasattr(event.button, "_image_name"):
-            self.remove_image(event.button._image_name)
+            self.remove_image(event.button._image_name)  # type: ignore[attr-defined]
             event.stop()
 
 
@@ -178,13 +178,13 @@ class ChatInput(TextArea):
         self._autocomplete = None
         self._last_image_paste: tuple[str, float] | None = None  # (text, time) for dedup
 
-    def _on_key(self, event) -> None:
+    async def _on_key(self, event) -> None:  # type: ignore[override]
         """Intercept keys for autocomplete before normal processing."""
         if self._autocomplete and self._autocomplete.handle_key(event.key):
             event.prevent_default()
             event.stop()
             return
-        super()._on_key(event)
+        await super()._on_key(event)
 
     def _is_image_path(self, text: str) -> list:
         """Check if text contains image file paths."""
@@ -218,7 +218,7 @@ class ChatInput(TextArea):
 
             # Attach images
             for path in images:
-                self.app._attach_image(path)
+                self.app._attach_image(path)  # type: ignore[attr-defined]
             event.prevent_default()
             event.stop()
             return

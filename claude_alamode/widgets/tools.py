@@ -111,7 +111,7 @@ class ToolUseWidget(Static):
             parts.append(f"File: {inp.get('file_path', '?')}")
         else:
             parts.append(json.dumps(inp, indent=2))
-        if self.result and self.result.content:
+        if self.result and self.result is not True and self.result.content:
             content = (
                 self.result.content
                 if isinstance(self.result.content, str)

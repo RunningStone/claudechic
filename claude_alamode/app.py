@@ -10,7 +10,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -197,7 +197,7 @@ class ChatApp(App):
         """Get agent by ID, or active agent if None."""
         return self.agents.get(agent_id) if agent_id else self._agent
 
-    def _set_agent_status(self, status: str, agent_id: str | None = None) -> None:
+    def _set_agent_status(self, status: Literal["idle", "busy", "needs_input"], agent_id: str | None = None) -> None:
         """Update an agent's status and sidebar display."""
         aid = agent_id or self.active_agent_id
         if not aid or aid not in self.agents:
@@ -444,13 +444,17 @@ class ChatApp(App):
     async def _update_slash_commands(self) -> None:
         """Fetch available commands from SDK and update autocomplete."""
         try:
+            if not self.client:
+                return
             info = await self.client.get_server_info()
+            if not info:
+                return
             sdk_commands = ["/" + cmd["name"] for cmd in info.get("commands", [])]
             all_commands = self.LOCAL_COMMANDS + sdk_commands
             autocomplete = self.query_one(TextAreaAutoComplete)
             autocomplete.slash_commands = all_commands
             # Update footer with model info - first model marked 'default' is active
-            if info and "models" in info:
+            if "models" in info:
                 models = info["models"]
                 if isinstance(models, list) and models:
                     # Find active model (one marked default)
@@ -510,7 +514,8 @@ class ChatApp(App):
         """Send the initial prompt from CLI args."""
         prompt = self._initial_prompt
         self._initial_prompt = None  # Clear so it doesn't re-send
-        self._handle_prompt(prompt)
+        if prompt:
+            self._handle_prompt(prompt)
 
     def on_chat_input_submitted(self, event: ChatInput.Submitted) -> None:
         if not event.text.strip():
@@ -582,7 +587,8 @@ class ChatApp(App):
             # Send message with images if any are pending
             if self.pending_images:
                 message = self._build_message_with_images(prompt)
-                await agent.client._transport.write(json.dumps(message) + "\n")
+                if agent.client._transport:
+                    await agent.client._transport.write(json.dumps(message) + "\n")
             else:
                 await agent.client.query(prompt)
             had_tool_use: dict[str | None, bool] = {}
@@ -819,7 +825,7 @@ class ChatApp(App):
         if selected and len(selected.strip()) > 0:
             self.copy_to_clipboard(selected)
 
-    def action_quit(self) -> None:
+    def action_quit(self) -> None:  # type: ignore[override]
         now = time.time()
         if hasattr(self, "_last_quit_time") and now - self._last_quit_time < 1.0:
             self.run_worker(self._cleanup_and_exit())

@@ -129,7 +129,7 @@ class TextAreaAutoComplete(Widget):
         self.watch(self.target, "selection", self._on_selection_change)
         # Register with target for key interception
         if hasattr(self.target, "_autocomplete"):
-            self.target._autocomplete = self
+            self.target._autocomplete = self  # type: ignore[attr-defined]
 
     def _on_selection_change(self) -> None:
         """Called when cursor position changes."""
@@ -297,7 +297,7 @@ class TextAreaAutoComplete(Widget):
             candidate_string = candidate.value.rstrip("/")  # Don't match trailing /
             score, offsets = self._fuzzy_search.match(query, candidate_string)
             if score > 0:
-                highlighted = self._apply_highlights(candidate.main, offsets)
+                highlighted = self._apply_highlights(candidate.main, tuple(offsets))
                 item = DropdownItem(
                     main=highlighted,
                     prefix=candidate.prefix,
@@ -333,7 +333,7 @@ class TextAreaAutoComplete(Widget):
         except Exception:
             pass  # Widget may not be fully mounted
 
-    def handle_key(self, key: str) -> bool:
+    def handle_key(self, key: str) -> bool:  # type: ignore[override]
         """Handle a key press. Returns True if the key was consumed.
 
         Call this from the target widget's key handler to intercept keys
