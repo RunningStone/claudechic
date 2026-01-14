@@ -31,7 +31,8 @@ def main():
             resume_id = sessions[0][0]
 
     # Set terminal window title
-    sys.stdout.write("\033]0;✳ Claude à la Mode\007")
+    from pathlib import Path
+    sys.stdout.write(f"\033]0;Claude à la Mode · {Path.cwd().name}\007")
     sys.stdout.flush()
 
     try:
