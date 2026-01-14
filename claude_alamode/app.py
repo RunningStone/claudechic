@@ -966,8 +966,11 @@ class ChatApp(App):
             self.notify("Usage: /shell <command>")
             return
         cmd = parts[1]
+        agent = self._agent
+        cwd = str(agent.cwd) if agent else None
         with self.suspend():
-            os.system(cmd)
+            import subprocess
+            subprocess.run(cmd, shell=True, cwd=cwd)
 
     def _handle_agent_command(self, command: str) -> None:
         """Handle /agent commands."""
