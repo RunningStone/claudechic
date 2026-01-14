@@ -65,7 +65,7 @@ class ToolUseWidget(Static):
             title_widget = collapsible.query_one(CollapsibleTitle)
             title_widget.label = new_title
         except Exception:
-            pass
+            pass  # Widget may not be fully mounted
 
     def stop_spinner(self) -> None:
         """Stop the spinner and show static header."""
@@ -82,14 +82,14 @@ class ToolUseWidget(Static):
             title_widget = collapsible.query_one(CollapsibleTitle)
             title_widget.label = self._header
         except Exception:
-            pass
+            pass  # Widget may not be fully mounted
 
     def collapse(self) -> None:
         """Collapse this widget."""
         try:
             self.query_one(Collapsible).collapsed = True
         except Exception:
-            pass
+            pass  # Widget may not be mounted
 
     def get_copyable_content(self) -> str:
         """Get content suitable for copying."""
@@ -177,7 +177,7 @@ class ToolUseWidget(Static):
                     details += f"\n\n{preview}"
             md.update(details.rstrip())
         except Exception:
-            pass
+            pass  # Widget may not be fully mounted
 
 
 class TaskWidget(Static):
@@ -206,7 +206,7 @@ class TaskWidget(Static):
         try:
             self.query_one(Collapsible).collapsed = True
         except Exception:
-            pass
+            pass  # Widget may not be mounted
 
     def add_text(self, text: str, new_message: bool = False) -> None:
         """Add text content from subagent."""
@@ -220,7 +220,7 @@ class TaskWidget(Static):
                 content.mount(self._current_message)
             self._current_message.append_content(text)
         except Exception:
-            pass
+            pass  # Widget may not be mounted
 
     def add_tool_use(self, block: ToolUseBlock) -> None:
         """Add a tool use from subagent."""
@@ -235,7 +235,7 @@ class TaskWidget(Static):
             content.mount(widget)
             self._current_message = None
         except Exception:
-            pass
+            pass  # Widget may not be mounted
 
     def add_tool_result(self, block: ToolResultBlock) -> None:
         """Add a tool result from subagent."""
@@ -252,4 +252,4 @@ class TaskWidget(Static):
             if result.is_error:
                 collapsible.add_class("error")
         except Exception:
-            pass
+            pass  # Widget may not be mounted

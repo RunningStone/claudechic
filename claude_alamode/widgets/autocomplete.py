@@ -331,7 +331,7 @@ class TextAreaAutoComplete(Widget):
             )
             self.absolute_offset = Offset(x, y)
         except Exception:
-            pass
+            pass  # Widget may not be fully mounted
 
     def handle_key(self, key: str) -> bool:
         """Handle a key press. Returns True if the key was consumed.

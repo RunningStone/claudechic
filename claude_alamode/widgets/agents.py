@@ -89,7 +89,7 @@ class AgentItem(Widget):
             label = self.query_one(".agent-label", Static)
             label.update(self._render_label())
         except Exception:
-            pass
+            pass  # Widget may not be mounted yet
 
     def on_click(self) -> None:
         self.post_message(self.Selected(self.agent_id))

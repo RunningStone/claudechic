@@ -9,6 +9,8 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Markdown, TextArea, Static, Button
 
+from claude_alamode.errors import log_exception
+
 
 class ThinkingIndicator(Static):
     """Animated spinner shown when Claude is thinking."""
@@ -32,6 +34,24 @@ class ThinkingIndicator(Static):
     def watch_frame(self, frame: int) -> None:
         self.update(f"{self.FRAMES[frame]} Thinking...")
         self.refresh()
+
+
+class ErrorMessage(Static):
+    """Error message displayed in the chat view with red styling."""
+
+    def __init__(self, message: str, exception: Exception | None = None) -> None:
+        super().__init__()
+        self._message = message
+        self._exception = exception
+        # Log the exception if provided
+        if exception:
+            log_exception(exception, message)
+
+    def compose(self) -> ComposeResult:
+        display = f"**Error:** {self._message}"
+        if self._exception:
+            display += f"\n\n`{type(self._exception).__name__}: {self._exception}`"
+        yield Markdown(display, id="content")
 
 
 class ChatMessage(Static):

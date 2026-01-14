@@ -26,7 +26,7 @@ class CPUBar(Widget):
         try:
             self.cpu_pct = self._process.cpu_percent()
         except Exception:
-            pass
+            pass  # Process may have exited
 
     def render(self) -> RenderResult:
         pct = min(self.cpu_pct / 100.0, 1.0)

@@ -1,17 +1,13 @@
 """Entry point for claude-alamode CLI."""
 
 import argparse
-import logging
 
 from claude_alamode.app import ChatApp
 from claude_alamode.sessions import get_recent_sessions
+from claude_alamode.errors import setup_logging
 
-# Set up file logging
-logging.basicConfig(
-    filename="claude-alamode.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
+# Set up file logging to ~/claude-alamode.log
+setup_logging()
 
 
 def main():

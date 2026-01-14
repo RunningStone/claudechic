@@ -63,7 +63,7 @@ class BasePrompt(Static):
                 else:
                     opt.remove_class("selected")
             except Exception:
-                pass
+                pass  # Widget may not be mounted yet
 
     def _resolve(self, result: Any) -> None:
         """Set result and signal completion."""

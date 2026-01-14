@@ -31,11 +31,18 @@ Footer {
 }
 
 /* Shared block styling - all content blocks */
-ChatMessage, ToolUseWidget, ThinkingIndicator {
+ChatMessage, ToolUseWidget, ThinkingIndicator, ErrorMessage {
     background: transparent;
     margin: 0 0 1 0;  /* 1 line between blocks */
     padding: 0 2 0 1;
     border-left: wide transparent;
+}
+
+/* Error messages - red, like user messages but indicating problems */
+ErrorMessage {
+    border-left: thick #cc3333;
+    background: #1a0808;  /* Slight red tint */
+    margin: 1 0 1 0;
 }
 
 /* User messages - vibrant orange, extra spacing */

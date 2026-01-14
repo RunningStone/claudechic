@@ -61,6 +61,7 @@ from claude_alamode.widgets import (
     ChatInput,
     ThinkingIndicator,
     ImageAttachments,
+    ErrorMessage,
     ToolUseWidget,
     TaskWidget,
     TodoWidget,
@@ -73,6 +74,7 @@ from claude_alamode.widgets import (
     AgentSidebar,
     AgentItem,
 )
+from claude_alamode.errors import log_exception, setup_logging
 
 log = logging.getLogger(__name__)
 
@@ -202,6 +204,21 @@ class ChatApp(App):
         except Exception:
             pass  # Sidebar not mounted yet
 
+    def show_error(self, message: str, exception: Exception | None = None) -> None:
+        """Display an error message in the chat view and log to file.
+
+        Args:
+            message: Brief description of what failed
+            exception: Optional exception for logging (full traceback logged to file)
+        """
+        chat_view = self._chat_view
+        if chat_view:
+            error_widget = ErrorMessage(message, exception)
+            chat_view.mount(error_widget)
+            self.call_after_refresh(chat_view.scroll_end, animate=False)
+        # Also show toast for visibility
+        self.notify(message, severity="error")
+
     async def _replace_client(self, options: ClaudeAgentOptions) -> None:
         """Safely replace current client with a new one."""
         # Cancel any permission prompts waiting for user input
@@ -251,7 +268,7 @@ class ChatApp(App):
         try:
             self.query_one("#image-attachments", ImageAttachments).clear()
         except Exception:
-            pass
+            pass  # Widget may not exist yet
         return {
             "type": "user",
             "message": {"role": "user", "content": content},
@@ -270,7 +287,7 @@ class ChatApp(App):
             try:
                 prompt.remove()
             except Exception:
-                pass
+                pass  # Prompt may already be removed
             input_container.remove_class("hidden")
 
     async def _handle_permission(
@@ -588,7 +605,7 @@ class ChatApp(App):
             for ind in self.query(ThinkingIndicator):
                 ind.remove()
         except Exception:
-            pass
+            pass  # OK to fail during shutdown
 
     def on_stream_chunk(self, event: StreamChunk) -> None:
         self._hide_thinking()
@@ -776,7 +793,7 @@ class ChatApp(App):
                 try:
                     await agent.client.interrupt()
                 except Exception:
-                    pass
+                    pass  # Best-effort cleanup during shutdown
                 agent.client = None
         # Brief delay to let SDK hooks complete before stream closes
         await asyncio.sleep(0.1)
@@ -1195,7 +1212,7 @@ class ChatApp(App):
             try:
                 await agent.client.interrupt()
             except Exception:
-                pass
+                pass  # Best-effort cleanup
             agent.client = None
 
         # Remove chat view
