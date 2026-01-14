@@ -92,6 +92,7 @@ def _scroll_if_at_bottom(scroll_view: VerticalScroll) -> None:
 class ChatApp(App):
     """Main chat application."""
 
+    TITLE = "✳ Claude à la Mode"
     CSS_PATH = Path(__file__).parent / "styles.tcss"
 
     BINDINGS = [

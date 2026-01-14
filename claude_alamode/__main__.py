@@ -1,6 +1,7 @@
 """Entry point for claude-alamode CLI."""
 
 import argparse
+import sys
 
 from claude_alamode.app import ChatApp
 from claude_alamode.sessions import get_recent_sessions
@@ -28,6 +29,10 @@ def main():
         sessions = get_recent_sessions(limit=1)
         if sessions:
             resume_id = sessions[0][0]
+
+    # Set terminal window title
+    sys.stdout.write("\033]0;✳ Claude à la Mode\007")
+    sys.stdout.flush()
 
     try:
         app = ChatApp(resume_session_id=resume_id, initial_prompt=initial_prompt)
