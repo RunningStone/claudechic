@@ -20,6 +20,8 @@ class AutoHideScroll(VerticalScroll):
     def _on_scroll(self) -> None:
         """Show scrollbar briefly on scroll."""
         self.add_class("scrollbar-visible")
-        self.set_timer(self.HIDE_DELAY, lambda: self.remove_class("scrollbar-visible"), name="hide_scrollbar")
+        if hasattr(self, "_hide_timer"):
+            self._hide_timer.stop()
+        self._hide_timer = self.set_timer(self.HIDE_DELAY, lambda: self.remove_class("scrollbar-visible"))
 
     on_mouse_scroll_down = on_mouse_scroll_up = lambda self, event: self._on_scroll()
