@@ -255,13 +255,13 @@ class QuestionPrompt(BasePrompt):
             label = opt.get("label", "?")
             desc = opt.get("description", "")
             text = f"{i + 1}. {label}" + (f" - {desc}" if desc else "")
-            yield Static(text, classes=classes, id=f"opt-{i}")
+            yield Static(text, classes=classes, id=self._get_option_id(i))
         # "Other" option
         other_idx = len(q.get("options", []))
         classes = "prompt-option prompt-placeholder"
         if self.selected_idx == other_idx:
             classes += " selected"
-        yield Static(f"{other_idx + 1}. {self._text_option_placeholder()}", classes=classes, id=f"opt-{other_idx}")
+        yield Static(f"{other_idx + 1}. {self._text_option_placeholder()}", classes=classes, id=self._get_option_id(other_idx))
 
     def _total_options(self) -> int:
         q = self.questions[self.current_q]
@@ -288,6 +288,10 @@ class QuestionPrompt(BasePrompt):
     def _submit_text(self, text: str) -> None:
         self._record_answer(text)
 
+    def _get_option_id(self, idx: int) -> str:
+        """Return unique DOM id for option at index (includes question number)."""
+        return f"opt-{self.current_q}-{idx}"
+
     def _record_answer(self, answer: str) -> None:
         """Record answer and advance to next question or finish."""
         q = self.questions[self.current_q]
@@ -298,7 +302,9 @@ class QuestionPrompt(BasePrompt):
             self.selected_idx = 0
             self._in_text_mode = False
             self._text_buffer = ""
-            self.remove_children()
+            # Remove old children and mount new question
+            for child in list(self.children):
+                child.remove()
             for w in self._render_question():
                 self.mount(w)
         else:

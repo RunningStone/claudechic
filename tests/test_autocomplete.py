@@ -8,7 +8,7 @@ from claude_alamode.widgets import ChatInput, TextAreaAutoComplete
 
 
 @pytest.mark.asyncio
-async def test_slash_command_autocomplete(tmp_path: Path):
+async def test_slash_command_autocomplete(mock_sdk, tmp_path: Path):
     """Test slash command autocomplete shows and filters correctly."""
     app = ChatApp()
     async with app.run_test(size=(80, 24)) as pilot:
@@ -48,7 +48,7 @@ async def test_slash_command_autocomplete(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_path_autocomplete(tmp_path: Path):
+async def test_path_autocomplete(mock_sdk, tmp_path: Path):
     """Test file path autocomplete with @ trigger."""
     # Create some test files
     (tmp_path / "file1.txt").touch()
@@ -79,7 +79,7 @@ async def test_path_autocomplete(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_tab_completion():
+async def test_tab_completion(mock_sdk):
     """Test that Tab completes the selection."""
     app = ChatApp()
     async with app.run_test(size=(80, 24)) as pilot:

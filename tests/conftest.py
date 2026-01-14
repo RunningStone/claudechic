@@ -1,26 +1,29 @@
-"""Shared test fixtures and utilities."""
+"""Shared test fixtures."""
 
-import asyncio
-import time
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
-async def wait_for(condition, timeout=5, poll=0.01):
-    """Wait for a condition to be true, with fast polling.
+async def empty_async_gen():
+    """Empty async generator for mocking receive_response."""
+    return
+    yield  # Makes this an async generator
 
-    Args:
-        condition: Callable that returns True when ready
-        timeout: Maximum seconds to wait
-        poll: Poll interval in seconds
 
-    Returns:
-        True if condition was met
+async def wait_for_workers(app):
+    """Wait for all workers to complete."""
+    await app.workers.wait_for_complete()
 
-    Raises:
-        TimeoutError: If condition not met within timeout
-    """
-    start = time.monotonic()
-    while time.monotonic() - start < timeout:
-        if condition():
-            return True
-        await asyncio.sleep(poll)
-    raise TimeoutError(f"Condition not met within {timeout}s")
+
+@pytest.fixture
+def mock_sdk():
+    """Patch SDK to not actually connect."""
+    mock_client = MagicMock()
+    mock_client.connect = AsyncMock()
+    mock_client.query = AsyncMock()
+    mock_client.interrupt = AsyncMock()
+    mock_client.get_server_info = AsyncMock(return_value={"commands": [], "models": []})
+    mock_client.receive_response = lambda: empty_async_gen()
+
+    with patch("claude_alamode.app.ClaudeSDKClient", return_value=mock_client):
+        yield mock_client
