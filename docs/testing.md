@@ -1,90 +1,103 @@
 # Testing
 
-cc-textual uses Textual's testing framework with event-driven architecture for reliable e2e tests.
+Fast UI tests without SDK dependency, using Textual's testing framework.
 
 ## Running Tests
 
 ```bash
-uv run pytest test_app.py -v
+uv run pytest tests/ -v
 ```
 
 ## Architecture
 
-The app exposes two async queues for testing:
+Tests mock the SDK via `mock_sdk` fixture, enabling fast execution without auth. Three test categories:
+
+- **`test_widgets.py`** - Pure widget tests in isolation
+- **`test_app_ui.py`** - Full app UI behavior with mocked SDK
+- **`test_app.py`** - Unit tests for app methods
+
+## Key Fixtures
+
+### mock_sdk
+
+Patches `ClaudeSDKClient` so tests don't connect to real SDK:
 
 ```python
-app.interactions  # PermissionRequest objects (permission prompts)
-app.completions   # ResponseComplete events (Claude finished responding)
+@pytest.fixture
+def mock_sdk():
+    mock_client = MagicMock()
+    mock_client.connect = AsyncMock()
+    mock_client.query = AsyncMock()
+    # ...
+    with patch("claude_alamode.app.ClaudeSDKClient", return_value=mock_client):
+        yield mock_client
 ```
 
-### PermissionRequest
+### wait_for_workers
 
-When a permission prompt would appear, a `PermissionRequest` is added to the queue:
+Waits for async workers to complete:
 
 ```python
-request = await asyncio.wait_for(app.interactions.get(), timeout=30)
-assert request.tool_name == "Write"
-request.respond("allow")  # or "allow_all" or "deny"
+async def wait_for_workers(app):
+    await app.workers.wait_for_complete()
 ```
 
-### ResponseComplete
+### WidgetTestApp
 
-When Claude finishes a response, a `ResponseComplete` event is added:
+Minimal app for testing widgets in isolation:
 
 ```python
-await asyncio.wait_for(app.completions.get(), timeout=30)
-# Claude has finished responding
+class WidgetTestApp(App):
+    def __init__(self, widget_factory):
+        super().__init__()
+        self._widget_factory = widget_factory
+
+    def compose(self):
+        yield self._widget_factory()
 ```
 
 ## Writing Tests
 
+### App-level tests
+
 ```python
 @pytest.mark.asyncio
-async def test_example(tmp_path: Path):
+async def test_example(mock_sdk):
     app = ChatApp()
-    async with app.run_test(size=(120, 40)) as pilot:
-        # Wait for SDK connection
-        await wait_for(lambda: app.client is not None, timeout=10)
-
-        # Send a message
-        input_widget = app.query_one(ChatInput)
-        input_widget.text = "Your prompt here"
+    async with app.run_test() as pilot:
+        input_widget = app.query_one("#input", ChatInput)
+        input_widget.text = "/some-command"
         await pilot.press("enter")
+        await wait_for_workers(app)
 
-        # Wait for permission request
-        request = await asyncio.wait_for(app.interactions.get(), timeout=30)
-        request.respond("allow")
-
-        # Wait for completion
-        await asyncio.wait_for(app.completions.get(), timeout=30)
-
-        # Assert results
+        # Assert on UI state
         assert some_condition
 ```
 
-## Utilities
-
-### wait_for
-
-Fast-polling condition waiter for state changes:
+### Widget tests
 
 ```python
-async def wait_for(condition, timeout=5, poll=0.01):
-    """Wait for a condition to be true."""
-    start = time.monotonic()
-    while time.monotonic() - start < timeout:
-        if condition():
-            return True
-        await asyncio.sleep(poll)
-    raise TimeoutError(f"Condition not met within {timeout}s")
+@pytest.mark.asyncio
+async def test_widget_behavior():
+    app = WidgetTestApp(lambda: MyWidget())
+    async with app.run_test() as pilot:
+        widget = app.query_one(MyWidget)
+        await pilot.press("enter")
+        assert widget.some_property == expected
+```
 
-# Usage
-await wait_for(lambda: app.auto_approve_edits is True, timeout=2)
+### Testing messages
+
+Post custom messages directly to test handlers:
+
+```python
+app.post_message(StreamChunk("Hello ", new_message=True, agent_id=agent_id))
+await pilot.pause()
 ```
 
 ## Key Principles
 
-1. **No polling loops** - Use queues and `wait_for` instead of `sleep`
-2. **Event-driven** - Wait on specific events, not arbitrary delays
-3. **Real SDK** - Tests use the actual Claude SDK (requires auth)
+1. **No SDK auth required** - Tests mock the SDK for speed
+2. **Event-driven** - Use `pilot.press()`, `pilot.pause()`, `wait_for_workers()`
+3. **No polling loops** - Wait on specific events, not arbitrary delays
 4. **Temp files** - Use `tmp_path` fixture for file operations
