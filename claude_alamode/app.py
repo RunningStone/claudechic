@@ -342,7 +342,7 @@ class ChatApp(App):
         self.notify(f"Auto-edit: {'ON' if self.auto_approve_edits else 'OFF'}")
 
     # Built-in slash commands (local to this app)
-    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close"]
+    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell"]
 
     def compose(self) -> ComposeResult:
         yield ContextHeader()
@@ -495,6 +495,10 @@ class ChatApp(App):
 
         if prompt.strip().startswith("/agent"):
             self._handle_agent_command(prompt.strip())
+            return
+
+        if prompt.strip().startswith("/shell"):
+            self._handle_shell_command(prompt.strip())
             return
 
         # Build display text with image indicators
@@ -1084,6 +1088,16 @@ class ChatApp(App):
         sidebar = self.query_one("#agent-sidebar", AgentSidebar)
         sidebar.set_active(agent_id)
         self.query_one("#input", ChatInput).focus()
+
+    def _handle_shell_command(self, command: str) -> None:
+        """Handle /shell command - suspend TUI and run shell command."""
+        parts = command.split(maxsplit=1)
+        if len(parts) < 2:
+            self.notify("Usage: /shell <command>")
+            return
+        cmd = parts[1]
+        with self.suspend():
+            os.system(cmd)
 
     def _handle_agent_command(self, command: str) -> None:
         """Handle /agent commands."""
