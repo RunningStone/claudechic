@@ -588,6 +588,7 @@ class ChatApp(App):
                 await agent.client.query(prompt)
             had_tool_use: dict[str | None, bool] = {}
             agent.response_had_tools = False
+            awaiting_compact_summary = False
 
             async for message in agent.client.receive_response():
                 if isinstance(message, AssistantMessage):
@@ -606,18 +607,24 @@ class ChatApp(App):
                         elif isinstance(block, ToolResultBlock):
                             self.post_message(ToolResultMessage(block, parent_tool_use_id=parent_id, agent_id=agent_id))
                 elif isinstance(message, UserMessage):
-                    # UserMessage contains tool results as a list of ToolResultBlock
                     content = getattr(message, "content", "")
-                    if isinstance(content, list):
+                    # After compact_boundary, first UserMessage with string content is the summary
+                    # (the second is <local-command-stdout>Compacted</local-command-stdout>)
+                    if awaiting_compact_summary and isinstance(content, str) and not content.startswith("<"):
+                        awaiting_compact_summary = False
+                        self.post_message(StreamChunk(content, agent_id=agent_id))
+                    elif isinstance(content, list):
+                        # UserMessage contains tool results as a list of ToolResultBlock
                         for block in content:
                             if isinstance(block, ToolResultBlock):
                                 self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent_id))
                 elif isinstance(message, SystemMessage):
                     subtype = getattr(message, "subtype", "")
                     if subtype == "compact_boundary":
-                        meta = getattr(message, "compact_metadata", None)
-                        if meta:
-                            self.notify(f"Compacted: {getattr(meta, 'pre_tokens', '?')} tokens")
+                        meta = message.data.get("compact_metadata", {})
+                        pre_tokens = meta.get("pre_tokens", "?")
+                        self.notify(f"Compacted from {pre_tokens} tokens")
+                        awaiting_compact_summary = True
                 elif isinstance(message, ResultMessage):
                     self.post_message(ResponseComplete(message, agent_id=agent_id))
         except Exception as e:
