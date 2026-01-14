@@ -284,7 +284,7 @@ def is_branch_merged(branch: str, into_branch: str = "main", cwd: Path | None = 
         ["git", "branch", "--merged", into_branch],
         cwd=cwd, capture_output=True, text=True, check=True
     )
-    merged = [b.strip().lstrip("* ") for b in result.stdout.strip().split("\n")]
+    merged = [b.strip().lstrip("*+ ") for b in result.stdout.strip().split("\n")]
     return branch in merged
 
 
