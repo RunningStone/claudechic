@@ -26,8 +26,34 @@ Header {
     background: #111111;
 }
 
-Footer {
+/* Custom status footer */
+StatusFooter {
+    dock: bottom;
+    height: 1;
     background: #111111;
+}
+
+#footer-content {
+    height: 1;
+}
+
+.footer-label {
+    color: #666666;
+    padding: 0 1;
+    width: auto;
+}
+
+.footer-sep {
+    color: #444444;
+    width: auto;
+}
+
+#footer-spacer {
+    width: 1fr;
+}
+
+.footer-label.active {
+    color: #cc7700;
 }
 
 /* Shared block styling - all content blocks */

@@ -17,7 +17,7 @@ from textual.binding import Binding
 from textual.containers import VerticalScroll, Vertical, Horizontal
 from textual.events import MouseUp
 from textual.reactive import reactive
-from textual.widgets import Footer, ListView, TextArea
+from textual.widgets import ListView, TextArea
 from textual import work
 
 from claude_agent_sdk import (
@@ -74,6 +74,7 @@ from claude_alamode.widgets import (
     AgentSidebar,
     AgentItem,
 )
+from claude_alamode.widgets.footer import StatusFooter
 from claude_alamode.errors import log_exception, setup_logging
 
 log = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ class ChatApp(App):
         Binding("ctrl+y", "copy_selection", "Copy", priority=True, show=False),
         Binding("ctrl+c", "quit", "Quit", priority=True, show=False),
         Binding("ctrl+l", "clear", "Clear", show=False),
-        Binding("shift+tab", "cycle_permission_mode", "Auto-edit", priority=True),
+        Binding("shift+tab", "cycle_permission_mode", "Auto-edit", priority=True, show=False),
         Binding("escape", "escape", "Cancel", show=False),
         Binding("ctrl+n", "new_agent", "New Agent", priority=True, show=False),
         # Agent switching: ctrl+1 through ctrl+9
@@ -363,6 +364,14 @@ class ChatApp(App):
         self.auto_approve_edits = not self.auto_approve_edits
         self.notify(f"Auto-edit: {'ON' if self.auto_approve_edits else 'OFF'}")
 
+    def watch_auto_approve_edits(self, value: bool) -> None:
+        """Update footer when auto-edit changes."""
+        try:
+            footer = self.query_one(StatusFooter)
+            footer.auto_edit = value
+        except Exception:
+            pass  # Footer may not be mounted yet
+
     # Built-in slash commands (local to this app)
     LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell"]
 
@@ -383,7 +392,7 @@ class ChatApp(App):
                     slash_commands=self.LOCAL_COMMANDS,  # Updated in on_mount
                     base_path=Path.cwd(),
                 )
-        yield Footer()
+        yield StatusFooter()
 
     def _make_options(
         self, cwd: Path | None = None, resume: str | None = None
@@ -434,6 +443,21 @@ class ChatApp(App):
             all_commands = self.LOCAL_COMMANDS + sdk_commands
             autocomplete = self.query_one(TextAreaAutoComplete)
             autocomplete.slash_commands = all_commands
+            # Update footer with model info - first model marked 'default' is active
+            if info and "models" in info:
+                models = info["models"]
+                if isinstance(models, list) and models:
+                    # Find active model (one marked default)
+                    active = models[0]
+                    for m in models:
+                        if m.get("value") == "default":
+                            active = m
+                            break
+                    # Extract short name from description like "Opus 4.5 · ..."
+                    desc = active.get("description", "")
+                    model_name = desc.split("·")[0].strip() if "·" in desc else active.get("displayName", "")
+                    footer = self.query_one(StatusFooter)
+                    footer.model = model_name
         except Exception as e:
             log.warning(f"Failed to fetch SDK commands: {e}")
         self.refresh_context()
@@ -924,6 +948,9 @@ class ChatApp(App):
         # Update sidebar selection
         sidebar = self.query_one("#agent-sidebar", AgentSidebar)
         sidebar.set_active(agent_id)
+        # Update footer branch for new agent's cwd
+        footer = self.query_one(StatusFooter)
+        footer.refresh_branch(str(agent.cwd) if agent else None)
         self.query_one("#input", ChatInput).focus()
 
     def _handle_shell_command(self, command: str) -> None:
