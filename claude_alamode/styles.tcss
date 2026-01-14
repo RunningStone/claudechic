@@ -143,14 +143,13 @@ ToolUseWidget:hover .tool-copy-btn {
 
 /* Main layout */
 #main {
-    align: center top;
     height: 1fr;
+    align: center top;
 }
 
 /* Chat views - both initial and dynamically created */
 #chat-view, .chat-view {
-    width: 1fr;
-    max-width: 100;
+    width: 100;
     padding: 1 1;
 }
 
@@ -369,12 +368,13 @@ WorktreePrompt {
     border-left: tall #cc7700;
 }
 
-/* Right sidebar - agents + todos stacked, docked right so chat stays centered */
+/* Right sidebar - agents + todos stacked */
 #right-sidebar {
-    dock: right;
     width: 28;
     height: 100%;
     border-left: solid #333333;
+    /* Negative margin shifts chat+sidebar group left so chat is centered */
+    margin-right: -28;
 }
 
 #right-sidebar.hidden {
