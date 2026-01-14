@@ -8,6 +8,8 @@ from textual.widgets import Static
 class TodoPanel(Static):
     """Sidebar panel for todo list - docked right when space allows."""
 
+    can_focus = False
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.todos: list[dict] = []
@@ -30,6 +32,8 @@ class TodoPanel(Static):
 class TodoWidget(Static):
     """Inline display of todo list in chat stream."""
 
+    can_focus = False
+
     def __init__(self, todos: list[dict]) -> None:
         super().__init__()
         self.todos = todos
@@ -48,6 +52,8 @@ class TodoWidget(Static):
 
 class TodoItem(Static):
     """Single todo item with status icon."""
+
+    can_focus = False
 
     ICONS = {"pending": "☐", "in_progress": "◉", "completed": "✓"}
 

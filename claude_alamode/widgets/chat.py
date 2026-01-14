@@ -15,6 +15,7 @@ from claude_alamode.errors import log_exception
 class ThinkingIndicator(Static):
     """Animated spinner shown when Claude is thinking."""
 
+    can_focus = False
     FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
     frame = reactive(0)
@@ -39,6 +40,8 @@ class ThinkingIndicator(Static):
 class ErrorMessage(Static):
     """Error message displayed in the chat view with red styling."""
 
+    can_focus = False
+
     def __init__(self, message: str, exception: Exception | None = None) -> None:
         super().__init__()
         self._message = message
@@ -56,6 +59,8 @@ class ErrorMessage(Static):
 
 class ChatMessage(Static):
     """A single chat message with copy button."""
+
+    can_focus = False
 
     def __init__(self, content: str = "") -> None:
         super().__init__()

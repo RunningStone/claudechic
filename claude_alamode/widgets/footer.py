@@ -26,6 +26,7 @@ def get_git_branch(cwd: str | None = None) -> str:
 class StatusFooter(Static):
     """Footer showing git branch, model, and auto-edit status."""
 
+    can_focus = False
     auto_edit = reactive(False)
     model = reactive("")
     branch = reactive("")

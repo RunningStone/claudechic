@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 class ToolUseWidget(Static):
     """A collapsible widget showing a tool use."""
 
+    can_focus = False
     SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
     def __init__(self, block: ToolUseBlock, collapsed: bool = False, completed: bool = False) -> None:
@@ -181,6 +182,7 @@ class ToolUseWidget(Static):
 class TaskWidget(Static):
     """A collapsible widget showing a Task with nested subagent content."""
 
+    can_focus = False
     RECENT_EXPANDED = 2  # Keep last N tool uses expanded within task
 
     def __init__(self, block: ToolUseBlock, collapsed: bool = False) -> None:
