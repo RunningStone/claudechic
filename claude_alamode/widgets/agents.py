@@ -1,10 +1,11 @@
 """Agent sidebar widget for multi-agent management."""
 
 from textual.app import ComposeResult
+from textual.events import Click
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Static, Button
+from textual.widgets import Static
 from rich.text import Text
 
 
@@ -47,15 +48,13 @@ class AgentItem(Widget):
         min-width: 3;
         height: 1;
         padding: 0;
-        background: transparent;
-        border: none;
-        color: transparent;
-    }
-    AgentItem:hover .agent-close {
-        color: #555555;
+        background: #333333;
+        color: #666666;
+        text-align: center;
     }
     AgentItem .agent-close:hover {
         color: #cc3333;
+        background: #444444;
     }
     """
 
@@ -69,7 +68,7 @@ class AgentItem(Widget):
 
     def compose(self) -> ComposeResult:
         yield Static(self._render_label(), classes="agent-label")
-        yield Button("×", classes="agent-close")
+        yield Static(Text("X"), classes="agent-close")
 
     def _render_label(self) -> Text:
         if self.status == "busy":
@@ -83,7 +82,7 @@ class AgentItem(Widget):
             color = "#555555"
         return Text.assemble((indicator, color), " ", (self.display_name, ""))
 
-    def watch_status(self, status: str) -> None:
+    def watch_status(self, _status: str) -> None:
         """Update label when status changes."""
         try:
             label = self.query_one(".agent-label", Static)
@@ -91,12 +90,13 @@ class AgentItem(Widget):
         except Exception:
             pass  # Widget may not be mounted yet
 
-    def on_click(self) -> None:
-        self.post_message(self.Selected(self.agent_id))
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        event.stop()
-        self.post_message(self.CloseRequested(self.agent_id))
+    def on_click(self, event: Click) -> None:
+        """Handle clicks - check if on close button."""
+        if event.widget and event.widget.has_class("agent-close"):
+            event.stop()
+            self.post_message(self.CloseRequested(self.agent_id))
+        else:
+            self.post_message(self.Selected(self.agent_id))
 
 
 class AgentSidebar(Widget):
