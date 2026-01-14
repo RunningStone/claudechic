@@ -286,11 +286,13 @@ class TextAreaAutoComplete(Widget):
         self, candidates: list[DropdownItem], search_string: str
     ) -> list[DropdownItem]:
         """Filter and score candidates against search string."""
-        if not search_string or (self._mode == "slash" and search_string == "/"):
+        if not search_string:
             return candidates
 
-        # For slash commands, strip the leading /
+        # For slash commands, strip the leading slashes
         query = search_string.lstrip("/") if self._mode == "slash" else search_string
+        if not query:
+            return candidates
 
         matches_and_scores: list[tuple[DropdownItem, float]] = []
         for candidate in candidates:
