@@ -14,7 +14,7 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll, Vertical, Horizontal, Center
+from textual.containers import VerticalScroll, Vertical, Horizontal
 from textual.events import MouseUp
 from textual.reactive import reactive
 from textual.widgets import Footer, ListView, TextArea
@@ -46,11 +46,12 @@ from claude_alamode.messages import (
     ContextUpdate,
 )
 from claude_alamode.sessions import get_recent_sessions, load_session_messages
-from claude_alamode.worktree import (
+from claude_alamode.features.worktree import (
     FinishInfo,
-    start_worktree, get_finish_info, get_finish_prompt, get_cleanup_fix_prompt,
-    finish_cleanup, list_worktrees, cleanup_worktrees, remove_worktree,
+    handle_worktree_command,
+    list_worktrees,
 )
+from claude_alamode.features.worktree.commands import attempt_worktree_cleanup
 from claude_alamode.formatting import parse_context_tokens
 from claude_alamode.permissions import PermissionRequest
 from claude_alamode.agent import AgentSession, create_agent_session
@@ -69,7 +70,6 @@ from claude_alamode.widgets import (
     SelectionPrompt,
     QuestionPrompt,
     SessionItem,
-    WorktreePrompt,
     TextAreaAutoComplete,
     AgentSidebar,
     AgentItem,
@@ -105,9 +105,6 @@ class ChatApp(App):
 
     # Width threshold for showing sidebar
     SIDEBAR_MIN_WIDTH = 140
-
-    # Max retries for worktree cleanup before giving up
-    MAX_CLEANUP_ATTEMPTS = 3
 
     auto_approve_edits = reactive(False)
 
@@ -206,6 +203,8 @@ class ChatApp(App):
 
     def show_error(self, message: str, exception: Exception | None = None) -> None:
         """Display an error message in the chat view and log to file.
+
+        Thread-safe: can be called from worker threads via call_from_thread.
 
         Args:
             message: Brief description of what failed
@@ -505,7 +504,7 @@ class ChatApp(App):
             return
 
         if prompt.strip().startswith("/worktree"):
-            self._handle_worktree_command(prompt.strip())
+            handle_worktree_command(self, prompt.strip())
             return
 
         if prompt.strip().startswith("/agent"):
@@ -586,8 +585,7 @@ class ChatApp(App):
                 elif isinstance(message, ResultMessage):
                     self.post_message(ResponseComplete(message, agent_id=agent_id))
         except Exception as e:
-            log.exception(f"run_claude error: {e}")
-            self.call_from_thread(self.notify, f"Error: {e}", severity="error")
+            self.call_from_thread(self.show_error, "Claude response failed", e)
             self.post_message(ResponseComplete(None, agent_id=agent_id))
 
     def _show_thinking(self) -> None:
@@ -733,7 +731,7 @@ class ChatApp(App):
 
         # Attempt worktree cleanup if pending
         if self._pending_worktree_finish:
-            self._attempt_worktree_cleanup()
+            attempt_worktree_cleanup(self)
 
     @work(group="resume", exclusive=True, exit_on_error=False)
     async def resume_session(self, session_id: str) -> None:
@@ -746,7 +744,7 @@ class ChatApp(App):
             self.refresh_context()
             log.info(f"Resume complete for {session_id}")
         except Exception as e:
-            log.exception(f"Resume failed: {e}")
+            self.show_error("Session resume failed", e)
             self.post_message(ResponseComplete(None))
 
     def action_clear(self) -> None:
@@ -825,186 +823,6 @@ class ChatApp(App):
         self.query_one("#input", ChatInput).clear()
         self.query_one("#input", ChatInput).focus()
 
-    def _handle_worktree_command(self, command: str) -> None:
-        """Handle /worktree commands."""
-        parts = command.split(maxsplit=2)
-
-        if len(parts) == 1:
-            self._show_worktree_modal()
-            return
-
-        subcommand = parts[1]
-        if subcommand == "finish":
-            success, message, info = get_finish_info(self.sdk_cwd)
-            if not success:
-                self.notify(message, severity="error")
-                return
-            self._pending_worktree_finish = info
-            self._worktree_cleanup_attempts = 0
-            chat_view = self._chat_view
-            if chat_view:
-                user_msg = ChatMessage("/worktree finish")
-                user_msg.add_class("user-message")
-                chat_view.mount(user_msg)
-            self._show_thinking()
-            self.run_claude(get_finish_prompt(info))
-        elif subcommand == "cleanup":
-            branches = parts[2].split() if len(parts) > 2 else None
-            self._handle_worktree_cleanup(branches)
-        else:
-            self._switch_or_create_worktree(subcommand)
-
-    def _switch_or_create_worktree(self, feature_name: str) -> None:
-        """Switch to existing worktree agent or create new one."""
-        # Check if we already have an agent for this worktree
-        for agent in self.agents.values():
-            if agent.worktree == feature_name:
-                self._switch_to_agent(agent.id)
-                self.notify(f"Switched to {feature_name}")
-                return
-
-        # Check if worktree exists on disk
-        existing = [wt for wt in list_worktrees() if wt.branch == feature_name]
-        if existing:
-            wt = existing[0]
-            self._create_new_agent(feature_name, wt.path, worktree=feature_name, auto_resume=True)
-        else:
-            # Create new worktree
-            success, message, new_cwd = start_worktree(feature_name)
-            if success and new_cwd:
-                self._create_new_agent(feature_name, new_cwd, worktree=feature_name, auto_resume=True)
-            else:
-                self.notify(message, severity="error")
-
-    def _handle_worktree_cleanup(self, branches: list[str] | None) -> None:
-        """Handle /worktree cleanup command."""
-        results = cleanup_worktrees(branches)
-
-        if not results:
-            self.notify("No worktrees to clean up")
-            return
-
-        # Check if any need confirmation
-        needs_confirm = [(b, msg) for b, success, msg, confirm in results if confirm]
-        removed = [(b, msg) for b, success, msg, confirm in results if success]
-        failed = [(b, msg) for b, success, msg, confirm in results if not success and not confirm]
-
-        # Report results
-        for branch, msg in removed:
-            self.notify(f"Removed: {branch}")
-        for branch, msg in failed:
-            self.notify(f"Failed: {branch} - {msg}", severity="error")
-
-        # Prompt for confirmation on dirty/unmerged
-        if needs_confirm:
-            self._run_cleanup_prompt(needs_confirm)
-
-    @work(group="cleanup_prompt", exclusive=True, exit_on_error=False)
-    async def _run_cleanup_prompt(self, needs_confirm: list[tuple[str, str]]) -> None:
-        """Show prompt for confirming worktree removal."""
-        branches_to_confirm = [b for b, _ in needs_confirm]
-        options = [("all", f"Remove all ({len(needs_confirm)})")]
-        options.extend((b, f"Remove {b} ({msg})") for b, msg in needs_confirm)
-        options.append(("cancel", "Cancel"))
-
-        async with self._show_prompt(SelectionPrompt("Worktrees with changes or unmerged:", options)) as prompt:
-            prompt.focus()
-            selected = await prompt.wait()
-
-        if selected and selected != "cancel":
-            to_remove = branches_to_confirm if selected == "all" else [selected]
-            worktrees = list_worktrees()
-            for branch in to_remove:
-                wt = next((w for w in worktrees if w.branch == branch), None)
-                if wt:
-                    success, msg = remove_worktree(wt, force=True)
-                    self.notify(f"Removed: {branch}" if success else msg, severity="error" if not success else "information")
-        else:
-            self.notify("Cleanup cancelled")
-
-        self.query_one("#input", ChatInput).focus()
-
-    def _attempt_worktree_cleanup(self) -> None:
-        """Attempt to clean up worktree, asking Claude for help if it fails."""
-        info = self._pending_worktree_finish
-        if not info:
-            return
-
-        success, message = finish_cleanup(info)
-        if not success:
-            self._handle_cleanup_failure(message, info)
-            return
-
-        self._pending_worktree_finish = None
-        self._worktree_cleanup_attempts = 0
-
-        if message:  # Branch deletion warning
-            self.notify(f"Cleaned up {info.branch_name}{message}", severity="warning")
-        else:
-            self.notify(f"Cleaned up {info.branch_name}")
-
-        # Close the worktree agent if it exists
-        worktree_agent = next(
-            (a for a in self.agents.values() if a.worktree == info.branch_name),
-            None
-        )
-        if worktree_agent and len(self.agents) > 1:
-            # Find or create a main repo agent to switch to
-            main_agent = next(
-                (a for a in self.agents.values() if a.worktree is None),
-                None
-            )
-            if main_agent:
-                self._switch_to_agent(main_agent.id)
-            self._do_close_agent(worktree_agent.id)
-
-    def _handle_cleanup_failure(self, error: str, info: FinishInfo) -> None:
-        """Handle cleanup failure by asking Claude to fix it or giving up."""
-        self._worktree_cleanup_attempts += 1
-
-        if self._worktree_cleanup_attempts >= self.MAX_CLEANUP_ATTEMPTS:
-            self._pending_worktree_finish = None
-            self._worktree_cleanup_attempts = 0
-            self.notify(f"Cleanup failed after {self.MAX_CLEANUP_ATTEMPTS} attempts: {error}", severity="error")
-            return
-
-        chat_view = self._chat_view
-        if chat_view:
-            user_msg = ChatMessage(f"[Cleanup attempt {self._worktree_cleanup_attempts}/{self.MAX_CLEANUP_ATTEMPTS} failed]")
-            user_msg.add_class("user-message")
-            chat_view.mount(user_msg)
-        self._show_thinking()
-        self.run_claude(get_cleanup_fix_prompt(error, info.worktree_dir))
-
-    def _show_worktree_modal(self) -> None:
-        """Show worktree selection modal."""
-        worktrees = [(str(wt.path), wt.branch) for wt in list_worktrees() if not wt.is_main]
-        prompt = WorktreePrompt(worktrees)
-        container = Center(prompt, id="worktree-modal")
-        self.mount(container)
-        self._wait_for_worktree_selection(prompt, container)
-
-    @work(group="worktree", exclusive=True, exit_on_error=False)
-    async def _wait_for_worktree_selection(self, prompt: WorktreePrompt, container: Center) -> None:
-        """Wait for worktree modal selection and act on it."""
-        try:
-            result = await prompt.wait()
-            container.remove()
-            if result is None:
-                return  # Cancelled
-
-            action, value = result
-            if action == "switch":
-                # value is the path; find the branch name from worktrees
-                worktrees = {str(wt.path): wt.branch for wt in list_worktrees()}
-                branch = worktrees.get(value, Path(value).name)
-                self._switch_or_create_worktree(branch)
-            elif action == "new":
-                self._switch_or_create_worktree(value)
-        except Exception as e:
-            log.exception(f"Worktree selection error: {e}")
-            self.notify(f"Error: {e}", severity="error")
-
     @work(group="reconnect", exclusive=True, exit_on_error=False)
     async def _reconnect_sdk(self, new_cwd: Path) -> None:
         """Reconnect SDK with a new working directory."""
@@ -1039,8 +857,7 @@ class ChatApp(App):
                 agent.session_id = None
                 self.notify(f"SDK reconnected in {new_cwd.name}")
         except Exception as e:
-            log.exception(f"SDK reconnect failed: {e}")
-            self.notify(f"SDK reconnect failed: {e}", severity="error")
+            self.show_error("SDK reconnect failed", e)
 
     def action_escape(self) -> None:
         """Handle Escape: cancel picker, dismiss prompts, or interrupt agent."""
@@ -1154,8 +971,7 @@ class ChatApp(App):
             agent.client = ClaudeSDKClient(self._make_options(cwd=cwd, resume=resume_id))
             await agent.client.connect()
         except Exception as e:
-            log.exception(f"Failed to connect agent '{name}': {e}")
-            self.call_from_thread(self.notify, f"Failed to create agent: {e}", severity="error")
+            self.call_from_thread(self.show_error, f"Failed to create agent '{name}'", e)
             chat_view.remove()
             return
 

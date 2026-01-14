@@ -16,13 +16,19 @@ log = logging.getLogger("claude_alamode")
 
 
 def setup_logging(level: int = logging.DEBUG) -> None:
-    """Initialize logging to file. Call once at app startup."""
+    """Initialize logging to file. Call once at app startup.
+
+    Configures the root 'claude_alamode' logger so all child loggers
+    (claude_alamode.app, claude_alamode.widgets.*, etc.) inherit the handler.
+    """
     handler = logging.FileHandler(LOG_FILE, mode="a")
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     )
     log.addHandler(handler)
     log.setLevel(level)
+    log.propagate = False  # Avoid duplicates if root logger is configured
+    log.info("Logging initialized")
 
 
 def log_exception(e: Exception, context: str = "") -> str:
