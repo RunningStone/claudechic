@@ -36,7 +36,6 @@ from claude_agent_sdk.types import (
     PermissionResult,
     PermissionResultAllow,
     PermissionResultDeny,
-    HookMatcher,
 )
 
 from claude_alamode.messages import (
@@ -53,7 +52,7 @@ from claude_alamode.worktree import (
     finish_cleanup, list_worktrees, cleanup_worktrees, remove_worktree,
 )
 from claude_alamode.formatting import parse_context_tokens
-from claude_alamode.permissions import PermissionRequest, dummy_hook
+from claude_alamode.permissions import PermissionRequest
 from claude_alamode.agent import AgentSession, create_agent_session
 from claude_alamode.widgets import (
     ContextHeader,
@@ -374,7 +373,6 @@ class ChatApp(App):
             cwd=cwd,
             resume=resume,
             can_use_tool=self._handle_permission,
-            hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[dummy_hook])]},
         )
 
     async def on_mount(self) -> None:

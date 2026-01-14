@@ -44,8 +44,3 @@ class PermissionRequest:
         while not self._event.is_set():
             await anyio.sleep(0.05)
         return self._result
-
-
-async def dummy_hook(input_data, tool_use_id, context):
-    """Dummy hook required for can_use_tool to work in Python SDK."""
-    return {"continue_": True}
