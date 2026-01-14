@@ -7,6 +7,7 @@ from claude_alamode.widgets.todo import TodoWidget, TodoPanel
 from claude_alamode.widgets.prompts import BasePrompt, SelectionPrompt, QuestionPrompt, SessionItem
 from claude_alamode.widgets.autocomplete import TextAreaAutoComplete
 from claude_alamode.widgets.agents import AgentItem, AgentSidebar
+from claude_alamode.widgets.scroll import AutoHideScroll
 
 __all__ = [
     "CPUBar",
@@ -29,4 +30,5 @@ __all__ = [
     "TextAreaAutoComplete",
     "AgentItem",
     "AgentSidebar",
+    "AutoHideScroll",
 ]

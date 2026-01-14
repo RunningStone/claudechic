@@ -73,6 +73,7 @@ from claude_alamode.widgets import (
     TextAreaAutoComplete,
     AgentSidebar,
     AgentItem,
+    AutoHideScroll,
 )
 from claude_alamode.widgets.footer import StatusFooter
 from claude_alamode.errors import log_exception, setup_logging
@@ -379,7 +380,7 @@ class ChatApp(App):
         yield ContextHeader()
         with Horizontal(id="main"):
             yield ListView(id="session-picker", classes="hidden")
-            yield VerticalScroll(id="chat-view")
+            yield AutoHideScroll(id="chat-view")
             with Vertical(id="right-sidebar", classes="hidden"):
                 yield AgentSidebar(id="agent-sidebar")
                 yield TodoPanel(id="todo-panel")
@@ -411,7 +412,7 @@ class ChatApp(App):
         # Create initial agent session
         cwd = Path.cwd()
         agent = create_agent_session(name=cwd.name, cwd=cwd)
-        agent.chat_view = self.query_one("#chat-view", VerticalScroll)
+        agent.chat_view = self.query_one("#chat-view", AutoHideScroll)
         self.agents[agent.id] = agent
         self.active_agent_id = agent.id
 
@@ -995,7 +996,7 @@ class ChatApp(App):
         """Create a new agent session."""
         agent = create_agent_session(name=name, cwd=cwd, worktree=worktree)
 
-        chat_view = VerticalScroll(id=f"chat-view-{agent.id}", classes="chat-view hidden")
+        chat_view = AutoHideScroll(id=f"chat-view-{agent.id}", classes="chat-view hidden")
         main = self.query_one("#main", Horizontal)
         main.mount(chat_view, after=self.query_one("#session-picker"))
         agent.chat_view = chat_view
