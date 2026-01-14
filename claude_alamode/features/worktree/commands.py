@@ -325,7 +325,7 @@ def _switch_or_create_worktree(app: "ChatApp", feature_name: str) -> None:
         # Create new worktree
         success, message, new_cwd = start_worktree(feature_name)
         if success and new_cwd:
-            app._create_new_agent(feature_name, new_cwd, worktree=feature_name, auto_resume=True)
+            app._create_new_agent(feature_name, new_cwd, worktree=feature_name, auto_resume=False)
         else:
             app.notify(message, severity="error")
 
