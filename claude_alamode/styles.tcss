@@ -108,13 +108,14 @@ ToolUseWidget:hover .tool-copy-btn {
     height: 1fr;
 }
 
-#chat-view {
+/* Chat views - both initial and dynamically created */
+#chat-view, .chat-view {
     width: 1fr;
     max-width: 100;
     padding: 1 1;
 }
 
-#chat-view.hidden {
+#chat-view.hidden, .chat-view.hidden {
     display: none;
 }
 
@@ -318,13 +319,24 @@ WorktreePrompt {
     border-left: tall #cc7700;
 }
 
-/* Todo panel - floats right of centered chat via layer */
+/* Right sidebar - agents + todos stacked, docked right so chat stays centered */
+#right-sidebar {
+    dock: right;
+    width: 28;
+    height: 100%;
+    border-left: solid #333333;
+}
+
+#right-sidebar.hidden {
+    display: none;
+}
+
+/* Todo panel - inside right sidebar */
 #todo-panel {
-    layer: above;
-    width: 32;
+    width: 100%;
     height: auto;
-    max-height: 80%;
-    border-left: tall #555588;
+    max-height: 50%;
+    border-top: solid #333333;
     padding: 1;
 }
 

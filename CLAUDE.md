@@ -18,6 +18,7 @@ Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login
 claude_alamode/
 ├── __init__.py        # Package entry, exports ChatApp
 ├── __main__.py        # CLI entry point
+├── agent.py           # AgentSession dataclass for multi-agent state
 ├── app.py             # ChatApp - main application, event handlers
 ├── formatting.py      # Tool formatting, diff rendering (pure functions)
 ├── messages.py        # Custom Textual Message types for SDK events
@@ -26,6 +27,7 @@ claude_alamode/
 ├── styles.tcss        # Textual CSS - visual styling
 └── widgets/
     ├── __init__.py    # Re-exports all widgets
+    ├── agents.py      # AgentSidebar, AgentItem for multi-agent UI
     ├── chat.py        # ChatMessage, ChatInput, ThinkingIndicator
     ├── header.py      # CPUBar, ContextBar, ContextHeader
     ├── prompts.py     # SelectionPrompt, QuestionPrompt, SessionItem
@@ -62,15 +64,16 @@ ChatApp
 │       └── ContextBar
 ├── Horizontal #main
 │   ├── ListView #session-picker (hidden by default)
-│   └── VerticalScroll #chat-view
-│       ├── ChatMessage (user/assistant)
-│       ├── ToolUseWidget (collapsible tool display)
-│       │   └── Collapsible with diff or markdown content
-│       ├── TaskWidget (for Task tool - contains nested content)
-│       │   └── #task-content with ChatMessages and ToolUseWidgets
-│       └── ThinkingIndicator (animated spinner)
+│   ├── VerticalScroll #chat-view (one per agent, only active visible)
+│   │   ├── ChatMessage (user/assistant)
+│   │   ├── ToolUseWidget (collapsible tool display)
+│   │   ├── TaskWidget (for Task tool - nested content)
+│   │   └── ThinkingIndicator (animated spinner)
+│   └── Vertical #right-sidebar (hidden when narrow or single agent)
+│       ├── AgentSidebar (list of agents with status)
+│       └── TodoPanel (todos for active agent)
 ├── Horizontal #input-wrapper
-│   ├── ChatInput (or SelectionPrompt/QuestionPrompt when prompting)
+│   └── ChatInput (or SelectionPrompt/QuestionPrompt when prompting)
 └── Footer
 ```
 
@@ -133,6 +136,22 @@ async for message in client.receive_response():
 - Ctrl+C (x2): Quit
 - Ctrl+L: Clear chat (UI only)
 - Shift+Tab: Toggle auto-edit mode
+- Ctrl+N: New agent (hint)
+- Ctrl+1-9: Switch to agent by position
+
+## Multi-Agent Commands
+
+- `/agent` - List all agents
+- `/agent <name>` - Create new agent in current directory
+- `/agent <name> <path>` - Create new agent in specified directory
+- `/agent close` - Close current agent
+- `/agent close <name>` - Close agent by name
+- `/agent close <n>` - Close agent by position
+
+Agent status indicators:
+- ○ (dim) - idle
+- ● (gray) - busy/working
+- ● (orange) - needs input
 
 ## Testing
 

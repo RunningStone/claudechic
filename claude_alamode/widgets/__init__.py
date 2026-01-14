@@ -6,6 +6,7 @@ from claude_alamode.widgets.tools import ToolUseWidget, TaskWidget
 from claude_alamode.widgets.todo import TodoWidget, TodoPanel
 from claude_alamode.widgets.prompts import BasePrompt, SelectionPrompt, QuestionPrompt, SessionItem, WorktreePrompt
 from claude_alamode.widgets.autocomplete import TextAreaAutoComplete
+from claude_alamode.widgets.agents import AgentItem, AgentSidebar
 
 __all__ = [
     "CPUBar",
@@ -26,4 +27,6 @@ __all__ = [
     "SessionItem",
     "WorktreePrompt",
     "TextAreaAutoComplete",
+    "AgentItem",
+    "AgentSidebar",
 ]
