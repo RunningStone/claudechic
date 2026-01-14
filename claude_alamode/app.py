@@ -304,6 +304,10 @@ class ChatApp(App):
         if tool_name == "AskUserQuestion":
             return await self._handle_ask_user_question(tool_input)
 
+        # ExitPlanMode has no side effects - always allow
+        if tool_name == "ExitPlanMode":
+            return PermissionResultAllow()
+
         if self.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
             log.info(f"Auto-approved {tool_name}")
             return PermissionResultAllow()
