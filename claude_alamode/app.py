@@ -675,6 +675,7 @@ class ChatApp(App):
         # TodoWrite gets special handling - update sidebar panel and/or inline widget
         if event.block.name == "TodoWrite":
             todos = event.block.input.get("todos", [])
+            agent.todos = todos  # Store on agent for switching
             panel = self.query_one("#todo-panel", TodoPanel)
             panel.update_todos(todos)
             self._position_right_sidebar()
@@ -951,6 +952,10 @@ class ChatApp(App):
         # Update footer branch for new agent's cwd
         footer = self.query_one(StatusFooter)
         footer.refresh_branch(str(agent.cwd) if agent else None)
+        # Update todo panel for new agent
+        panel = self.query_one("#todo-panel", TodoPanel)
+        panel.update_todos(agent.todos if agent else [])
+        self._position_right_sidebar()
         self.query_one("#input", ChatInput).focus()
 
     def _handle_shell_command(self, command: str) -> None:

@@ -31,6 +31,7 @@ class AgentSession:
     pending_tools: dict[str, "ToolUseWidget | TaskWidget"] = field(default_factory=dict)
     active_tasks: dict[str, "TaskWidget"] = field(default_factory=dict)
     recent_tools: list["ToolUseWidget | TaskWidget"] = field(default_factory=list)
+    todos: list[dict] = field(default_factory=list)
 
 
 def create_agent_session(
