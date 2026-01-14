@@ -155,11 +155,13 @@ Main dir: {info.main_dir}
 
 Steps:
 1. Check for uncommitted changes in the worktree (fail if any)
-2. Rebase {info.branch_name} onto {info.base_branch} (resolve any conflicts)
+2. Rebase {info.branch_name} onto the LOCAL {info.base_branch} branch (do NOT fetch from remote):
+   git rebase {info.base_branch}
 3. In the main dir ({info.main_dir}), merge {info.branch_name}:
    cd {info.main_dir} && git merge {info.branch_name}
 
-Do NOT remove the worktree or delete the branch - the app will handle cleanup."""
+Do NOT remove the worktree or delete the branch - the app will handle cleanup.
+Do NOT interact with remotes (no fetch, no pull, no push)."""
 
 
 def get_cleanup_fix_prompt(error: str, worktree_dir: Path) -> str:
