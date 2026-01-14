@@ -170,14 +170,22 @@ def get_cleanup_fix_prompt(error: str, worktree_dir: Path) -> str:
 
 Worktree dir: {worktree_dir}
 
-Please fix this issue (e.g., remove untracked files, resolve uncommitted changes) so the worktree can be removed cleanly."""
+Please fix this issue so the worktree can be removed cleanly. Common fixes:
+- If branch not merged: merge the branch into the base branch
+- If untracked files: remove or commit them
+- If uncommitted changes: commit or stash them"""
 
 
 def finish_cleanup(info: FinishInfo) -> tuple[bool, str]:
     """Attempt to clean up a finished worktree.
 
     Returns (success, error_message). On success, error_message is empty.
+    Only succeeds if branch is fully merged - never destroys unmerged work.
     """
+    # Check branch is merged BEFORE removing anything
+    if not is_branch_merged(info.branch_name, info.base_branch):
+        return False, f"Branch '{info.branch_name}' is not merged into '{info.base_branch}'"
+
     # Try worktree removal
     result = subprocess.run(
         ["git", "worktree", "remove", str(info.worktree_dir)],
@@ -186,7 +194,7 @@ def finish_cleanup(info: FinishInfo) -> tuple[bool, str]:
     if result.returncode != 0:
         return False, result.stderr.strip()
 
-    # Try branch deletion (less critical)
+    # Delete branch (should succeed since we verified it's merged)
     result = subprocess.run(
         ["git", "branch", "-d", info.branch_name],
         cwd=info.main_dir, capture_output=True, text=True
