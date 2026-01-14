@@ -261,9 +261,9 @@ class ChatApp(App):
 
     @asynccontextmanager
     async def _show_prompt(self, prompt):
-        """Show a prompt widget, hiding input. Restores input on exit."""
-        input_widget = self.query_one("#input", ChatInput)
-        input_widget.add_class("hidden")
+        """Show a prompt widget, hiding input container. Restores on exit."""
+        input_container = self.query_one("#input-container")
+        input_container.add_class("hidden")
         self.query_one("#input-wrapper").mount(prompt)
         try:
             yield prompt
@@ -272,7 +272,7 @@ class ChatApp(App):
                 prompt.remove()
             except Exception:
                 pass
-            input_widget.remove_class("hidden")
+            input_container.remove_class("hidden")
 
     async def _handle_permission(
         self, tool_name: str, tool_input: dict[str, Any], context: ToolPermissionContext

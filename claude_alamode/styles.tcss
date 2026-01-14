@@ -207,6 +207,10 @@ ToolUseWidget:hover .tool-copy-btn {
     border-left: wide #cc7700;
 }
 
+#input-container.hidden {
+    display: none;
+}
+
 /* Input area */
 #input {
     height: auto;
@@ -220,10 +224,6 @@ ToolUseWidget:hover .tool-copy-btn {
 
 #input .text-area--cursor-line {
     background: transparent;
-}
-
-#input.hidden {
-    display: none;
 }
 
 /* Markdown resets */
@@ -290,7 +290,7 @@ HeaderIndicators {
 /* Selection/Question/Worktree prompts - shared styles */
 SelectionPrompt, QuestionPrompt, WorktreePrompt {
     height: auto;
-    width: 100;
+    width: 100%;
     max-width: 100;
     background: #111111;
     border-left: tall #333333;
