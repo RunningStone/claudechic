@@ -52,11 +52,3 @@ class ToolResultMessage(Message):
         self.parent_tool_use_id = parent_tool_use_id
         self.agent_id = agent_id
         super().__init__()
-
-
-class ContextUpdate(Message):
-    """Message sent when context usage is known."""
-
-    def __init__(self, tokens: int) -> None:
-        self.tokens = tokens
-        super().__init__()

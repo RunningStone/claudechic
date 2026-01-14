@@ -32,23 +32,6 @@ def truncate_path(path: str, max_len: int) -> str:
     return "..." + suffix
 
 
-def parse_context_tokens(content: str) -> int | None:
-    """Parse token count from /context output.
-
-    Looks for pattern like "**Tokens:** 17.7k / 200.0k"
-
-    Returns:
-        Token count as int, or None if not found.
-    """
-    match = re.search(r"\*\*Tokens:\*\*\s*([\d.]+)(k)?\s*/\s*[\d.]+k", content)
-    if match:
-        used = float(match.group(1))
-        if match.group(2):  # has 'k' suffix
-            used *= 1000
-        return int(used)
-    return None
-
-
 def format_tool_header(name: str, input: dict) -> str:
     """Format a one-line header for a tool use."""
     if name == "Edit":
