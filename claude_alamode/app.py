@@ -611,11 +611,13 @@ class ChatApp(App):
                         elif isinstance(block, ToolResultBlock):
                             self.post_message(ToolResultMessage(block, parent_tool_use_id=parent_id, agent_id=agent_id))
                 elif isinstance(message, UserMessage):
-                    # UserMessage after ToolUseBlock means tool execution completed
-                    for widget in agent.pending_tools.values():
-                        widget.stop_spinner()
+                    # UserMessage contains tool results as a list of ToolResultBlock
                     content = getattr(message, "content", "")
-                    if "<local-command-stdout>" in content:
+                    if isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, ToolResultBlock):
+                                self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent_id))
+                    elif isinstance(content, str) and "<local-command-stdout>" in content:
                         tokens = parse_context_tokens(content)
                         if tokens is not None:
                             self.post_message(ContextUpdate(tokens))

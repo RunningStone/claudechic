@@ -143,9 +143,7 @@ class ToolUseWidget(Static):
         if self._spinner_timer:
             self._spinner_timer.stop()
             self._spinner_timer = None
-        log.info(
-            f"Tool result for {self.block.name}: {type(result.content)} - {str(result.content)[:200]}"
-        )
+        log.debug(f"Tool result for {self.block.name}: {len(str(result.content or ''))} chars")
         try:
             from textual.widgets._collapsible import CollapsibleTitle
             collapsible = self.query_one(Collapsible)
@@ -165,7 +163,7 @@ class ToolUseWidget(Static):
                     if isinstance(result.content, str)
                     else str(result.content)
                 )
-                preview = content[:500] + ("..." if len(content) > 500 else "")
+                preview = content[:2000] + ("..." if len(content) > 2000 else "")
                 if result.is_error:
                     details += f"\n\n**Error:**\n```\n{preview}\n```"
                 elif self.block.name == "Read":
