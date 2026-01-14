@@ -19,7 +19,8 @@ class SessionItem(ListItem):
         self.msg_count = msg_count
 
     def compose(self) -> ComposeResult:
-        yield Label(f"{self.preview[:50]}\n({self.msg_count} msgs)")
+        yield Label(self.preview, classes="session-preview")
+        yield Label(f"({self.msg_count} msgs)", classes="session-meta")
 
 
 class BasePrompt(Static):
