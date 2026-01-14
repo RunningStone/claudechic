@@ -836,19 +836,24 @@ class ChatApp(App):
             self._switch_or_create_worktree(subcommand)
 
     def _switch_or_create_worktree(self, feature_name: str) -> None:
-        """Switch to existing worktree or create new one."""
+        """Switch to existing worktree agent or create new one."""
+        # Check if we already have an agent for this worktree
+        for agent in self.agents.values():
+            if agent.worktree == feature_name:
+                self._switch_to_agent(agent.id)
+                self.notify(f"Switched to {feature_name}")
+                return
+
+        # Check if worktree exists on disk
         existing = [wt for wt in list_worktrees() if wt.branch == feature_name]
         if existing:
             wt = existing[0]
-            self.notify(f"Switching to {feature_name}...")
-            self.sub_title = f"[worktree: {feature_name}]"
-            self._reconnect_sdk(wt.path)
+            self._create_new_agent(feature_name, wt.path, worktree=feature_name, auto_resume=True)
         else:
+            # Create new worktree
             success, message, new_cwd = start_worktree(feature_name)
             if success and new_cwd:
-                self.notify(f"Worktree ready: {feature_name}")
-                self.sub_title = f"[worktree: {feature_name}]"
-                self._reconnect_sdk(new_cwd)
+                self._create_new_agent(feature_name, new_cwd, worktree=feature_name, auto_resume=True)
             else:
                 self.notify(message, severity="error")
 
@@ -919,8 +924,20 @@ class ChatApp(App):
         else:
             self.notify(f"Cleaned up {info.branch_name}")
 
-        self.sub_title = ""
-        self._reconnect_sdk(info.main_dir)
+        # Close the worktree agent if it exists
+        worktree_agent = next(
+            (a for a in self.agents.values() if a.worktree == info.branch_name),
+            None
+        )
+        if worktree_agent and len(self.agents) > 1:
+            # Find or create a main repo agent to switch to
+            main_agent = next(
+                (a for a in self.agents.values() if a.worktree is None),
+                None
+            )
+            if main_agent:
+                self._switch_to_agent(main_agent.id)
+            self._do_close_agent(worktree_agent.id)
 
     def _handle_cleanup_failure(self, error: str, info: FinishInfo) -> None:
         """Handle cleanup failure by asking Claude to fix it or giving up."""
@@ -960,12 +977,9 @@ class ChatApp(App):
             action, value = result
             if action == "switch":
                 # value is the path; find the branch name from worktrees
-                path = Path(value)
                 worktrees = {str(wt.path): wt.branch for wt in list_worktrees()}
-                branch = worktrees.get(value, path.name)
-                self.notify(f"Switching to {branch}...")
-                self.sub_title = f"[worktree: {branch}]"
-                self._reconnect_sdk(path)
+                branch = worktrees.get(value, Path(value).name)
+                self._switch_or_create_worktree(branch)
             elif action == "new":
                 self._switch_or_create_worktree(value)
         except Exception as e:
@@ -1094,20 +1108,21 @@ class ChatApp(App):
         self._create_new_agent(name, path)
 
     @work(group="new_agent", exclusive=True, exit_on_error=False)
-    async def _create_new_agent(self, name: str, cwd: Path) -> None:
-        """Create a new agent session (starts fresh, no auto-resume)."""
-        agent = create_agent_session(name=name, cwd=cwd)
+    async def _create_new_agent(self, name: str, cwd: Path, worktree: str | None = None, auto_resume: bool = False) -> None:
+        """Create a new agent session."""
+        agent = create_agent_session(name=name, cwd=cwd, worktree=worktree)
 
-        # Create a new chat view for this agent
         chat_view = VerticalScroll(id=f"chat-view-{agent.id}", classes="chat-view hidden")
         main = self.query_one("#main", Horizontal)
-        # Insert after session-picker but before right-sidebar
         main.mount(chat_view, after=self.query_one("#session-picker"))
         agent.chat_view = chat_view
 
         try:
-            # Connect client (no resume - new agents start fresh)
-            agent.client = ClaudeSDKClient(self._make_options(cwd=cwd))
+            resume_id = None
+            if auto_resume:
+                sessions = get_recent_sessions(limit=1, cwd=cwd)
+                resume_id = sessions[0][0] if sessions else None
+            agent.client = ClaudeSDKClient(self._make_options(cwd=cwd, resume=resume_id))
             await agent.client.connect()
         except Exception as e:
             log.exception(f"Failed to connect agent '{name}': {e}")
@@ -1115,16 +1130,13 @@ class ChatApp(App):
             chat_view.remove()
             return
 
-        # Register agent
         self.agents[agent.id] = agent
-
-        # Add to sidebar and switch to it
         sidebar = self.query_one("#agent-sidebar", AgentSidebar)
         sidebar.add_agent(agent.id, agent.name)
         self._switch_to_agent(agent.id)
         self._position_right_sidebar()
-
-        self.notify(f"Agent '{name}' created")
+        label = f"Worktree '{name}'" if worktree else f"Agent '{name}'"
+        self.notify(f"{label} ready")
 
     def _close_agent(self, target: str | None) -> None:
         """Close an agent by name, position, or current if no target."""
