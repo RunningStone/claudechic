@@ -1,19 +1,17 @@
-"""Header widgets - context bar, CPU monitor, and custom header."""
+"""Resource indicator widgets - context bar and CPU monitor."""
 
 import psutil
 
-from textual.app import ComposeResult, RenderResult
+from textual.app import RenderResult
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Header
-from textual.widgets._header import HeaderIcon, HeaderTitle
 from rich.text import Text
 
 from claude_alamode.formatting import MAX_CONTEXT_TOKENS
 
 
 class CPUBar(Widget):
-    """Display CPU usage in the header."""
+    """Display CPU usage."""
 
     cpu_pct = reactive(0.0)
 
@@ -40,7 +38,7 @@ class CPUBar(Widget):
 
 
 class ContextBar(Widget):
-    """Display context usage as a progress bar in the header."""
+    """Display context usage as a progress bar."""
 
     tokens = reactive(0)
     max_tokens = reactive(MAX_CONTEXT_TOKENS)
@@ -58,20 +56,3 @@ class ContextBar(Widget):
         else:
             color = "red"
         return Text.assemble((bar, color), (f" {pct*100:.0f}%", color))
-
-
-class HeaderIndicators(Widget):
-    """Right-side header indicators container."""
-
-    def compose(self) -> ComposeResult:
-        yield CPUBar(id="cpu-bar")
-        yield ContextBar(id="context-bar")
-
-
-class ContextHeader(Header):
-    """Header with context bar and CPU indicator."""
-
-    def compose(self) -> ComposeResult:
-        yield HeaderIcon().data_bind(Header.icon)
-        yield HeaderTitle()
-        yield HeaderIndicators()

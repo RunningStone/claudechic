@@ -22,9 +22,6 @@ Screen {
     scrollbar-color-active: #555555;
 }
 
-Header {
-    background: #111111;
-}
 
 /* Custom status footer */
 StatusFooter {
@@ -316,24 +313,17 @@ ToolUseWidget Collapsible Contents {
     color: $text;
 }
 
-/* Header indicators */
+/* Footer indicators (CPU and context bars) */
 CPUBar {
-    width: 10;
+    width: auto;
     padding: 0 1;
     content-align: right middle;
 }
 
 ContextBar {
-    width: 18;
+    width: auto;
     padding: 0 1;
     content-align: right middle;
-}
-
-HeaderIndicators {
-    dock: right;
-    width: 30;
-    height: 1;
-    layout: horizontal;
 }
 
 /* All prompts inheriting from BasePrompt */

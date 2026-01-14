@@ -7,6 +7,8 @@ from textual.reactive import reactive
 from textual.widgets import Static
 from textual.containers import Horizontal
 
+from claude_alamode.widgets.indicators import CPUBar, ContextBar
+
 
 def get_git_branch(cwd: str | None = None) -> str:
     """Get current git branch name."""
@@ -24,7 +26,7 @@ def get_git_branch(cwd: str | None = None) -> str:
 
 
 class StatusFooter(Static):
-    """Footer showing git branch, model, and auto-edit status."""
+    """Footer showing git branch, model, auto-edit status, and resource indicators."""
 
     can_focus = False
     auto_edit = reactive(False)
@@ -44,6 +46,8 @@ class StatusFooter(Static):
             yield Static("·", classes="footer-sep")
             yield Static("Auto-edit: off", id="auto-edit-label", classes="footer-label")
             yield Static("", id="footer-spacer")
+            yield ContextBar(id="context-bar")
+            yield CPUBar(id="cpu-bar")
             yield Static("", id="branch-label", classes="footer-label")
 
     def watch_branch(self, value: str) -> None:

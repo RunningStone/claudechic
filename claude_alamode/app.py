@@ -54,7 +54,6 @@ from claude_alamode.formatting import parse_context_tokens
 from claude_alamode.permissions import PermissionRequest
 from claude_alamode.agent import AgentSession, create_agent_session
 from claude_alamode.widgets import (
-    ContextHeader,
     ContextBar,
     ChatMessage,
     ChatInput,
@@ -381,7 +380,6 @@ class ChatApp(App):
     LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell"]
 
     def compose(self) -> ComposeResult:
-        yield ContextHeader()
         with Horizontal(id="main"):
             yield ListView(id="session-picker", classes="hidden")
             yield AutoHideScroll(id="chat-view")
