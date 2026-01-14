@@ -70,7 +70,8 @@ def get_recent_sessions(
                         if isinstance(content, str) and not content.startswith("<"):
                             msg_count += 1
                             if not preview:
-                                preview = content[:50].replace("\n", " ")
+                                text = content.replace("\n", " ")
+                                preview = text[:200] + "…" if len(text) > 200 else text
                             if search and search_lower in content.lower():
                                 matches_search = True
             if preview and msg_count > 0 and matches_search:

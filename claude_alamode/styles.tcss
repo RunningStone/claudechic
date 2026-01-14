@@ -124,6 +124,11 @@ ToolUseWidget:hover .tool-copy-btn {
     width: 1fr;
     max-width: 80;
     padding: 1 2;
+    background: black;
+}
+
+#session-picker > * {
+    background: black;
 }
 
 #session-picker.hidden {
@@ -131,14 +136,20 @@ ToolUseWidget:hover .tool-copy-btn {
 }
 
 #session-picker > SessionItem {
-    padding: 1 2;
+    padding: 0 0 0 1;
     height: auto;
     margin: 0 0 1 0;
-    background: $surface;
+    border-left: tall #333333;
 }
 
-#session-picker > SessionItem:hover {
-    background: $surface-lighten-1;
+#session-picker > SessionItem:hover,
+#session-picker > SessionItem.-selected {
+    background: #0a0a0a;
+    border-left: tall #cc7700;
+}
+
+#session-picker .session-meta {
+    color: $text-muted;
 }
 
 /* Worktree modal overlay */
