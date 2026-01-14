@@ -157,9 +157,9 @@ ToolUseWidget:hover .tool-copy-btn {
 
 /* Image attachments indicator - shows above input */
 #image-attachments {
-    width: 100;
+    width: 100%;
     height: auto;
-    padding: 0 0;
+    padding: 0 1 1 1;
     align: left middle;
 }
 

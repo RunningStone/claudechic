@@ -353,8 +353,8 @@ class ChatApp(App):
                 yield AgentSidebar(id="agent-sidebar")
                 yield TodoPanel(id="todo-panel")
         with Horizontal(id="input-wrapper"):
-            yield ImageAttachments(id="image-attachments", classes="hidden")
             with Vertical(id="input-container"):
+                yield ImageAttachments(id="image-attachments", classes="hidden")
                 yield ChatInput(id="input")
                 yield TextAreaAutoComplete(
                     "#input",
