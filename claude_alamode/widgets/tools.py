@@ -208,6 +208,10 @@ class TaskWidget(Static):
         except Exception:
             pass  # Widget may not be mounted
 
+    def stop_spinner(self) -> None:
+        """No-op for TaskWidget (no spinner to stop)."""
+        pass
+
     def add_text(self, text: str, new_message: bool = False) -> None:
         """Add text content from subagent."""
         try:
