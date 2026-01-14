@@ -171,7 +171,7 @@ class ToolUseWidget(Static):
                     lang = get_lang_from_path(self.block.input.get("file_path", ""))
                     details += f"\n\n```{lang}\n{preview}\n```"
                 elif self.block.name in ("Bash", "Grep", "Glob"):
-                    details += f"\n\n```\n{preview}\n```"
+                    details += f"\n\n```text\n{preview}\n```"
                 else:
                     details += f"\n\n{preview}"
             md.update(details.rstrip())
