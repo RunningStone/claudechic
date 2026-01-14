@@ -145,3 +145,57 @@ def load_session_messages(session_id: str, limit: int = 10, cwd: Path | None = N
         pass
 
     return messages[-limit:]
+
+
+def get_context_from_session(
+    session_id: str, cwd: Path | None = None, agent_id: str | None = None
+) -> int | None:
+    """Get context token usage from session file.
+
+    Reads the session jsonl and finds the last usage block, then sums:
+    input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+
+    Args:
+        session_id: UUID of the main session
+        cwd: Project directory. If None, uses current working directory.
+        agent_id: Optional short agent ID (e.g., "a35f34b") for sub-agent sessions
+
+    Returns:
+        Total input context tokens, or None if not found.
+    """
+    sessions_dir = get_project_sessions_dir(cwd)
+    if not sessions_dir:
+        return None
+
+    # Agent sessions use agent-{short_id}.jsonl
+    if agent_id:
+        session_file = sessions_dir / f"agent-{agent_id}.jsonl"
+    else:
+        session_file = sessions_dir / f"{session_id}.jsonl"
+
+    if not session_file.exists():
+        return None
+
+    last_usage = None
+    try:
+        with open(session_file) as f:
+            for line in f:
+                try:
+                    data = json.loads(line)
+                    if "message" in data and isinstance(data["message"], dict):
+                        usage = data["message"].get("usage")
+                        if usage:
+                            last_usage = usage
+                except json.JSONDecodeError:
+                    continue
+    except IOError:
+        return None
+
+    if not last_usage:
+        return None
+
+    return (
+        last_usage.get("input_tokens", 0)
+        + last_usage.get("cache_creation_input_tokens", 0)
+        + last_usage.get("cache_read_input_tokens", 0)
+    )

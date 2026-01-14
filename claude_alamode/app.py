@@ -42,15 +42,13 @@ from claude_alamode.messages import (
     ResponseComplete,
     ToolUseMessage,
     ToolResultMessage,
-    ContextUpdate,
 )
-from claude_alamode.sessions import get_recent_sessions, load_session_messages
+from claude_alamode.sessions import get_context_from_session, get_recent_sessions, load_session_messages
 from claude_alamode.features.worktree import (
     handle_worktree_command,
     list_worktrees,
 )
 from claude_alamode.features.worktree.commands import on_response_complete_finish
-from claude_alamode.formatting import parse_context_tokens
 from claude_alamode.permissions import PermissionRequest
 from claude_alamode.agent import AgentSession, create_agent_session
 from claude_alamode.widgets import (
@@ -498,22 +496,14 @@ class ChatApp(App):
                 chat_view.mount(widget)
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
 
-    @work(group="context", exclusive=True, exit_on_error=False)
-    async def refresh_context(self) -> None:
-        """Silently run /context to get current usage on active agent."""
+    def refresh_context(self) -> None:
+        """Update context bar from session file (no API call)."""
         agent = self._agent
-        if not agent or not agent.client:
+        if not agent or not agent.session_id:
             return
-        try:
-            await agent.client.query("/context")
-            async for message in agent.client.receive_response():
-                if isinstance(message, UserMessage):
-                    content = getattr(message, "content", "")
-                    tokens = parse_context_tokens(content)
-                    if tokens is not None:
-                        self.post_message(ContextUpdate(tokens))
-        except Exception as e:
-            log.warning(f"refresh_context failed: {e}")
+        tokens = get_context_from_session(agent.session_id, cwd=agent.cwd)
+        if tokens is not None:
+            self.query_one("#context-bar", ContextBar).tokens = tokens
 
     def _send_initial_prompt(self) -> None:
         """Send the initial prompt from CLI args."""
@@ -622,10 +612,6 @@ class ChatApp(App):
                         for block in content:
                             if isinstance(block, ToolResultBlock):
                                 self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent_id))
-                    elif isinstance(content, str) and "<local-command-stdout>" in content:
-                        tokens = parse_context_tokens(content)
-                        if tokens is not None:
-                            self.post_message(ContextUpdate(tokens))
                 elif isinstance(message, SystemMessage):
                     subtype = getattr(message, "subtype", "")
                     if subtype == "compact_boundary":
@@ -747,9 +733,6 @@ class ChatApp(App):
             if event.block.tool_use_id in agent.active_tasks:
                 del agent.active_tasks[event.block.tool_use_id]
         self._show_thinking(event.agent_id)
-
-    def on_context_update(self, event: ContextUpdate) -> None:
-        self.query_one("#context-bar", ContextBar).tokens = event.tokens
 
     def on_resize(self, event) -> None:
         """Reposition right sidebar on resize."""
