@@ -18,11 +18,14 @@ from claude_alamode.features.worktree.git import (
     cleanup_worktrees,
     remove_worktree,
     start_worktree,
+    needs_rebase,
+    fast_forward_merge,
 )
 from claude_alamode.features.worktree.prompts import WorktreePrompt
 
 if TYPE_CHECKING:
     from claude_alamode.app import ChatApp
+    from claude_alamode.agent import AgentSession
 
 # Max retries for worktree cleanup before giving up
 MAX_CLEANUP_ATTEMPTS = 3
@@ -55,19 +58,41 @@ def _handle_finish(app: "ChatApp") -> None:
     """Handle /worktree finish command."""
     from claude_alamode.widgets import ChatMessage
 
+    agent = app._agent
+    if not agent:
+        app.notify("No active agent", severity="error")
+        return
+
     success, message, info = get_finish_info(app.sdk_cwd)
     if not success:
         app.notify(message, severity="error")
         return
-    app._pending_worktree_finish = info
-    app._worktree_cleanup_attempts = 0
+
+    # Store pending state on the agent, not the app
+    agent.pending_worktree_finish = info
+    agent.worktree_cleanup_attempts = 0
+
     chat_view = app._chat_view
     if chat_view:
         user_msg = ChatMessage("/worktree finish")
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
-    app._show_thinking()
-    app.run_claude(get_finish_prompt(info))
+
+    # Check if we can skip Claude entirely (fast-forward possible)
+    if not needs_rebase(info):
+        app.notify("Fast-forward merge possible, skipping rebase...")
+        success, error = fast_forward_merge(info)
+        if success:
+            # Go directly to cleanup
+            attempt_worktree_cleanup(app, agent)
+        else:
+            # Need Claude to handle the issue
+            app._show_thinking()
+            app.run_claude(f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(info))
+    else:
+        # Need Claude to rebase
+        app._show_thinking()
+        app.run_claude(get_finish_prompt(info))
 
 
 def _switch_or_create_worktree(app: "ChatApp", feature_name: str) -> None:
@@ -145,22 +170,23 @@ async def _run_cleanup_prompt(app: "ChatApp", needs_confirm: list[tuple[str, str
     app.query_one("#input", ChatInput).focus()
 
 
-def attempt_worktree_cleanup(app: "ChatApp") -> None:
+def attempt_worktree_cleanup(app: "ChatApp", agent: "AgentSession") -> None:
     """Attempt to clean up worktree, asking Claude for help if it fails.
 
-    Called from app.on_response_complete when _pending_worktree_finish is set.
+    Called from app.on_response_complete when agent.pending_worktree_finish is set.
+    Also called directly from _handle_finish for fast-forward merges.
     """
-    info = app._pending_worktree_finish
+    info = agent.pending_worktree_finish
     if not info:
         return
 
     success, message = finish_cleanup(info)
     if not success:
-        _handle_cleanup_failure(app, message, info)
+        _handle_cleanup_failure(app, agent, message, info)
         return
 
-    app._pending_worktree_finish = None
-    app._worktree_cleanup_attempts = 0
+    agent.pending_worktree_finish = None
+    agent.worktree_cleanup_attempts = 0
 
     if message:  # Branch deletion warning
         app.notify(f"Cleaned up {info.branch_name}{message}", severity="warning")
@@ -183,23 +209,42 @@ def attempt_worktree_cleanup(app: "ChatApp") -> None:
         app._do_close_agent(worktree_agent.id)
 
 
-def _handle_cleanup_failure(app: "ChatApp", error: str, info: FinishInfo) -> None:
+def _handle_cleanup_failure(app: "ChatApp", agent: "AgentSession", error: str, info: FinishInfo) -> None:
     """Handle cleanup failure by asking Claude to fix it or giving up."""
     from claude_alamode.widgets import ChatMessage
 
-    app._worktree_cleanup_attempts += 1
+    # If the worktree directory no longer exists but we got here, that's strange
+    # but we should work from main_dir to avoid cwd issues
+    if not info.worktree_dir.exists():
+        # Worktree is gone - switch to main and consider it mostly done
+        agent.pending_worktree_finish = None
+        agent.worktree_cleanup_attempts = 0
+        app.notify(f"Worktree removed, but: {error}", severity="warning")
+        # Switch agent to main dir if needed
+        if agent.cwd == info.worktree_dir:
+            agent.cwd = info.main_dir
+            app._reconnect_sdk(info.main_dir)
+        return
 
-    if app._worktree_cleanup_attempts >= MAX_CLEANUP_ATTEMPTS:
-        app._pending_worktree_finish = None
-        app._worktree_cleanup_attempts = 0
+    agent.worktree_cleanup_attempts += 1
+
+    if agent.worktree_cleanup_attempts >= MAX_CLEANUP_ATTEMPTS:
+        agent.pending_worktree_finish = None
+        agent.worktree_cleanup_attempts = 0
         app.notify(f"Cleanup failed after {MAX_CLEANUP_ATTEMPTS} attempts: {error}", severity="error")
         return
 
-    chat_view = app._chat_view
+    # Use the agent's chat view, not the app's current one
+    chat_view = agent.chat_view
     if chat_view:
-        user_msg = ChatMessage(f"[Cleanup attempt {app._worktree_cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]")
+        user_msg = ChatMessage(f"[Cleanup attempt {agent.worktree_cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]")
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
+
+    # Ensure we're on the right agent before running Claude
+    if app.active_agent_id != agent.id:
+        app._switch_to_agent(agent.id)
+
     app._show_thinking()
     app.run_claude(get_cleanup_fix_prompt(error, info.worktree_dir))
 

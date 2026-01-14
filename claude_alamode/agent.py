@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from claude_agent_sdk import ClaudeSDKClient
     from textual.containers import VerticalScroll
     from claude_alamode.widgets import ChatMessage, ToolUseWidget, TaskWidget
+    from claude_alamode.features.worktree.git import FinishInfo
 
 
 @dataclass
@@ -32,6 +33,10 @@ class AgentSession:
     active_tasks: dict[str, "TaskWidget"] = field(default_factory=dict)
     recent_tools: list["ToolUseWidget | TaskWidget"] = field(default_factory=list)
     todos: list[dict] = field(default_factory=list)
+
+    # Worktree finish state (scoped to this agent)
+    pending_worktree_finish: "FinishInfo | None" = None
+    worktree_cleanup_attempts: int = 0
 
 
 def create_agent_session(

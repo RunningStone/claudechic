@@ -144,6 +144,41 @@ def get_finish_info(cwd: Path | None = None) -> tuple[bool, str, FinishInfo | No
     )
 
 
+def needs_rebase(info: FinishInfo) -> bool:
+    """Check if the feature branch needs rebasing onto the base branch.
+
+    Returns False if the base branch is an ancestor of the feature branch
+    (fast-forward merge possible). Returns True if rebase is needed.
+    """
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", info.base_branch, info.branch_name],
+        cwd=info.worktree_dir, capture_output=True
+    )
+    # Exit 0 means base_branch IS an ancestor of branch_name (no rebase needed)
+    # Exit 1 means it's NOT an ancestor (rebase needed)
+    return result.returncode != 0
+
+
+def fast_forward_merge(info: FinishInfo) -> tuple[bool, str]:
+    """Perform a fast-forward merge when no rebase is needed.
+
+    Returns (success, error_message).
+    """
+    # Check for uncommitted changes first
+    if has_uncommitted_changes(info.worktree_dir):
+        return False, "Uncommitted changes in worktree"
+
+    # Do the merge in main dir
+    result = subprocess.run(
+        ["git", "merge", "--ff-only", info.branch_name],
+        cwd=info.main_dir, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return False, result.stderr.strip()
+
+    return True, ""
+
+
 def get_finish_prompt(info: FinishInfo) -> str:
     """Generate the prompt for Claude to rebase and merge a feature branch."""
     return f"""Rebase and merge this feature branch:
@@ -166,16 +201,44 @@ Do NOT interact with remotes (no fetch, no pull, no push)."""
 
 def get_cleanup_fix_prompt(error: str, worktree_dir: Path) -> str:
     """Generate prompt for Claude to fix a cleanup failure."""
+    # Get list of files in the worktree for context
+    file_list = ""
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=worktree_dir, capture_output=True, text=True
+        )
+        if result.stdout.strip():
+            file_list = f"\n\nGit status:\n{result.stdout}"
+
+        # Also list untracked files not in .gitignore
+        result = subprocess.run(
+            ["git", "clean", "-n", "-d"],
+            cwd=worktree_dir, capture_output=True, text=True
+        )
+        if result.stdout.strip():
+            file_list += f"\n\nUntracked files that would be removed by git clean:\n{result.stdout}"
+    except Exception:
+        pass
+
     return f"""The worktree cleanup failed with this error:
 
 {error}
 
-Worktree dir: {worktree_dir}
+Worktree dir: {worktree_dir}{file_list}
 
-Please fix this issue so the worktree can be removed cleanly. Common fixes:
-- If branch not merged: merge the branch into the base branch
-- If untracked files: remove or commit them
-- If uncommitted changes: commit or stash them"""
+You MUST take action to fix this. The cleanup will be retried after you respond.
+
+If the error mentions untracked files or "contains modified or untracked files":
+- List the files with `ls {worktree_dir}` or `git status`
+- Determine if they are important (user work) or disposable (build artifacts, __pycache__, etc.)
+- For disposable files: `rm -rf {worktree_dir}/<file>` or `git clean -fd` in the worktree
+- For important files: commit them first
+
+If the error mentions branch not merged:
+- Merge the branch: `git merge <branch>` in the main worktree
+
+Do NOT just describe what should be done - actually do it."""
 
 
 def finish_cleanup(info: FinishInfo) -> tuple[bool, str]:

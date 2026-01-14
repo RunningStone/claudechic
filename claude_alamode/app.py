@@ -47,7 +47,6 @@ from claude_alamode.messages import (
 )
 from claude_alamode.sessions import get_recent_sessions, load_session_messages
 from claude_alamode.features.worktree import (
-    FinishInfo,
     handle_worktree_command,
     list_worktrees,
 )
@@ -126,8 +125,6 @@ class ChatApp(App):
         self._resume_on_start = resume_session_id
         self._initial_prompt = initial_prompt
         self._session_picker_active = False
-        self._pending_worktree_finish: FinishInfo | None = None  # Info for cleanup after merge
-        self._worktree_cleanup_attempts: int = 0  # Track retry attempts
         # Event queues for testing
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
@@ -760,9 +757,10 @@ class ChatApp(App):
         self.query_one("#input", ChatInput).focus()
         self.completions.put_nowait(event)
 
-        # Attempt worktree cleanup if pending
-        if self._pending_worktree_finish:
-            attempt_worktree_cleanup(self)
+        # Attempt worktree cleanup if this agent has a pending finish
+        # This check is agent-scoped so switching agents won't trigger cleanup
+        if agent and agent.pending_worktree_finish:
+            attempt_worktree_cleanup(self, agent)
 
     @work(group="resume", exclusive=True, exit_on_error=False)
     async def resume_session(self, session_id: str) -> None:
