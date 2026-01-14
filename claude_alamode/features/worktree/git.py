@@ -247,8 +247,8 @@ def finish_cleanup(info: FinishInfo) -> tuple[bool, str]:
     Returns (success, error_message). On success, error_message is empty.
     Only succeeds if branch is fully merged - never destroys unmerged work.
     """
-    # Check branch is merged BEFORE removing anything
-    if not is_branch_merged(info.branch_name, info.base_branch):
+    # Check branch is merged BEFORE removing anything (run from main_dir for correct refs)
+    if not is_branch_merged(info.branch_name, info.base_branch, cwd=info.main_dir):
         return False, f"Branch '{info.branch_name}' is not merged into '{info.base_branch}'"
 
     # Try worktree removal
@@ -278,11 +278,11 @@ def has_uncommitted_changes(worktree_path: Path) -> bool:
     return bool(result.stdout.strip())
 
 
-def is_branch_merged(branch: str, into_branch: str = "main") -> bool:
+def is_branch_merged(branch: str, into_branch: str = "main", cwd: Path | None = None) -> bool:
     """Check if branch is merged into another branch."""
     result = subprocess.run(
         ["git", "branch", "--merged", into_branch],
-        capture_output=True, text=True, check=True
+        cwd=cwd, capture_output=True, text=True, check=True
     )
     merged = [b.strip().lstrip("* ") for b in result.stdout.strip().split("\n")]
     return branch in merged
@@ -318,6 +318,7 @@ def cleanup_worktrees(branches: list[str] | None = None) -> list[tuple[str, bool
     """
     worktrees = list_worktrees()
     main_wt = get_main_worktree()
+    main_dir = main_wt[0] if main_wt else None
     main_branch = main_wt[1] if main_wt else "main"
 
     if branches is None:
@@ -333,7 +334,7 @@ def cleanup_worktrees(branches: list[str] | None = None) -> list[tuple[str, bool
             results.append((branch, False, "Cannot remove main worktree", False))
             continue
 
-        merged = is_branch_merged(branch, main_branch)
+        merged = is_branch_merged(branch, main_branch, cwd=main_dir)
         dirty = has_uncommitted_changes(wt.path)
 
         if dirty or not merged:

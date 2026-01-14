@@ -237,7 +237,7 @@ def _handle_cleanup_failure(app: "ChatApp", agent: "AgentSession", error: str, i
     # Use the agent's chat view, not the app's current one
     chat_view = agent.chat_view
     if chat_view:
-        user_msg = ChatMessage(f"[Cleanup attempt {agent.worktree_cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]")
+        user_msg = ChatMessage(f"[Cleanup attempt {agent.worktree_cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]\n\n{error}")
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
 
