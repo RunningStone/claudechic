@@ -9,19 +9,25 @@ from textual.containers import Center
 from textual import work
 
 from claude_alamode.features.worktree.git import (
-    FinishInfo,
+    FinishPhase,
+    FinishState,
+    ResolutionAction,
+    WorktreeStatus,
+    clean_gitignored_files,
+    cleanup_worktrees,
+    determine_resolution_action,
+    diagnose_worktree,
+    discard_all_changes,
+    fast_forward_merge,
+    finish_cleanup,
+    get_cleanup_fix_prompt,
     get_finish_info,
     get_finish_prompt,
-    get_cleanup_fix_prompt,
-    finish_cleanup,
     list_worktrees,
-    cleanup_worktrees,
     remove_worktree,
     start_worktree,
-    needs_rebase,
-    fast_forward_merge,
 )
-from claude_alamode.features.worktree.prompts import WorktreePrompt
+from claude_alamode.features.worktree.prompts import UncommittedChangesPrompt, WorktreePrompt
 
 if TYPE_CHECKING:
     from claude_alamode.app import ChatApp
@@ -55,7 +61,13 @@ def handle_worktree_command(app: "ChatApp", command: str) -> None:
 
 
 def _handle_finish(app: "ChatApp") -> None:
-    """Handle /worktree finish command."""
+    """Handle /worktree finish command.
+
+    Phase-based approach:
+    1. Pre-flight: diagnose worktree status
+    2. Resolution: handle uncommitted, merge/rebase
+    3. Cleanup: remove worktree and branch
+    """
     from claude_alamode.widgets import ChatMessage
 
     agent = app._agent
@@ -64,13 +76,19 @@ def _handle_finish(app: "ChatApp") -> None:
         return
 
     success, message, info = get_finish_info(app.sdk_cwd)
-    if not success:
+    if not success or info is None:
         app.notify(message, severity="error")
         return
 
-    # Store pending state on the agent, not the app
-    agent.pending_worktree_finish = info
-    agent.worktree_cleanup_attempts = 0
+    # Phase 1: Pre-flight diagnosis
+    status = diagnose_worktree(info)
+
+    # Store state on agent
+    agent.finish_state = FinishState(
+        info=info,
+        phase=FinishPhase.RESOLUTION,
+        status=status,
+    )
 
     chat_view = app._chat_view
     if chat_view:
@@ -78,21 +96,215 @@ def _handle_finish(app: "ChatApp") -> None:
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
 
-    # Check if we can skip Claude entirely (fast-forward possible)
-    if not needs_rebase(info):
-        app.notify("Fast-forward merge possible, skipping rebase...")
-        success, error = fast_forward_merge(info)
-        if success:
-            # Go directly to cleanup
-            attempt_worktree_cleanup(app, agent)
-        else:
-            # Need Claude to handle the issue
-            app._show_thinking()
-            app.run_claude(f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(info))
+    # Show status summary
+    _show_finish_status(app, status)
+
+    # Phase 2: Resolution
+    _run_resolution(app, agent)
+
+
+def _show_finish_status(app: "ChatApp", status: WorktreeStatus) -> None:
+    """Show pre-flight status to user."""
+    parts = []
+    if status.commits_ahead == 0:
+        parts.append("no commits")
     else:
-        # Need Claude to rebase
-        app._show_thinking()
-        app.run_claude(get_finish_prompt(info))
+        parts.append(f"{status.commits_ahead} commits")
+    if status.is_merged:
+        parts.append("already merged")
+    if status.has_uncommitted:
+        parts.append(f"{len(status.uncommitted_files)} uncommitted")
+    if status.untracked_gitignored:
+        parts.append(f"{len(status.untracked_gitignored)} gitignored")
+    if status.untracked_other:
+        parts.append(f"{len(status.untracked_other)} untracked")
+
+    app.notify(f"Status: {', '.join(parts)}")
+
+
+@work(group="finish", exclusive=True, exit_on_error=False)
+async def _run_resolution(app: "ChatApp", agent: "AgentSession") -> None:
+    """Run Phase 2: Resolution. May invoke Claude or prompt user."""
+    from claude_alamode.widgets import ChatInput
+
+    state = agent.finish_state
+    if not state or not state.status:
+        return
+
+    # Loop to handle actions that can be resolved immediately
+    while True:
+        action = determine_resolution_action(state.status)
+
+        if action == ResolutionAction.NONE:
+            # Nothing to resolve, go to cleanup
+            state.phase = FinishPhase.CLEANUP
+            _run_cleanup(app, agent)
+            return
+
+        if action == ResolutionAction.CLEAN_GITIGNORED:
+            # Auto-clean gitignored files (safe)
+            app.notify("Cleaning gitignored files...")
+            success, error = clean_gitignored_files(state.info.worktree_dir)
+            if not success:
+                app.notify(f"Failed to clean: {error}", severity="error")
+                agent.finish_state = None
+                return
+            # Re-diagnose and loop
+            state.status = diagnose_worktree(state.info)
+            continue
+
+        if action == ResolutionAction.PROMPT_UNCOMMITTED:
+            # Ask user what to do
+            prompt = UncommittedChangesPrompt(
+                state.status.uncommitted_files,
+                state.status.untracked_other,
+            )
+            async with app._show_prompt(prompt) as p:
+                p.focus()
+                choice = await p.wait()
+
+            app.query_one("#input", ChatInput).focus()
+
+            if choice == "abort" or choice is None:
+                state.phase = FinishPhase.ABORTED
+                agent.finish_state = None
+                app.notify("Finish aborted")
+                return
+
+            if choice == "discard":
+                app.notify("Discarding all changes...")
+                success, error = discard_all_changes(state.info.worktree_dir)
+                if not success:
+                    app.notify(f"Failed to discard: {error}", severity="error")
+                    agent.finish_state = None
+                    return
+                # Re-diagnose and loop
+                state.status = diagnose_worktree(state.info)
+                continue
+
+            if choice == "commit":
+                # Ask Claude to commit
+                app._show_thinking()
+                app.run_claude("Commit all changes with a descriptive message.")
+                # Resolution will continue in on_response_complete_finish
+                return
+
+        if action == ResolutionAction.FAST_FORWARD:
+            app.notify("Fast-forward merge...")
+            success, error = fast_forward_merge(state.info)
+            if success:
+                state.phase = FinishPhase.CLEANUP
+                _run_cleanup(app, agent)
+            else:
+                # Unexpected - fall back to Claude
+                app._show_thinking()
+                app.run_claude(f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(state.info))
+            return
+
+        if action == ResolutionAction.REBASE:
+            # Claude handles rebase
+            app._show_thinking()
+            app.run_claude(get_finish_prompt(state.info))
+            return
+
+        # Unknown action - shouldn't happen
+        return
+
+
+def _run_cleanup(app: "ChatApp", agent: "AgentSession") -> None:
+    """Run Phase 3: Cleanup. Bash only, Claude if it fails."""
+    state = agent.finish_state
+    if not state:
+        return
+
+    success, message = finish_cleanup(state.info)
+    if success:
+        _finish_complete(app, agent, message)
+        return
+
+    # Cleanup failed - ask Claude for help
+    state.cleanup_attempts += 1
+    state.last_error = message
+
+    if state.cleanup_attempts >= MAX_CLEANUP_ATTEMPTS:
+        app.notify(f"Cleanup failed after {MAX_CLEANUP_ATTEMPTS} attempts: {message}", severity="error")
+        agent.finish_state = None
+        return
+
+    _show_cleanup_failure(agent, message)
+    app._show_thinking()
+    app.run_claude(get_cleanup_fix_prompt(message, state.info.worktree_dir))
+
+
+def _show_cleanup_failure(agent: "AgentSession", error: str) -> None:
+    """Display cleanup failure in chat."""
+    from claude_alamode.widgets import ChatMessage
+
+    state = agent.finish_state
+    if not state:
+        return
+
+    chat_view = agent.chat_view
+    if chat_view:
+        msg = ChatMessage(f"[Cleanup attempt {state.cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]\n\n{error}")
+        msg.add_class("user-message")
+        chat_view.mount(msg)
+
+
+def _finish_complete(app: "ChatApp", agent: "AgentSession", warning: str = "") -> None:
+    """Handle successful finish completion."""
+    state = agent.finish_state
+    if not state:
+        return
+
+    branch_name = state.info.branch_name
+    agent.finish_state = None
+
+    if warning:
+        app.notify(f"Cleaned up {branch_name}{warning}", severity="warning")
+    else:
+        app.notify(f"Cleaned up {branch_name}")
+
+    # Close the worktree agent if it exists
+    worktree_agent = next(
+        (a for a in app.agents.values() if a.worktree == branch_name),
+        None
+    )
+    if worktree_agent and len(app.agents) > 1:
+        main_agent = next(
+            (a for a in app.agents.values() if a.worktree is None),
+            None
+        )
+        if main_agent:
+            app._switch_to_agent(main_agent.id)
+        app._do_close_agent(worktree_agent.id)
+
+
+def on_response_complete_finish(app: "ChatApp", agent: "AgentSession") -> None:
+    """Called from on_response_complete when finish_state is set.
+
+    Continues the finish process after Claude completes a task.
+    """
+    state = agent.finish_state
+    if not state:
+        return
+
+    if state.phase == FinishPhase.RESOLUTION:
+        # Re-diagnose to see if Claude fixed things
+        state.status = diagnose_worktree(state.info)
+        action = determine_resolution_action(state.status)
+
+        if action == ResolutionAction.NONE:
+            # Resolution complete, move to cleanup
+            state.phase = FinishPhase.CLEANUP
+            _run_cleanup(app, agent)
+        else:
+            # Still needs work - continue resolution
+            _run_resolution(app, agent)
+
+    elif state.phase == FinishPhase.CLEANUP:
+        # Claude attempted to fix cleanup issue - retry
+        _run_cleanup(app, agent)
 
 
 def _switch_or_create_worktree(app: "ChatApp", feature_name: str) -> None:
@@ -127,12 +339,12 @@ def _handle_cleanup(app: "ChatApp", branches: list[str] | None) -> None:
         return
 
     # Check if any need confirmation
-    needs_confirm = [(b, msg) for b, success, msg, confirm in results if confirm]
-    removed = [(b, msg) for b, success, msg, confirm in results if success]
+    needs_confirm = [(b, msg) for b, _, msg, confirm in results if confirm]
+    removed = [b for b, success, _, _ in results if success]
     failed = [(b, msg) for b, success, msg, confirm in results if not success and not confirm]
 
     # Report results
-    for branch, msg in removed:
+    for branch in removed:
         app.notify(f"Removed: {branch}")
     for branch, msg in failed:
         app.notify(f"Failed: {branch} - {msg}", severity="error")
@@ -170,83 +382,6 @@ async def _run_cleanup_prompt(app: "ChatApp", needs_confirm: list[tuple[str, str
     app.query_one("#input", ChatInput).focus()
 
 
-def attempt_worktree_cleanup(app: "ChatApp", agent: "AgentSession") -> None:
-    """Attempt to clean up worktree, asking Claude for help if it fails.
-
-    Called from app.on_response_complete when agent.pending_worktree_finish is set.
-    Also called directly from _handle_finish for fast-forward merges.
-    """
-    info = agent.pending_worktree_finish
-    if not info:
-        return
-
-    success, message = finish_cleanup(info)
-    if not success:
-        _handle_cleanup_failure(app, agent, message, info)
-        return
-
-    agent.pending_worktree_finish = None
-    agent.worktree_cleanup_attempts = 0
-
-    if message:  # Branch deletion warning
-        app.notify(f"Cleaned up {info.branch_name}{message}", severity="warning")
-    else:
-        app.notify(f"Cleaned up {info.branch_name}")
-
-    # Close the worktree agent if it exists
-    worktree_agent = next(
-        (a for a in app.agents.values() if a.worktree == info.branch_name),
-        None
-    )
-    if worktree_agent and len(app.agents) > 1:
-        # Find or create a main repo agent to switch to
-        main_agent = next(
-            (a for a in app.agents.values() if a.worktree is None),
-            None
-        )
-        if main_agent:
-            app._switch_to_agent(main_agent.id)
-        app._do_close_agent(worktree_agent.id)
-
-
-def _handle_cleanup_failure(app: "ChatApp", agent: "AgentSession", error: str, info: FinishInfo) -> None:
-    """Handle cleanup failure by asking Claude to fix it or giving up."""
-    from claude_alamode.widgets import ChatMessage
-
-    # If the worktree directory no longer exists but we got here, that's strange
-    # but we should work from main_dir to avoid cwd issues
-    if not info.worktree_dir.exists():
-        # Worktree is gone - switch to main and consider it mostly done
-        agent.pending_worktree_finish = None
-        agent.worktree_cleanup_attempts = 0
-        app.notify(f"Worktree removed, but: {error}", severity="warning")
-        # Switch agent to main dir if needed
-        if agent.cwd == info.worktree_dir:
-            agent.cwd = info.main_dir
-            app._reconnect_sdk(info.main_dir)
-        return
-
-    agent.worktree_cleanup_attempts += 1
-
-    if agent.worktree_cleanup_attempts >= MAX_CLEANUP_ATTEMPTS:
-        agent.pending_worktree_finish = None
-        agent.worktree_cleanup_attempts = 0
-        app.notify(f"Cleanup failed after {MAX_CLEANUP_ATTEMPTS} attempts: {error}", severity="error")
-        return
-
-    # Use the agent's chat view, not the app's current one
-    chat_view = agent.chat_view
-    if chat_view:
-        user_msg = ChatMessage(f"[Cleanup attempt {agent.worktree_cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]\n\n{error}")
-        user_msg.add_class("user-message")
-        chat_view.mount(user_msg)
-
-    # Ensure we're on the right agent before running Claude
-    if app.active_agent_id != agent.id:
-        app._switch_to_agent(agent.id)
-
-    app._show_thinking()
-    app.run_claude(get_cleanup_fix_prompt(error, info.worktree_dir))
 
 
 def _show_worktree_modal(app: "ChatApp") -> None:

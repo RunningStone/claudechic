@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from claude_agent_sdk import ClaudeSDKClient
     from textual.containers import VerticalScroll
     from claude_alamode.widgets import ChatMessage, ToolUseWidget, TaskWidget
-    from claude_alamode.features.worktree.git import FinishInfo
+    from claude_alamode.features.worktree.git import FinishState
 
 
 @dataclass
@@ -38,8 +38,7 @@ class AgentSession:
     response_had_tools: bool = False
 
     # Worktree finish state (scoped to this agent)
-    pending_worktree_finish: "FinishInfo | None" = None
-    worktree_cleanup_attempts: int = 0
+    finish_state: "FinishState | None" = None
 
 
 def create_agent_session(

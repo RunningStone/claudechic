@@ -1,8 +1,25 @@
 """Git worktree management for isolated feature work."""
 
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum, auto
 from pathlib import Path
+
+
+class FinishPhase(Enum):
+    """Phases of the /worktree finish process."""
+    RESOLUTION = auto()  # Handling uncommitted changes, merging
+    CLEANUP = auto()     # Removing worktree and branch
+    ABORTED = auto()     # User cancelled
+
+
+class ResolutionAction(Enum):
+    """What action is needed in resolution phase."""
+    NONE = auto()              # Nothing to do, go to cleanup
+    CLEAN_GITIGNORED = auto()  # Run git clean -fdX
+    PROMPT_UNCOMMITTED = auto()  # Ask user: commit/discard/abort
+    FAST_FORWARD = auto()      # git merge --ff-only in main_dir
+    REBASE = auto()            # Claude does rebase
 
 
 @dataclass
@@ -20,6 +37,55 @@ class FinishInfo:
     base_branch: str
     worktree_dir: Path
     main_dir: Path
+
+
+@dataclass
+class WorktreeStatus:
+    """Pre-flight status of a worktree before finishing.
+
+    All fields are gathered via git commands - no Claude involvement.
+    """
+    # Commit status
+    commits_ahead: int  # Number of commits beyond base branch
+    is_merged: bool     # Branch already merged into base
+    can_fast_forward: bool  # Base is ancestor of branch (no rebase needed)
+
+    # Working directory status
+    uncommitted_files: list[str] = field(default_factory=list)  # Modified/staged files
+
+    # Untracked files (categorized)
+    untracked_gitignored: list[str] = field(default_factory=list)  # Safe to delete
+    untracked_other: list[str] = field(default_factory=list)  # Need user decision
+
+    @property
+    def has_uncommitted(self) -> bool:
+        return bool(self.uncommitted_files)
+
+    @property
+    def has_untracked(self) -> bool:
+        return bool(self.untracked_gitignored or self.untracked_other)
+
+    @property
+    def is_clean(self) -> bool:
+        """True if working directory is clean."""
+        return not self.has_uncommitted and not self.has_untracked
+
+    @property
+    def only_gitignored_untracked(self) -> bool:
+        """True if only untracked files are gitignored (safe to auto-clean)."""
+        return (not self.has_uncommitted and
+                not self.untracked_other and
+                bool(self.untracked_gitignored))
+
+
+@dataclass
+class FinishState:
+    """Tracks state of an in-progress /worktree finish."""
+    info: FinishInfo
+    phase: FinishPhase
+    status: WorktreeStatus | None = None
+    cleanup_attempts: int = 0
+    last_error: str | None = None
 
 
 def get_repo_name() -> str:
@@ -142,6 +208,144 @@ def get_finish_info(cwd: Path | None = None) -> tuple[bool, str, FinishInfo | No
         worktree_dir=current_wt.path,
         main_dir=main_dir,
     )
+
+
+def diagnose_worktree(info: FinishInfo) -> WorktreeStatus:
+    """Gather complete pre-flight status for a worktree.
+
+    All operations are git commands - no Claude involvement.
+    """
+    cwd = info.worktree_dir
+
+    # Commits ahead of base
+    result = subprocess.run(
+        ["git", "rev-list", "--count", f"{info.base_branch}..{info.branch_name}"],
+        cwd=cwd, capture_output=True, text=True
+    )
+    commits_ahead = int(result.stdout.strip()) if result.returncode == 0 else 0
+
+    # Already merged?
+    is_merged = is_branch_merged(info.branch_name, info.base_branch, cwd=info.main_dir)
+
+    # Can fast-forward? (only relevant if there are commits)
+    can_ff = not needs_rebase(info) if commits_ahead > 0 else True
+
+    # Uncommitted changes (staged + unstaged)
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=cwd, capture_output=True, text=True
+    )
+    uncommitted = []
+    for line in result.stdout.strip().split("\n"):
+        if line and not line.startswith("??"):  # Exclude untracked
+            uncommitted.append(line[3:])  # Strip status prefix
+
+    # Categorize untracked files
+    untracked_gitignored, untracked_other = get_untracked_files(cwd)
+
+    return WorktreeStatus(
+        commits_ahead=commits_ahead,
+        is_merged=is_merged,
+        can_fast_forward=can_ff,
+        uncommitted_files=uncommitted,
+        untracked_gitignored=untracked_gitignored,
+        untracked_other=untracked_other,
+    )
+
+
+def get_untracked_files(worktree_dir: Path) -> tuple[list[str], list[str]]:
+    """Categorize untracked files into gitignored and non-ignored.
+
+    Returns (gitignored, non_ignored).
+    Uses git clean -n which respects .gitignore.
+    """
+    # Files that would be removed by git clean -fdX (ignored only)
+    result = subprocess.run(
+        ["git", "clean", "-fdXn"],
+        cwd=worktree_dir, capture_output=True, text=True
+    )
+    ignored_lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+    # Parse "Would remove X" format
+    ignored = [line.replace("Would remove ", "") for line in ignored_lines if line]
+
+    # Files that would be removed by git clean -fd (all untracked)
+    result = subprocess.run(
+        ["git", "clean", "-fdn"],
+        cwd=worktree_dir, capture_output=True, text=True
+    )
+    all_lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+    all_untracked = [line.replace("Would remove ", "") for line in all_lines if line]
+
+    # Non-ignored = all untracked minus ignored
+    ignored_set = set(ignored)
+    non_ignored = [f for f in all_untracked if f not in ignored_set]
+
+    return ignored, non_ignored
+
+
+def determine_resolution_action(status: WorktreeStatus) -> ResolutionAction:
+    """Determine what resolution action is needed based on status."""
+    # No commits and clean? Nothing to do
+    if status.commits_ahead == 0 and status.is_clean:
+        return ResolutionAction.NONE
+
+    # Already merged and clean? Just cleanup
+    if status.is_merged and status.is_clean:
+        return ResolutionAction.NONE
+
+    # Only gitignored untracked files? Clean them first
+    if status.only_gitignored_untracked:
+        return ResolutionAction.CLEAN_GITIGNORED
+
+    # Has uncommitted changes or non-ignored untracked? Ask user
+    if status.has_uncommitted or status.untracked_other:
+        return ResolutionAction.PROMPT_UNCOMMITTED
+
+    # Already merged (other issues handled above)
+    if status.is_merged:
+        return ResolutionAction.NONE
+
+    # Can fast-forward merge?
+    if status.can_fast_forward:
+        return ResolutionAction.FAST_FORWARD
+
+    # Need rebase (Claude handles this)
+    return ResolutionAction.REBASE
+
+
+def clean_gitignored_files(worktree_dir: Path) -> tuple[bool, str]:
+    """Remove gitignored untracked files. Returns (success, error)."""
+    result = subprocess.run(
+        ["git", "clean", "-fdX"],
+        cwd=worktree_dir, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return False, result.stderr.strip()
+    return True, ""
+
+
+def discard_all_changes(worktree_dir: Path) -> tuple[bool, str]:
+    """Discard all uncommitted changes and untracked files.
+
+    Returns (success, error).
+    """
+    # Reset staged and unstaged changes
+    result = subprocess.run(
+        ["git", "checkout", "."],
+        cwd=worktree_dir, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return False, f"checkout failed: {result.stderr.strip()}"
+
+    # Remove all untracked files
+    result = subprocess.run(
+        ["git", "clean", "-fd"],
+        cwd=worktree_dir, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return False, f"clean failed: {result.stderr.strip()}"
+
+    return True, ""
 
 
 def needs_rebase(info: FinishInfo) -> bool:

@@ -50,7 +50,7 @@ from claude_alamode.features.worktree import (
     handle_worktree_command,
     list_worktrees,
 )
-from claude_alamode.features.worktree.commands import attempt_worktree_cleanup
+from claude_alamode.features.worktree.commands import on_response_complete_finish
 from claude_alamode.formatting import parse_context_tokens
 from claude_alamode.permissions import PermissionRequest
 from claude_alamode.agent import AgentSession, create_agent_session
@@ -767,10 +767,10 @@ class ChatApp(App):
         self.query_one("#input", ChatInput).focus()
         self.completions.put_nowait(event)
 
-        # Attempt worktree cleanup if this agent has a pending finish
+        # Continue worktree finish if this agent has a pending finish
         # This check is agent-scoped so switching agents won't trigger cleanup
-        if agent and agent.pending_worktree_finish:
-            attempt_worktree_cleanup(self, agent)
+        if agent and agent.finish_state:
+            on_response_complete_finish(self, agent)
 
     @work(group="resume", exclusive=True, exit_on_error=False)
     async def resume_session(self, session_id: str) -> None:

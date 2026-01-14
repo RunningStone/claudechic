@@ -55,3 +55,43 @@ class WorktreePrompt(BasePrompt):
         """Wait for selection. Returns (action, value) or None if cancelled."""
         await super().wait()
         return self._result_value
+
+
+class UncommittedChangesPrompt(BasePrompt):
+    """Prompt for handling uncommitted changes during worktree finish."""
+
+    def __init__(
+        self,
+        uncommitted: list[str],
+        untracked: list[str],
+    ) -> None:
+        super().__init__()
+        self.uncommitted = uncommitted
+        self.untracked = untracked
+
+    def compose(self) -> ComposeResult:
+        yield Static("Uncommitted Changes", classes="prompt-title")
+
+        # Show summary
+        details = []
+        if self.uncommitted:
+            details.append(f"{len(self.uncommitted)} modified")
+        if self.untracked:
+            details.append(f"{len(self.untracked)} untracked")
+        yield Static(" | ".join(details), classes="prompt-subtitle")
+
+        yield Static("1. Commit changes", classes="prompt-option selected", id="opt-0")
+        yield Static("2. Discard all changes", classes="prompt-option", id="opt-1")
+        yield Static("3. Abort finish", classes="prompt-option", id="opt-2")
+
+    def _total_options(self) -> int:
+        return 3
+
+    def _select_option(self, idx: int) -> None:
+        choices = ["commit", "discard", "abort"]
+        self._resolve(choices[idx])
+
+    async def wait(self) -> str | None:
+        """Returns 'commit', 'discard', or 'abort'. None if cancelled."""
+        await super().wait()
+        return self._result_value
