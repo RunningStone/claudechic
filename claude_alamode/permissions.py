@@ -1,10 +1,8 @@
 """Permission request handling for tool approvals."""
 
-import threading
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
-
-import anyio
 
 from claude_alamode.formatting import format_tool_header
 
@@ -18,7 +16,7 @@ class PermissionRequest:
 
     tool_name: str
     tool_input: dict[str, Any]
-    _event: threading.Event = field(default_factory=threading.Event)
+    _event: asyncio.Event = field(default_factory=asyncio.Event)
     _result: str = "deny"
 
     @property
@@ -41,6 +39,5 @@ class PermissionRequest:
         Returns:
             The response string ("allow", "allow_all", or "deny")
         """
-        while not self._event.is_set():
-            await anyio.sleep(0.05)
+        await self._event.wait()
         return self._result

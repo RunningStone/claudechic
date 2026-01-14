@@ -35,11 +35,6 @@ except Exception as e:
     self.show_error("Operation failed", e)  # Shows in chat + logs to file
 ```
 
-From worker threads:
-```python
-self.call_from_thread(self.show_error, "Operation failed", e)
-```
-
 This:
 1. Displays an `ErrorMessage` widget in the chat view (red border, visible)
 2. Shows a toast notification

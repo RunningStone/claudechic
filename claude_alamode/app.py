@@ -204,8 +204,6 @@ class ChatApp(App):
     def show_error(self, message: str, exception: Exception | None = None) -> None:
         """Display an error message in the chat view and log to file.
 
-        Thread-safe: can be called from worker threads via call_from_thread.
-
         Args:
             message: Brief description of what failed
             exception: Optional exception for logging (full traceback logged to file)
@@ -316,7 +314,8 @@ class ChatApp(App):
                 if not request._event.is_set():
                     request.respond(result)
 
-            self.run_worker(ui_response(), exclusive=False)
+            # Run UI response handler concurrently - allows both UI and programmatic responses
+            asyncio.create_task(ui_response())
             result = await request.wait()
 
         self._set_agent_status("busy")
@@ -537,7 +536,7 @@ class ChatApp(App):
         agent = self._agent
         if not agent or not agent.client:
             log.warning(f"run_claude: no agent or client (agent={agent is not None})")
-            self.call_from_thread(self.notify, "Agent not ready", severity="error")
+            self.notify("Agent not ready", severity="error")
             return
         agent_id = agent.id
         self._set_agent_status("busy", agent_id)
@@ -579,13 +578,11 @@ class ChatApp(App):
                     if subtype == "compact_boundary":
                         meta = getattr(message, "compact_metadata", None)
                         if meta:
-                            self.call_from_thread(
-                                self.notify, f"Compacted: {getattr(meta, 'pre_tokens', '?')} tokens"
-                            )
+                            self.notify(f"Compacted: {getattr(meta, 'pre_tokens', '?')} tokens")
                 elif isinstance(message, ResultMessage):
                     self.post_message(ResponseComplete(message, agent_id=agent_id))
         except Exception as e:
-            self.call_from_thread(self.show_error, "Claude response failed", e)
+            self.show_error("Claude response failed", e)
             self.post_message(ResponseComplete(None, agent_id=agent_id))
 
     def _show_thinking(self) -> None:
@@ -971,7 +968,7 @@ class ChatApp(App):
             agent.client = ClaudeSDKClient(self._make_options(cwd=cwd, resume=resume_id))
             await agent.client.connect()
         except Exception as e:
-            self.call_from_thread(self.show_error, f"Failed to create agent '{name}'", e)
+            self.show_error(f"Failed to create agent '{name}'", e)
             chat_view.remove()
             return
 

@@ -47,7 +47,7 @@ tests/
 - `sessions.py` - Session file I/O, listing, filtering
 
 **Internal protocol:**
-- `messages.py` - Custom `Message` subclasses for thread communication
+- `messages.py` - Custom `Message` subclasses for async event communication
 - `permissions.py` - `PermissionRequest` dataclass bridging SDK callbacks to UI
 
 **UI components:**
@@ -77,13 +77,13 @@ ChatApp
 └── Footer
 ```
 
-### Message Flow (Thread Communication)
+### Message Flow (Async Communication)
 
-The SDK runs in a background worker. Custom `Message` types communicate to the main thread:
+The SDK runs in async workers (same event loop, not separate threads). Custom `Message` types route events:
 
 ```
-SDK Worker Thread                    Main Thread (UI)
-─────────────────                    ────────────────
+SDK Worker (async)                   Message Handlers
+──────────────                       ────────────────
 receive AssistantMessage  ──post──>  on_stream_chunk() -> update ChatMessage
 receive ToolUseBlock      ──post──>  on_tool_use_message() -> mount ToolUseWidget
 receive ToolResultBlock   ──post──>  on_tool_result_message() -> update widget

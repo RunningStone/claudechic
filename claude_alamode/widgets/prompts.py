@@ -1,9 +1,7 @@
 """Selection and question prompts for user interaction."""
 
-import threading
+import asyncio
 from typing import Any
-
-import anyio
 
 from textual.app import ComposeResult
 from textual.widgets import Static, Label, ListItem
@@ -31,7 +29,7 @@ class BasePrompt(Static):
     def __init__(self) -> None:
         super().__init__()
         self.selected_idx = 0
-        self._result_event = threading.Event()
+        self._result_event: asyncio.Event = asyncio.Event()
         self._result_value: Any = None
         # Text input mode (for "Other" / "New" options)
         self._in_text_mode = False
@@ -193,8 +191,7 @@ class BasePrompt(Static):
 
     async def wait(self) -> Any:
         """Wait for selection. Returns result or None if cancelled."""
-        while not self._result_event.is_set():
-            await anyio.sleep(0.05)
+        await self._result_event.wait()
         return self._result_value
 
 

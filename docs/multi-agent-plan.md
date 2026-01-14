@@ -30,16 +30,15 @@ class AgentSession:
     recent_tools: list[ToolUseWidget | TaskWidget]
 ```
 
-### Worker-to-Widget Direct Updates
+### Async Workers
 
-Instead of routing messages by agent_id, each worker updates its session's widgets directly:
+Workers decorated with `@work` run async in the main event loop (not separate threads):
 
-- `run_claude(session)` worker has reference to the `AgentSession`
-- Worker uses `call_from_thread()` to update session's chat container
-- No message routing needed - worker already knows its session
-- App-level messages only for cross-cutting concerns (focus, notifications)
+- `run_claude(prompt)` worker captures the `AgentSession` at call time
+- Worker posts messages with `agent_id` to route to correct session
+- Direct method calls work fine (no need for `call_from_thread()`)
 
-This is cleaner because the SDK client is already tied to a session.
+This is clean because everything runs in the same async event loop.
 
 ### Widget Hierarchy (Updated)
 
@@ -75,16 +74,16 @@ The right sidebar stacks agents list above todos, keeping related controls toget
 
 **Test:** App works exactly as before with single agent.
 
-### Phase 2: Worker Direct Updates
+### Phase 2: Message-Based Updates
 
 **Files:** `app.py`
 
-1. Change `run_claude(prompt)` to `run_claude(session, prompt)`
-2. Worker updates `session.chat_view` directly via `call_from_thread()`
-3. Move handler logic into helper methods that take session as arg
-4. Keep minimal app-level messages for focus/notifications
+1. Worker captures `agent_id` at start of `run_claude()`
+2. Worker posts messages with `agent_id` to route to correct session
+3. Message handlers look up session from `agent_id`
+4. All runs in main async event loop (no threads)
 
-**Test:** Still single agent, but worker updates session directly.
+**Test:** Still single agent, messages route correctly.
 
 ### Phase 3: Multi-Container UI
 
