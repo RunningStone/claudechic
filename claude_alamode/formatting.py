@@ -10,6 +10,26 @@ from rich.text import Text
 
 # Constants
 MAX_CONTEXT_TOKENS = 200_000  # Claude's context window
+MAX_HEADER_WIDTH = 70  # Max width for tool headers
+
+
+def truncate_path(path: str, max_len: int) -> str:
+    """Truncate path from the front, preserving the end which is more informative.
+
+    Truncates just before a path separator when possible.
+    """
+    if len(path) <= max_len:
+        return path
+    # Leave room for "..."
+    available = max_len - 3
+    if available <= 0:
+        return "..." + path[-max_len:] if max_len > 0 else ""
+    suffix = path[-available:]
+    # Try to truncate at a path separator for cleaner output
+    sep_idx = suffix.find("/")
+    if sep_idx > 0 and sep_idx < len(suffix) - 1:
+        suffix = suffix[sep_idx:]
+    return "..." + suffix
 
 
 def parse_context_tokens(content: str) -> int | None:
@@ -32,11 +52,14 @@ def parse_context_tokens(content: str) -> int | None:
 def format_tool_header(name: str, input: dict) -> str:
     """Format a one-line header for a tool use."""
     if name == "Edit":
-        return f"Edit: {input.get('file_path', '?')}"
+        path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 6)
+        return f"Edit: {path}"
     elif name == "Write":
-        return f"Write: {input.get('file_path', '?')}"
+        path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 7)
+        return f"Write: {path}"
     elif name == "Read":
-        return f"Read: {input.get('file_path', '?')}"
+        path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 6)
+        return f"Read: {path}"
     elif name == "Bash":
         cmd = input.get("command", "?")
         desc = input.get("description", "")
