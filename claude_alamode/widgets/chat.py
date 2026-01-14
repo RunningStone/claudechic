@@ -222,6 +222,13 @@ class ChatInput(TextArea):
             event.prevent_default()
             event.stop()
             return
+        # Wrap multi-line pastes in triple backticks for markdown formatting
+        if "\n" in event.text:
+            wrapped = f"```\n{event.text}\n```"
+            self.insert(wrapped)
+            event.prevent_default()
+            event.stop()
+            return
         # Normal paste
         await super()._on_paste(event)
 
