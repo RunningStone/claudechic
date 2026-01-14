@@ -1029,19 +1029,21 @@ class ChatApp(App):
         agent = self._agent
         cwd = str(agent.cwd) if agent else None
         with self.suspend():
-            import subprocess, sys, tty, termios
+            import subprocess, sys, tty, termios, time
             env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
             shell = os.environ.get("SHELL", "/bin/sh")
-            subprocess.run([shell, "-ic", cmd], cwd=cwd, env=env)
-            # Wait for any key before returning to TUI
-            print("\nPress any key to continue...", end="", flush=True)
-            fd = sys.stdin.fileno()
-            old = termios.tcgetattr(fd)
-            try:
-                tty.setraw(fd)
-                sys.stdin.read(1)
-            finally:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            start = time.monotonic()
+            subprocess.run([shell, "-lc", cmd], cwd=cwd, env=env)
+            # Only prompt if command completed quickly (likely non-interactive)
+            if time.monotonic() - start < 1.0:
+                print("\nPress any key to continue...", end="", flush=True)
+                fd = sys.stdin.fileno()
+                old = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd)
+                    sys.stdin.read(1)
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
     def _handle_agent_command(self, command: str) -> None:
         """Handle /agent commands."""
