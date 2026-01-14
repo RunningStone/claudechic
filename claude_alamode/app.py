@@ -280,12 +280,17 @@ class ChatApp(App):
     @asynccontextmanager
     async def _show_prompt(self, prompt):
         """Show a prompt widget, hiding input container. Restores on exit."""
+        agent = self._agent
+        if agent:
+            agent.active_prompt = prompt
         input_container = self.query_one("#input-container")
         input_container.add_class("hidden")
         self.query_one("#input-wrapper").mount(prompt)
         try:
             yield prompt
         finally:
+            if agent:
+                agent.active_prompt = None
             try:
                 prompt.remove()
             except Exception:
@@ -633,25 +638,28 @@ class ChatApp(App):
             self.show_error("Claude response failed", e)
             self.post_message(ResponseComplete(None, agent_id=agent_id))
 
-    def _show_thinking(self) -> None:
-        """Show the thinking indicator."""
-        if self.query(ThinkingIndicator):
+    def _show_thinking(self, agent_id: str | None = None) -> None:
+        """Show the thinking indicator for a specific agent."""
+        agent = self._get_agent(agent_id)
+        if not agent or not agent.chat_view:
             return
-        chat_view = self._chat_view
-        if not chat_view:
+        if agent.chat_view.query(ThinkingIndicator):
             return
-        chat_view.mount(ThinkingIndicator())
-        self.call_after_refresh(_scroll_if_at_bottom, chat_view)
+        agent.chat_view.mount(ThinkingIndicator())
+        self.call_after_refresh(_scroll_if_at_bottom, agent.chat_view)
 
-    def _hide_thinking(self) -> None:
+    def _hide_thinking(self, agent_id: str | None = None) -> None:
+        """Hide thinking indicator for a specific agent."""
         try:
-            for ind in self.query(ThinkingIndicator):
-                ind.remove()
+            agent = self._get_agent(agent_id)
+            if agent and agent.chat_view:
+                for ind in agent.chat_view.query(ThinkingIndicator):
+                    ind.remove()
         except Exception:
             pass  # OK to fail during shutdown
 
     def on_stream_chunk(self, event: StreamChunk) -> None:
-        self._hide_thinking()
+        self._hide_thinking(event.agent_id)
         agent = self._get_agent(event.agent_id)
         if not agent:
             return
@@ -702,7 +710,7 @@ class ChatApp(App):
             elif self.size.width < self.SIDEBAR_MIN_WIDTH:
                 chat_view.mount(TodoWidget(todos))
             self.call_after_refresh(_scroll_if_at_bottom, chat_view)
-            self._show_thinking()
+            self._show_thinking(event.agent_id)
             return
 
         while len(agent.recent_tools) >= self.RECENT_TOOLS_EXPANDED:
@@ -720,7 +728,7 @@ class ChatApp(App):
         agent.recent_tools.append(widget)
         chat_view.mount(widget)
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
-        self._hide_thinking()  # Tool widget has its own spinner
+        self._hide_thinking(event.agent_id)  # Tool widget has its own spinner
 
     def on_tool_result_message(self, event: ToolResultMessage) -> None:
         agent = self._get_agent(event.agent_id)
@@ -738,7 +746,7 @@ class ChatApp(App):
             del agent.pending_tools[event.block.tool_use_id]
             if event.block.tool_use_id in agent.active_tasks:
                 del agent.active_tasks[event.block.tool_use_id]
-        self._show_thinking()
+        self._show_thinking(event.agent_id)
 
     def on_context_update(self, event: ContextUpdate) -> None:
         self.query_one("#context-bar", ContextBar).tokens = event.tokens
@@ -979,14 +987,25 @@ class ChatApp(App):
         """Switch to a different agent."""
         if agent_id not in self.agents:
             return
-        # Hide current agent's chat view
-        if self._agent and self._agent.chat_view:
-            self._agent.chat_view.add_class("hidden")
+        old_agent = self._agent
+        # Hide current agent's chat view and prompt
+        if old_agent:
+            if old_agent.chat_view:
+                old_agent.chat_view.add_class("hidden")
+            if old_agent.active_prompt:
+                old_agent.active_prompt.add_class("hidden")
         # Switch active agent
         self.active_agent_id = agent_id
         agent = self._agent
         if agent and agent.chat_view:
             agent.chat_view.remove_class("hidden")
+        # Show new agent's prompt if it has one, otherwise show input
+        input_container = self.query_one("#input-container")
+        if agent and agent.active_prompt:
+            agent.active_prompt.remove_class("hidden")
+            input_container.add_class("hidden")
+        else:
+            input_container.remove_class("hidden")
         # Update sidebar selection
         sidebar = self.query_one("#agent-sidebar", AgentSidebar)
         sidebar.set_active(agent_id)
