@@ -1,0 +1,152 @@
+"""Agent sidebar widget for multi-agent management."""
+
+from textual.app import ComposeResult
+from textual.message import Message
+from textual.reactive import reactive
+from textual.widget import Widget
+from textual.widgets import Static, Button
+from rich.text import Text
+
+
+class AgentItem(Widget):
+    """A single agent in the sidebar."""
+
+    class Selected(Message):
+        """Posted when agent is clicked."""
+        def __init__(self, agent_id: str) -> None:
+            self.agent_id = agent_id
+            super().__init__()
+
+    class CloseRequested(Message):
+        """Posted when close button is clicked."""
+        def __init__(self, agent_id: str) -> None:
+            self.agent_id = agent_id
+            super().__init__()
+
+    DEFAULT_CSS = """
+    AgentItem {
+        height: 3;
+        padding: 1 1;
+        border-left: tall transparent;
+        layout: horizontal;
+    }
+    AgentItem:hover {
+        background: #222222;
+    }
+    AgentItem.active {
+        border-left: tall #cc7700;
+        background: #1a1a1a;
+    }
+    AgentItem .agent-label {
+        width: 1fr;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    AgentItem .agent-close {
+        width: 3;
+        min-width: 3;
+        height: 1;
+        padding: 0;
+        background: transparent;
+        border: none;
+        color: transparent;
+    }
+    AgentItem:hover .agent-close {
+        color: #555555;
+    }
+    AgentItem .agent-close:hover {
+        color: #cc3333;
+    }
+    """
+
+    status = reactive("idle")
+
+    def __init__(self, agent_id: str, display_name: str, status: str = "idle") -> None:
+        super().__init__()
+        self.agent_id = agent_id
+        self.display_name = display_name
+        self.status = status
+
+    def compose(self) -> ComposeResult:
+        yield Static(self._render_label(), classes="agent-label")
+        yield Button("×", classes="agent-close")
+
+    def _render_label(self) -> Text:
+        if self.status == "busy":
+            indicator = "\u25cf"
+            color = "#888888"
+        elif self.status == "needs_input":
+            indicator = "\u25cf"
+            color = "#cc7700"
+        else:
+            indicator = "\u25cb"
+            color = "#555555"
+        return Text.assemble((indicator, color), " ", (self.display_name, ""))
+
+    def watch_status(self, status: str) -> None:
+        """Update label when status changes."""
+        try:
+            label = self.query_one(".agent-label", Static)
+            label.update(self._render_label())
+        except Exception:
+            pass
+
+    def on_click(self) -> None:
+        self.post_message(self.Selected(self.agent_id))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.post_message(self.CloseRequested(self.agent_id))
+
+
+class AgentSidebar(Widget):
+    """Sidebar showing all agents with status indicators."""
+
+    DEFAULT_CSS = """
+    AgentSidebar {
+        width: 24;
+        height: auto;
+        max-height: 50%;
+        padding: 0;
+    }
+    AgentSidebar .sidebar-title {
+        color: $text-muted;
+        text-style: bold;
+        padding: 1 1 1 1;
+    }
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._agents: dict[str, AgentItem] = {}
+
+    def compose(self) -> ComposeResult:
+        yield Static("Agents", classes="sidebar-title")
+
+    def add_agent(self, agent_id: str, name: str, status: str = "idle") -> None:
+        """Add an agent to the sidebar."""
+        if agent_id in self._agents:
+            return
+        item = AgentItem(agent_id, name, status)
+        item.id = f"agent-{agent_id}"
+        self._agents[agent_id] = item
+        self.mount(item)
+
+    def remove_agent(self, agent_id: str) -> None:
+        """Remove an agent from the sidebar."""
+        if agent_id in self._agents:
+            self._agents[agent_id].remove()
+            del self._agents[agent_id]
+
+    def set_active(self, agent_id: str) -> None:
+        """Mark an agent as active (selected)."""
+        for aid, item in self._agents.items():
+            if aid == agent_id:
+                item.add_class("active")
+            else:
+                item.remove_class("active")
+
+    def update_status(self, agent_id: str, status: str) -> None:
+        """Update an agent's status."""
+        if agent_id in self._agents:
+            self._agents[agent_id].status = status
