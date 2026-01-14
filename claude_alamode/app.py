@@ -16,7 +16,6 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll, Vertical, Horizontal
 from textual.events import MouseUp
-from textual.reactive import reactive
 from textual.widgets import ListView, TextArea
 from textual import work
 
@@ -116,8 +115,6 @@ class ChatApp(App):
 
     # Width threshold for showing sidebar
     SIDEBAR_MIN_WIDTH = 140
-
-    auto_approve_edits = reactive(False)
 
     def __init__(self, resume_session_id: str | None = None, initial_prompt: str | None = None) -> None:
         super().__init__()
@@ -309,7 +306,7 @@ class ChatApp(App):
         if tool_name == "ExitPlanMode":
             return PermissionResultAllow()
 
-        if self.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
+        if self._agent and self._agent.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
             log.info(f"Auto-approved {tool_name}")
             return PermissionResultAllow()
 
@@ -334,7 +331,9 @@ class ChatApp(App):
         self._set_agent_status("busy")
         log.info(f"Permission result: {result}")
         if result == "allow_all":
-            self.auto_approve_edits = True
+            if self._agent:
+                self._agent.auto_approve_edits = True
+                self._update_footer_auto_edit()
             self.notify("Auto-edit enabled (Shift+Tab to disable)")
             return PermissionResultAllow()
         elif result == "allow":
@@ -364,15 +363,17 @@ class ChatApp(App):
         )
 
     def action_cycle_permission_mode(self) -> None:
-        """Toggle auto-approve for Edit/Write tools."""
-        self.auto_approve_edits = not self.auto_approve_edits
-        self.notify(f"Auto-edit: {'ON' if self.auto_approve_edits else 'OFF'}")
+        """Toggle auto-approve for Edit/Write tools for current agent."""
+        if self._agent:
+            self._agent.auto_approve_edits = not self._agent.auto_approve_edits
+            self._update_footer_auto_edit()
+            self.notify(f"Auto-edit: {'ON' if self._agent.auto_approve_edits else 'OFF'}")
 
-    def watch_auto_approve_edits(self, value: bool) -> None:
-        """Update footer when auto-edit changes."""
+    def _update_footer_auto_edit(self) -> None:
+        """Update footer to reflect current agent's auto-edit state."""
         try:
             footer = self.query_one(StatusFooter)
-            footer.auto_edit = value
+            footer.auto_edit = self._agent.auto_approve_edits if self._agent else False
         except Exception:
             pass  # Footer may not be mounted yet
 
@@ -994,6 +995,7 @@ class ChatApp(App):
         # Update footer branch for new agent's cwd
         footer = self.query_one(StatusFooter)
         footer.refresh_branch(str(agent.cwd) if agent else None)
+        footer.auto_edit = agent.auto_approve_edits if agent else False
         # Update todo panel for new agent
         panel = self.query_one("#todo-panel", TodoPanel)
         panel.update_todos(agent.todos if agent else [])

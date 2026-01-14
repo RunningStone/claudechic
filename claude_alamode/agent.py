@@ -37,6 +37,9 @@ class AgentSession:
     # Track if current response used tools (for summary styling)
     response_had_tools: bool = False
 
+    # Auto-approve Edit/Write tools for this agent
+    auto_approve_edits: bool = False
+
     # Worktree finish state (scoped to this agent)
     finish_state: "FinishState | None" = None
 

@@ -23,16 +23,16 @@ async def test_app_mounts_basic_widgets(mock_sdk):
 
 @pytest.mark.asyncio
 async def test_auto_edit_toggle(mock_sdk):
-    """Shift+Tab toggles auto-edit mode."""
+    """Shift+Tab toggles auto-edit mode for current agent."""
     app = ChatApp()
     async with app.run_test() as pilot:
-        assert not app.auto_approve_edits
+        assert not app._agent.auto_approve_edits
 
         await pilot.press("shift+tab")
-        assert app.auto_approve_edits
+        assert app._agent.auto_approve_edits
 
         await pilot.press("shift+tab")
-        assert not app.auto_approve_edits
+        assert not app._agent.auto_approve_edits
 
 
 @pytest.mark.asyncio
