@@ -28,6 +28,7 @@ class BasePrompt(Static):
 
     def __init__(self) -> None:
         super().__init__()
+        self.add_class("base-prompt")
         self.selected_idx = 0
         self._result_event: asyncio.Event = asyncio.Event()
         self._result_value: Any = None

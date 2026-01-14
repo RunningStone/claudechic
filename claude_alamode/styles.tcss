@@ -337,8 +337,8 @@ HeaderIndicators {
     layout: horizontal;
 }
 
-/* Selection/Question/Worktree prompts - shared styles */
-SelectionPrompt, QuestionPrompt, WorktreePrompt {
+/* All prompts inheriting from BasePrompt */
+.base-prompt {
     height: auto;
     width: 100%;
     max-width: 100;
