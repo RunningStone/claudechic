@@ -1,5 +1,9 @@
 """Chat widgets - messages, input, and thinking indicator."""
 
+import re
+import time
+from pathlib import Path
+
 import pyperclip
 
 from textual.app import ComposeResult
@@ -225,23 +229,40 @@ class ChatInput(TextArea):
 
     def _is_image_path(self, text: str) -> list:
         """Check if text contains image file paths."""
-        from pathlib import Path
         images = []
-        for line in text.strip().splitlines():
+        text = text.strip()
+
+        # Handle file:// URLs (newline or space separated)
+        if text.startswith("file://"):
+            for part in text.split():
+                if part.startswith("file://"):
+                    part = part[7:]
+                path = Path(part)
+                if path.exists() and path.suffix.lower() in self.IMAGE_EXTENSIONS:
+                    images.append(path)
+            return images
+
+        # Handle shell-escaped paths (backslash-escaped spaces)
+        # Split on unescaped spaces (space not preceded by backslash)
+        if "\\ " in text:
+            parts = re.split(r'(?<!\\) ', text)
+            for part in parts:
+                part = part.replace("\\ ", " ")
+                path = Path(part)
+                if path.exists() and path.suffix.lower() in self.IMAGE_EXTENSIONS:
+                    images.append(path)
+            return images
+
+        # Simple case: one path per line or single path
+        for line in text.splitlines():
             line = line.strip()
-            if line.startswith("file://"):
-                line = line[7:]
-            # Unescape backslash-escaped spaces (terminal escaping)
-            line = line.replace("\\ ", " ")
             path = Path(line)
             if path.exists() and path.suffix.lower() in self.IMAGE_EXTENSIONS:
                 images.append(path)
         return images
 
-    async def _on_paste(self, event) -> None:
+    def on_paste(self, event) -> None:
         """Intercept paste - check for images BEFORE inserting text."""
-        import time
-
         images = self._is_image_path(event.text)
         if images:
             # Deduplicate - terminals sometimes fire paste twice
@@ -266,8 +287,7 @@ class ChatInput(TextArea):
             event.prevent_default()
             event.stop()
             return
-        # Normal paste
-        await super()._on_paste(event)
+        # Normal paste - let parent handle it
 
     def action_submit(self) -> None:
         text = self.text.strip()

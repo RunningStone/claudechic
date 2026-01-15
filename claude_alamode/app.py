@@ -1197,6 +1197,15 @@ class ChatApp(App):
         if input_widget:
             images = input_widget._is_image_path(event.text)
             if images:
+                # Use ChatInput's dedup tracking
+                now = time.time()
+                last = input_widget._last_image_paste
+                if last and last[0] == event.text and now - last[1] < 0.5:
+                    event.prevent_default()
+                    event.stop()
+                    return
+                input_widget._last_image_paste = (event.text, now)
+
                 for path in images:
                     self._attach_image(path)
                 event.prevent_default()
