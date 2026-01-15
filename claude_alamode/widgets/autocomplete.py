@@ -112,6 +112,7 @@ class TextAreaAutoComplete(Widget):
         self._mode: str | None = None  # "slash" or "path" or None
         self._trigger_pos: int = 0  # Position of / or @
         self._completing: bool = False  # Flag to prevent re-showing during completion
+        self._search_timer = None  # Timer for debounced file search
 
     @property
     def file_index(self) -> list[str]:
@@ -198,17 +199,46 @@ class TextAreaAutoComplete(Widget):
                 self._mode = "path"
                 self._trigger_pos = at_pos
 
-        if self._mode:
-            self._rebuild_options(state)
-            if self.option_list.option_count > 0:
-                search = self._get_search_string(state)
-                # Show if there's something to filter, or we're at the trigger
-                if self._should_show(search):
-                    self.action_show()
-                    # Reposition after layout is complete
-                    self.call_after_refresh(self._align_to_target)
-                else:
-                    self.action_hide()
+        if self._mode == "path":
+            # Debounce file search - cancel pending timer, start new one
+            self._cancel_search_timer()
+            self._search_timer = self.set_timer(0.15, self._do_path_search)
+        elif self._mode == "slash":
+            # Slash commands are instant (small list, no file I/O)
+            self._cancel_search_timer()
+            self._show_options(state)
+        else:
+            self._cancel_search_timer()
+            self.action_hide()
+
+    def _cancel_search_timer(self) -> None:
+        """Cancel any pending search timer."""
+        if self._search_timer is not None:
+            self._search_timer.stop()
+            self._search_timer = None
+
+    def _do_path_search(self) -> None:
+        """Execute debounced path search."""
+        self._search_timer = None
+        # Re-check that we're still in path mode with same trigger
+        current_state = self._get_target_state()
+        text_to_check = current_state.text[:current_state.cursor_position] if current_state.cursor_position > 0 else current_state.text
+        if "@" not in text_to_check:
+            self.action_hide()
+            return
+        at_pos = text_to_check.rfind("@")
+        if at_pos != self._trigger_pos:
+            return  # Trigger position changed, skip this search
+        self._show_options(current_state)
+
+    def _show_options(self, state: TargetState) -> None:
+        """Build and show options for current state."""
+        self._rebuild_options(state)
+        if self.option_list.option_count > 0:
+            search = self._get_search_string(state)
+            if self._should_show(search):
+                self.action_show()
+                self.call_after_refresh(self._align_to_target)
             else:
                 self.action_hide()
         else:

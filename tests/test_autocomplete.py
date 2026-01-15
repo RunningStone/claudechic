@@ -50,6 +50,7 @@ async def test_slash_command_autocomplete(mock_sdk, tmp_path: Path):
 @pytest.mark.asyncio
 async def test_path_autocomplete(mock_sdk, tmp_path: Path):
     """Test file path autocomplete with @ trigger."""
+    import asyncio
     app = ChatApp()
     async with app.run_test(size=(80, 24)) as pilot:
         autocomplete = app.query_one(TextAreaAutoComplete)
@@ -60,6 +61,8 @@ async def test_path_autocomplete(mock_sdk, tmp_path: Path):
 
         # Type @ to start path completion
         input_widget.text = "@"
+        # Wait for debounce (150ms) + buffer
+        await asyncio.sleep(0.2)
         await pilot.pause()
 
         # Should show files from index
@@ -68,6 +71,8 @@ async def test_path_autocomplete(mock_sdk, tmp_path: Path):
 
         # Filter to just .txt files
         input_widget.text = "@file"
+        # Wait for debounce
+        await asyncio.sleep(0.2)
         await pilot.pause()
 
         assert autocomplete.option_list.option_count == 2
