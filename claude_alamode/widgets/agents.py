@@ -10,6 +10,8 @@ from textual.widget import Widget
 from textual.widgets import Static
 from rich.text import Text
 
+from claude_alamode.theme import PRIMARY
+
 
 class WorktreeItem(Widget):
     """A ghost worktree in the sidebar (not yet an agent)."""
@@ -29,11 +31,13 @@ class WorktreeItem(Widget):
         layout: horizontal;
     }
     WorktreeItem:hover {
-        background: #222222;
+        background: $surface-lighten-1;
     }
     WorktreeItem .worktree-label {
         width: 1fr;
-        color: #555555;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: $text-muted;
     }
     """
 
@@ -68,36 +72,38 @@ class AgentItem(Widget):
             self.agent_id = agent_id
             super().__init__()
 
-    DEFAULT_CSS = """
-    AgentItem {
+    DEFAULT_CSS = f"""
+    AgentItem {{
         height: 3;
         padding: 1 1;
         border-left: tall transparent;
         layout: horizontal;
-    }
-    AgentItem:hover {
-        background: #222222;
-    }
-    AgentItem.active {
-        border-left: tall #cc7700;
-        background: #1a1a1a;
-    }
-    AgentItem .agent-label {
+    }}
+    AgentItem:hover {{
+        background: $surface-lighten-1;
+    }}
+    AgentItem.active {{
+        border-left: tall {PRIMARY};
+        background: $surface;
+    }}
+    AgentItem .agent-label {{
         width: 1fr;
-    }
-    AgentItem .agent-close {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }}
+    AgentItem .agent-close {{
         width: 3;
         min-width: 3;
         height: 1;
         padding: 0;
-        background: #333333;
-        color: #666666;
+        background: $panel;
+        color: $text-muted;
         text-align: center;
-    }
-    AgentItem .agent-close:hover {
-        color: #cc3333;
-        background: #444444;
-    }
+    }}
+    AgentItem .agent-close:hover {{
+        color: $error;
+        background: $panel-lighten-1;
+    }}
     """
 
     status = reactive("idle")
@@ -118,7 +124,7 @@ class AgentItem(Widget):
             color = "#888888"
         elif self.status == "needs_input":
             indicator = "\u25cf"
-            color = "#cc7700"
+            color = PRIMARY
         else:
             indicator = "\u25cb"
             color = "#555555"

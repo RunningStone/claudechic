@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 from textual.app import App, ComposeResult
+
+from claude_alamode.theme import ALAMODE_THEME
 from textual.binding import Binding
 from textual.containers import VerticalScroll, Vertical, Horizontal
 from textual.events import MouseUp
@@ -420,6 +422,10 @@ class ChatApp(App):
         )
 
     async def on_mount(self) -> None:
+        # Register and activate custom theme
+        self.register_theme(ALAMODE_THEME)
+        self.theme = "alamode"
+
         # Create initial agent session
         cwd = Path.cwd()
         agent = create_agent_session(name=cwd.name, cwd=cwd)

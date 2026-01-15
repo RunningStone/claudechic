@@ -1,25 +1,27 @@
 /* Claude Code Textual UI Styles
  *
  * Visual language: All content blocks use left border bars to indicate type.
- * - User messages: vibrant orange border
- * - Assistant messages: dim blue border
- * - Tool uses: subtle gray border
+ * - User messages: vibrant orange border ($primary)
+ * - Assistant messages: dim blue border ($secondary)
+ * - Tool uses: subtle gray border ($panel)
  * All blocks have transparent backgrounds and consistent spacing.
+ *
+ * Theme colors are defined in app.py via Textual's Theme system.
  */
 
 Screen {
-    background: black;
+    background: $background;
     layers: below above modal;
 }
 
 /* Scrollbar styling - applied to scrollable containers */
 * {
-    scrollbar-background: #111111;
-    scrollbar-background-hover: #111111;
-    scrollbar-background-active: #111111;
-    scrollbar-color: #333333;
-    scrollbar-color-hover: #444444;
-    scrollbar-color-active: #555555;
+    scrollbar-background: $surface;
+    scrollbar-background-hover: $surface;
+    scrollbar-background-active: $surface;
+    scrollbar-color: $panel;
+    scrollbar-color-hover: $panel-lighten-1;
+    scrollbar-color-active: $panel-lighten-2;
 }
 
 
@@ -27,7 +29,7 @@ Screen {
 StatusFooter {
     dock: bottom;
     height: 1;
-    background: #111111;
+    background: $surface;
 }
 
 #footer-content {
@@ -35,13 +37,13 @@ StatusFooter {
 }
 
 .footer-label {
-    color: #666666;
+    color: $text-muted;
     padding: 0 1;
     width: auto;
 }
 
 .footer-sep {
-    color: #444444;
+    color: $panel;
     width: auto;
 }
 
@@ -50,7 +52,7 @@ StatusFooter {
 }
 
 .footer-label.active {
-    color: #cc7700;
+    color: $primary;
 }
 
 /* Shared block styling - all content blocks */
@@ -63,43 +65,43 @@ ChatMessage, ToolUseWidget, ThinkingIndicator, ErrorMessage {
 
 /* Error messages - red, like user messages but indicating problems */
 ErrorMessage {
-    border-left: thick #cc3333;
-    background: #1a0808;  /* Slight red tint */
+    border-left: thick $error;
+    background: $error 10%;
     margin: 1 0 1 0;
 }
 
 /* User messages - vibrant orange, extra spacing */
 ChatMessage.user-message {
-    border-left: thick #cc7700;
+    border-left: thick $primary;
     margin: 2 0 2 0;
 }
 
 /* Assistant messages - softer, consistent spacing */
 ChatMessage.assistant-message {
-    border-left: wide #334455;
+    border-left: wide $secondary;
     margin: 1 0 1 0;
 }
 
 /* Summary messages - final text after tool uses, emphasized like user messages */
 ChatMessage.summary {
-    border-left: thick #334455;
+    border-left: thick $secondary;
     margin: 2 0 1 0;
 }
 
 /* Tool uses - subtle, highlight on hover */
 ToolUseWidget {
-    border-left: wide #333333;
+    border-left: wide $panel;
     margin: 0;
 }
 
 ToolUseWidget.hovered {
-    border-left: wide #666666;
-    background: #111111;
+    border-left: wide $panel-lighten-2;
+    background: $surface;
 }
 
 /* Task widgets - slightly more prominent */
 TaskWidget {
-    border-left: wide #445566;
+    border-left: wide $accent;
     margin: 0;
 }
 
@@ -110,7 +112,7 @@ TaskWidget #task-content {
 
 /* Thinking indicator - subtle */
 ThinkingIndicator {
-    border-left: wide #333333;
+    border-left: wide $panel;
     color: $text-muted;
 }
 
@@ -132,7 +134,7 @@ ThinkingIndicator {
 }
 
 .copy-btn:hover {
-    color: #cc7700;
+    color: $primary;
 }
 
 /* Main layout */
@@ -156,11 +158,11 @@ ThinkingIndicator {
     width: 1fr;
     max-width: 80;
     padding: 1 2;
-    background: black;
+    background: $background;
 }
 
 #session-picker > * {
-    background: black;
+    background: $background;
 }
 
 #session-picker.hidden {
@@ -171,13 +173,13 @@ ThinkingIndicator {
     padding: 0 0 0 1;
     height: auto;
     margin: 0 0 1 0;
-    border-left: tall #333333;
+    border-left: tall $panel;
 }
 
 #session-picker > SessionItem:hover,
 #session-picker > SessionItem.-selected {
-    background: #0a0a0a;
-    border-left: tall #cc7700;
+    background: $surface-darken-1;
+    border-left: tall $primary;
 }
 
 #session-picker .session-meta {
@@ -216,14 +218,14 @@ ThinkingIndicator {
     height: 1;
     margin: 0 1 0 0;
     padding: 0 1;
-    background: #444444;
-    color: #cccccc;
+    background: $panel-lighten-1;
+    color: $text-muted;
     border: none;
 }
 
 #image-attachments .image-tag:hover {
-    background: #555555;
-    color: #ffffff;
+    background: $panel-lighten-2;
+    color: $text;
 }
 
 /* Clickable attachment tags in chat messages */
@@ -233,14 +235,14 @@ ThinkingIndicator {
     height: 1;
     margin: 0 1 1 1;
     padding: 0 1;
-    background: #333333;
-    color: #aaaaaa;
+    background: $panel;
+    color: $text-muted;
     border: none;
 }
 
 .chat-attachment:hover {
-    background: #444444;
-    color: #ffffff;
+    background: $panel-lighten-1;
+    color: $text;
 }
 
 /* Input wrapper for centering */
@@ -259,12 +261,8 @@ ThinkingIndicator {
     height: auto;
     padding: 1 0;
     margin: 1 0;
-    border-left: wide #333333;
-    background: #1a1408;  /* Slight orange tint */
-}
-
-#input-container:focus-within {
-    border-left: wide #cc7700;
+    border-left: wide $primary;
+    background: $primary 10%;
 }
 
 #input-container.hidden {
@@ -345,8 +343,8 @@ ContextBar {
     height: auto;
     width: 100%;
     max-width: 100;
-    background: #111111;
-    border-left: tall #333333;
+    background: $surface;
+    border-left: tall $primary;
     padding: 0 2 0 1;
 }
 
@@ -363,20 +361,20 @@ WorktreePrompt {
 .prompt-option {
     padding: 0 0 0 1;
     color: $text-muted;
-    border-left: tall #333333;
+    border-left: tall $panel;
 }
 
 .prompt-option.selected {
     color: $text;
-    background: #222222;
-    border-left: tall #cc7700;
+    background: $surface-lighten-1;
+    border-left: tall $primary;
 }
 
 /* Right sidebar - agents + todos stacked */
 #right-sidebar {
     width: 28;
     height: 100%;
-    border-left: solid #333333;
+    border-left: solid $panel;
     /* Negative margin shifts chat+sidebar group left so chat is centered */
     margin-right: -28;
 }
@@ -390,7 +388,7 @@ WorktreePrompt {
     width: 100%;
     height: auto;
     max-height: 50%;
-    border-top: solid #333333;
+    border-top: solid $panel;
     padding: 1;
 }
 
@@ -406,7 +404,7 @@ WorktreePrompt {
 
 /* Todo widget - inline checklist */
 TodoWidget {
-    border-left: tall #555588;
+    border-left: tall $accent;
     padding: 0 1;
     margin: 0 0 1 0;
 }
@@ -417,13 +415,13 @@ TodoItem {
 
 /* Toast notifications */
 Toast {
-    background: #111111;
-    border-left: tall #333333;
+    background: $surface;
+    border-left: tall $panel;
     padding: 0 1;
 }
 
 Toast.-error {
-    border-left: tall #cc3333;
+    border-left: tall $error;
 }
 
 ToastRack {
