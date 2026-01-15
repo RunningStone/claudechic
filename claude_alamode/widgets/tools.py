@@ -6,6 +6,7 @@ import logging
 import pyperclip
 
 from textual.app import ComposeResult
+from textual.message import Message
 from textual.widgets import Markdown, Static, Collapsible, Button
 
 from claude_agent_sdk import ToolUseBlock, ToolResultBlock
@@ -267,3 +268,131 @@ class TaskWidget(Static):
                 collapsible.add_class("error")
         except Exception:
             pass  # Widget may not be mounted
+
+
+class AgentToolWidget(Static):
+    """Widget for displaying alamode agent MCP tool calls (spawn_agent, ask_agent, etc.)."""
+
+    SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+    DEFAULT_CSS = """
+    AgentToolWidget {
+        border-left: solid $panel;
+        padding: 0 1;
+        margin: 1 0;
+    }
+    AgentToolWidget .agent-header {
+        text-style: bold;
+    }
+    AgentToolWidget .agent-prompt {
+        color: $text-muted;
+        margin-left: 2;
+    }
+    AgentToolWidget .go-btn {
+        margin-left: 2;
+        min-width: 14;
+    }
+    AgentToolWidget .result-text {
+        margin-top: 1;
+        color: $text-muted;
+    }
+    AgentToolWidget .spinner {
+        color: $text-muted;
+        margin-left: 2;
+    }
+    """
+
+    class GoToAgent(Message):
+        """Message posted when user clicks 'Go to agent' button."""
+
+        def __init__(self, agent_name: str) -> None:
+            super().__init__()
+            self.agent_name = agent_name
+
+    def __init__(self, block: ToolUseBlock) -> None:
+        super().__init__()
+        self.block = block
+        self.result: ToolResultBlock | None = None
+        self._agent_name = block.input.get("name", "?")
+        self._spinner_frame = 0
+        self._spinner_timer = None
+
+    def compose(self) -> ComposeResult:
+        tool_short = self.block.name.replace("mcp__alamode__", "")
+
+        if tool_short == "spawn_agent":
+            yield Static(f"Spawning agent: {self._agent_name}", classes="agent-header")
+            if prompt := self.block.input.get("prompt"):
+                preview = prompt[:80] + "..." if len(prompt) > 80 else prompt
+                yield Static(f'"{preview}"', classes="agent-prompt")
+            yield Button(f"Go to {self._agent_name}", classes="go-btn")
+
+        elif tool_short == "spawn_worktree":
+            yield Static(f"Creating worktree: {self._agent_name}", classes="agent-header")
+            if prompt := self.block.input.get("prompt"):
+                preview = prompt[:80] + "..." if len(prompt) > 80 else prompt
+                yield Static(f'"{preview}"', classes="agent-prompt")
+            yield Button(f"Go to {self._agent_name}", classes="go-btn")
+
+        elif tool_short == "ask_agent":
+            yield Static(f"Asking agent: {self._agent_name}", classes="agent-header")
+            if prompt := self.block.input.get("prompt"):
+                preview = prompt[:80] + "..." if len(prompt) > 80 else prompt
+                yield Static(f'"{preview}"', classes="agent-prompt")
+            yield Static(f"{self.SPINNER_FRAMES[0]} waiting...", classes="spinner", id="ask-spinner")
+            yield Button(f"Go to {self._agent_name}", classes="go-btn")
+
+        elif tool_short == "list_agents":
+            yield Static("Listing agents", classes="agent-header")
+
+        else:
+            # Fallback for unknown alamode tools
+            yield Static(f"{tool_short}: {self._agent_name}", classes="agent-header")
+
+    def on_mount(self) -> None:
+        tool_short = self.block.name.replace("mcp__alamode__", "")
+        if tool_short == "ask_agent" and self.result is None:
+            self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
+
+    def _tick_spinner(self) -> None:
+        if self.result is not None:
+            if self._spinner_timer:
+                self._spinner_timer.stop()
+            return
+        self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
+        try:
+            spinner = self.query_one("#ask-spinner", Static)
+            spinner.update(f"{self.SPINNER_FRAMES[self._spinner_frame]} waiting...")
+        except Exception:
+            pass
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if "go-btn" in event.button.classes:
+            event.stop()
+            self.post_message(self.GoToAgent(self._agent_name))
+
+    def collapse(self) -> None:
+        """No-op for compatibility with ToolUseWidget interface."""
+        pass
+
+    def set_result(self, result: ToolResultBlock) -> None:
+        """Update with tool result."""
+        self.result = result
+        # Stop spinner
+        if self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+        # Remove spinner widget for ask_agent
+        try:
+            spinner = self.query_one("#ask-spinner", Static)
+            spinner.remove()
+        except Exception:
+            pass
+        # For list_agents, show the result text
+        tool_short = self.block.name.replace("mcp__alamode__", "")
+        if tool_short == "list_agents" and result.content:
+            content = result.content if isinstance(result.content, str) else str(result.content)
+            try:
+                self.mount(Static(content, classes="result-text"))
+            except Exception:
+                pass

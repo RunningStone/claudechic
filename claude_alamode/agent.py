@@ -1,14 +1,15 @@
 """Agent session management for multi-agent support."""
 
+import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 import uuid
 
 if TYPE_CHECKING:
     from claude_agent_sdk import ClaudeSDKClient
     from textual.containers import VerticalScroll
-    from claude_alamode.widgets import ChatMessage, ToolUseWidget, TaskWidget
+    from claude_alamode.widgets import ChatMessage, ToolUseWidget, TaskWidget, AgentToolWidget
     from claude_alamode.widgets.prompts import SelectionPrompt, QuestionPrompt
     from claude_alamode.features.worktree.git import FinishState
 
@@ -30,9 +31,9 @@ class AgentSession:
     # UI state
     chat_view: "VerticalScroll | None" = None
     current_response: "ChatMessage | None" = None
-    pending_tools: dict[str, "ToolUseWidget | TaskWidget"] = field(default_factory=dict)
+    pending_tools: dict[str, "ToolUseWidget | TaskWidget | AgentToolWidget"] = field(default_factory=dict)
     active_tasks: dict[str, "TaskWidget"] = field(default_factory=dict)
-    recent_tools: list["ToolUseWidget | TaskWidget"] = field(default_factory=list)
+    recent_tools: list["ToolUseWidget | TaskWidget | AgentToolWidget"] = field(default_factory=list)
     todos: list[dict] = field(default_factory=list)
     active_prompt: "SelectionPrompt | QuestionPrompt | None" = None
 
@@ -44,6 +45,10 @@ class AgentSession:
 
     # Worktree finish state (scoped to this agent)
     finish_state: "FinishState | None" = None
+
+    # For MCP ask_agent: signal when response completes
+    _completion_event: asyncio.Event = field(default_factory=asyncio.Event)
+    _last_response: Any = None  # Stores the last response text
 
 
 def create_agent_session(

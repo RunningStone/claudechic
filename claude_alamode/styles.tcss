@@ -24,6 +24,25 @@ Screen {
     scrollbar-color-active: $panel-lighten-2;
 }
 
+/* Button styling - subtle dark buttons with visible hover */
+Button {
+    background: $surface;
+    color: $text;
+    border: none;
+    min-width: 10;
+    height: 1;
+    padding: 0 1;
+}
+
+Button:hover {
+    background: $accent !important;
+    color: white !important;
+}
+
+Button:focus {
+    background: $surface;
+    text-style: none;
+}
 
 /* Custom status footer */
 StatusFooter {

@@ -53,6 +53,7 @@ from claude_alamode.features.worktree import (
 from claude_alamode.features.worktree.commands import on_response_complete_finish
 from claude_alamode.permissions import PermissionRequest
 from claude_alamode.agent import AgentSession, create_agent_session
+from claude_alamode.mcp import set_app, create_alamode_server
 from claude_alamode.file_index import FileIndex
 from claude_alamode.widgets import (
     ContextBar,
@@ -64,6 +65,7 @@ from claude_alamode.widgets import (
     ErrorMessage,
     ToolUseWidget,
     TaskWidget,
+    AgentToolWidget,
     TodoWidget,
     TodoPanel,
     SelectionPrompt,
@@ -181,7 +183,7 @@ class ChatApp(App):
             self._agent.current_response = value
 
     @property
-    def pending_tools(self) -> dict[str, ToolUseWidget | TaskWidget]:
+    def pending_tools(self) -> dict[str, ToolUseWidget | TaskWidget | AgentToolWidget]:
         return self._agent.pending_tools if self._agent else {}
 
     @property
@@ -189,7 +191,7 @@ class ChatApp(App):
         return self._agent.active_tasks if self._agent else {}
 
     @property
-    def recent_tools(self) -> list[ToolUseWidget | TaskWidget]:
+    def recent_tools(self) -> list[ToolUseWidget | TaskWidget | AgentToolWidget]:
         return self._agent.recent_tools if self._agent else []
 
     @property
@@ -317,6 +319,10 @@ class ChatApp(App):
         if tool_name == "ExitPlanMode":
             return PermissionResultAllow()
 
+        # Alamode MCP tools are always allowed (they're our own tools)
+        if tool_name.startswith("mcp__alamode__"):
+            return PermissionResultAllow()
+
         if self._agent and self._agent.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
             log.info(f"Auto-approved {tool_name}")
             return PermissionResultAllow()
@@ -419,9 +425,13 @@ class ChatApp(App):
             cwd=cwd,
             resume=resume,
             can_use_tool=self._handle_permission,
+            mcp_servers={"alamode": create_alamode_server()},
         )
 
     async def on_mount(self) -> None:
+        # Register app for MCP tools
+        set_app(self)
+
         # Register and activate custom theme
         self.register_theme(ALAMODE_THEME)
         self.theme = "alamode"
@@ -745,6 +755,9 @@ class ChatApp(App):
         if event.block.name == "Task":
             widget = TaskWidget(event.block, collapsed=collapsed)
             agent.active_tasks[event.block.id] = widget
+        elif event.block.name.startswith("mcp__alamode__"):
+            # Custom widget for alamode MCP tools
+            widget = AgentToolWidget(event.block)
         else:
             widget = ToolUseWidget(event.block, collapsed=collapsed)
 
@@ -799,6 +812,9 @@ class ChatApp(App):
         self._set_agent_status("idle", event.agent_id)
         if event.result and agent:
             agent.session_id = event.result.session_id
+            # Store response text and signal completion for MCP ask_agent
+            agent._last_response = event.result.result or ""
+            agent._completion_event.set()
             self.refresh_context()
         if agent:
             # Mark final message as summary if tools were used
@@ -977,6 +993,14 @@ class ChatApp(App):
             return
         self._switch_to_agent(event.agent_id)
 
+    def on_agent_tool_widget_go_to_agent(self, event: AgentToolWidget.GoToAgent) -> None:
+        """Handle 'Go to agent' button click from AgentToolWidget."""
+        for agent_id, agent in self.agents.items():
+            if agent.name == event.agent_name:
+                self._switch_to_agent(agent_id)
+                return
+        self.notify(f"Agent '{event.agent_name}' not found", severity="warning")
+
     def on_worktree_item_selected(self, event: WorktreeItem.Selected) -> None:
         """Handle ghost worktree selection - create an agent there."""
         self._create_new_agent(event.branch, event.path, worktree=event.branch, auto_resume=True)
@@ -1092,8 +1116,18 @@ class ChatApp(App):
         self._create_new_agent(name, path)
 
     @work(group="new_agent", exclusive=True, exit_on_error=False)
-    async def _create_new_agent(self, name: str, cwd: Path, worktree: str | None = None, auto_resume: bool = False) -> None:
-        """Create a new agent session."""
+    async def _create_new_agent(
+        self, name: str, cwd: Path, worktree: str | None = None, auto_resume: bool = False, switch_to: bool = True
+    ) -> None:
+        """Create a new agent session.
+
+        Args:
+            name: Display name for the agent
+            cwd: Working directory
+            worktree: Git worktree branch name if applicable
+            auto_resume: Try to resume most recent session in cwd
+            switch_to: Whether to switch to the new agent (default True)
+        """
         agent = create_agent_session(name=name, cwd=cwd, worktree=worktree)
 
         chat_view = AutoHideScroll(id=f"chat-view-{agent.id}", classes="chat-view hidden")
@@ -1116,7 +1150,8 @@ class ChatApp(App):
         self.agents[agent.id] = agent
         sidebar = self.query_one("#agent-sidebar", AgentSidebar)
         sidebar.add_agent(agent.id, agent.name)
-        self._switch_to_agent(agent.id)
+        if switch_to:
+            self._switch_to_agent(agent.id)
         self._position_right_sidebar()
 
         if resume_id:
