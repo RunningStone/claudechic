@@ -180,8 +180,7 @@ class ToolUseWidget(Static):
                 else:
                     details += f"\n\n{preview}"
             md.update(details.rstrip())
-            # Force layout recalculation to prevent scroll rendering issues
-            self.refresh(layout=True)
+            # Layout refresh happens in _scroll_if_at_bottom after call_after_refresh
         except Exception:
             pass  # Widget may not be fully mounted
 
