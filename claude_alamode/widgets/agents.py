@@ -33,8 +33,6 @@ class WorktreeItem(Widget):
     }
     WorktreeItem .worktree-label {
         width: 1fr;
-        overflow: hidden;
-        text-overflow: ellipsis;
         color: #555555;
     }
     """
@@ -45,7 +43,10 @@ class WorktreeItem(Widget):
         self.path = path
 
     def compose(self) -> ComposeResult:
-        label = Text.assemble(("◌", "#444444"), " ", (self.branch, "#555555"))
+        name = self.branch
+        if len(name) > 16:
+            name = name[:15] + "…"
+        label = Text.assemble(("◌", "#444444"), " ", (name, "#555555"))
         yield Static(label, classes="worktree-label")
 
     def on_click(self) -> None:
@@ -83,8 +84,6 @@ class AgentItem(Widget):
     }
     AgentItem .agent-label {
         width: 1fr;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
     AgentItem .agent-close {
         width: 3;
@@ -123,7 +122,10 @@ class AgentItem(Widget):
         else:
             indicator = "\u25cb"
             color = "#555555"
-        return Text.assemble((indicator, color), " ", (self.display_name, ""))
+        name = self.display_name
+        if len(name) > 14:
+            name = name[:13] + "…"
+        return Text.assemble((indicator, color), " ", (name, ""))
 
     def watch_status(self, _status: str) -> None:
         """Update label when status changes."""
