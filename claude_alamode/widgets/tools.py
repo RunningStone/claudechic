@@ -255,6 +255,10 @@ class TaskWidget(Static):
     def set_result(self, result: ToolResultBlock) -> None:
         """Set the Task's own result."""
         self.result = result
+        # Stop spinners for any nested tools that didn't get results
+        for widget in self._pending_tools.values():
+            widget.stop_spinner()
+        self._pending_tools.clear()
         try:
             collapsible = self.query_one(Collapsible)
             if result.is_error:
