@@ -141,6 +141,14 @@ class ChatApp(App):
         # Chunk batching: buffer text by (agent_id, parent_tool_use_id)
         self._chunk_buffer: dict[tuple[str | None, str | None], tuple[str, bool]] = {}  # key -> (text, new_message)
         self._chunk_flush_timer: asyncio.TimerHandle | None = None
+        # Cached widget references (initialized in on_mount)
+        self._agent_sidebar: AgentSidebar | None = None
+        self._todo_panel: TodoPanel | None = None
+        self._context_bar: ContextBar | None = None
+        self._right_sidebar: Vertical | None = None
+        self._input_container: Vertical | None = None
+        self._chat_input: ChatInput | None = None
+        self._status_footer: StatusFooter | None = None
 
     # Properties to access active agent's state (backward compatibility)
     @property
@@ -207,6 +215,49 @@ class ChatApp(App):
         """Get agent by ID, or active agent if None."""
         return self.agents.get(agent_id) if agent_id else self._agent
 
+    # Cached widget accessors (lazy init on first access)
+    @property
+    def agent_sidebar(self) -> AgentSidebar:
+        if self._agent_sidebar is None:
+            self._agent_sidebar = self.query_one("#agent-sidebar", AgentSidebar)
+        return self._agent_sidebar
+
+    @property
+    def todo_panel(self) -> TodoPanel:
+        if self._todo_panel is None:
+            self._todo_panel = self.query_one("#todo-panel", TodoPanel)
+        return self._todo_panel
+
+    @property
+    def context_bar(self) -> ContextBar:
+        if self._context_bar is None:
+            self._context_bar = self.query_one("#context-bar", ContextBar)
+        return self._context_bar
+
+    @property
+    def right_sidebar(self) -> Vertical:
+        if self._right_sidebar is None:
+            self._right_sidebar = self.query_one("#right-sidebar", Vertical)
+        return self._right_sidebar
+
+    @property
+    def input_container(self) -> Vertical:
+        if self._input_container is None:
+            self._input_container = self.query_one("#input-container", Vertical)
+        return self._input_container
+
+    @property
+    def chat_input(self) -> ChatInput:
+        if self._chat_input is None:
+            self._chat_input = self.query_one("#input", ChatInput)
+        return self._chat_input
+
+    @property
+    def status_footer(self) -> StatusFooter:
+        if self._status_footer is None:
+            self._status_footer = self.query_one(StatusFooter)
+        return self._status_footer
+
     def _set_agent_status(self, status: Literal["idle", "busy", "needs_input"], agent_id: str | None = None) -> None:
         """Update an agent's status and sidebar display."""
         aid = agent_id or self.active_agent_id
@@ -214,8 +265,7 @@ class ChatApp(App):
             return
         self.agents[aid].status = status
         try:
-            sidebar = self.query_one("#agent-sidebar", AgentSidebar)
-            sidebar.update_status(aid, status)
+            self.agent_sidebar.update_status(aid, status)
         except Exception:
             pass  # Sidebar not mounted yet
 
@@ -296,8 +346,7 @@ class ChatApp(App):
         agent = self._agent
         if agent:
             agent.active_prompt = prompt
-        input_container = self.query_one("#input-container")
-        input_container.add_class("hidden")
+        self.input_container.add_class("hidden")
         self.query_one("#input-wrapper").mount(prompt)
         try:
             yield prompt
@@ -308,7 +357,7 @@ class ChatApp(App):
                 prompt.remove()
             except Exception:
                 pass  # Prompt may already be removed
-            input_container.remove_class("hidden")
+            self.input_container.remove_class("hidden")
 
     async def _handle_permission(
         self, tool_name: str, tool_input: dict[str, Any], context: ToolPermissionContext
@@ -393,8 +442,7 @@ class ChatApp(App):
     def _update_footer_auto_edit(self) -> None:
         """Update footer to reflect current agent's auto-edit state."""
         try:
-            footer = self.query_one(StatusFooter)
-            footer.auto_edit = self._agent.auto_approve_edits if self._agent else False
+            self.status_footer.auto_edit = self._agent.auto_approve_edits if self._agent else False
         except Exception:
             pass  # Footer may not be mounted yet
 
@@ -448,9 +496,8 @@ class ChatApp(App):
         self.active_agent_id = agent.id
 
         # Add to sidebar
-        sidebar = self.query_one("#agent-sidebar", AgentSidebar)
-        sidebar.add_agent(agent.id, agent.name)
-        sidebar.set_active(agent.id)
+        self.agent_sidebar.add_agent(agent.id, agent.name)
+        self.agent_sidebar.set_active(agent.id)
 
         # Populate ghost worktrees (feature branches only)
         self._populate_worktrees()
@@ -469,7 +516,7 @@ class ChatApp(App):
             self.notify(f"Resuming {resume[:8]}...")
         # Fetch SDK commands and update autocomplete
         await self._update_slash_commands()
-        self.query_one("#input", ChatInput).focus()
+        self.chat_input.focus()
         # Send initial prompt if provided
         if self._initial_prompt:
             self._send_initial_prompt()
@@ -499,8 +546,7 @@ class ChatApp(App):
                     # Extract short name from description like "Opus 4.5 · ..."
                     desc = active.get("description", "")
                     model_name = desc.split("·")[0].strip() if "·" in desc else active.get("displayName", "")
-                    footer = self.query_one(StatusFooter)
-                    footer.model = model_name
+                    self.status_footer.model = model_name
         except Exception as e:
             log.warning(f"Failed to fetch SDK commands: {e}")
         self.refresh_context()
@@ -539,7 +585,7 @@ class ChatApp(App):
             return
         tokens = get_context_from_session(agent.session_id, cwd=agent.cwd)
         if tokens is not None:
-            self.query_one("#context-bar", ContextBar).tokens = tokens
+            self.context_bar.tokens = tokens
 
     def _send_initial_prompt(self) -> None:
         """Send the initial prompt from CLI args."""
@@ -551,7 +597,7 @@ class ChatApp(App):
     def on_chat_input_submitted(self, event: ChatInput.Submitted) -> None:
         if not event.text.strip():
             return
-        self.query_one("#input", ChatInput).clear()
+        self.chat_input.clear()
         self._handle_prompt(event.text)
 
     def _handle_prompt(self, prompt: str) -> None:
@@ -760,8 +806,7 @@ class ChatApp(App):
         if event.block.name == "TodoWrite":
             todos = event.block.input.get("todos", [])
             agent.todos = todos  # Store on agent for switching
-            panel = self.query_one("#todo-panel", TodoPanel)
-            panel.update_todos(todos)
+            self.todo_panel.update_todos(todos)
             self._position_right_sidebar()
             # Also update inline widget if exists, or create if narrow
             existing = self.query(TodoWidget)
@@ -817,20 +862,17 @@ class ChatApp(App):
 
     def _position_right_sidebar(self) -> None:
         """Show/hide right sidebar based on terminal width and content."""
-        sidebar = self.query_one("#right-sidebar", Vertical)
-        panel = self.query_one("#todo-panel", TodoPanel)
-        agent_sidebar = self.query_one("#agent-sidebar", AgentSidebar)
         # Show sidebar when wide enough and we have multiple agents, worktrees, or todos
-        has_content = len(self.agents) > 1 or agent_sidebar._worktrees or panel.todos
+        has_content = len(self.agents) > 1 or self.agent_sidebar._worktrees or self.todo_panel.todos
         if self.size.width >= self.SIDEBAR_MIN_WIDTH and has_content:
-            sidebar.remove_class("hidden")
+            self.right_sidebar.remove_class("hidden")
             # Show/hide todo panel based on whether it has content
-            if panel.todos:
-                panel.remove_class("hidden")
+            if self.todo_panel.todos:
+                self.todo_panel.remove_class("hidden")
             else:
-                panel.add_class("hidden")
+                self.todo_panel.add_class("hidden")
         else:
-            sidebar.add_class("hidden")
+            self.right_sidebar.add_class("hidden")
 
     def on_response_complete(self, event: ResponseComplete) -> None:
         # Flush any remaining buffered chunks before completing
@@ -852,7 +894,7 @@ class ChatApp(App):
             if agent.response_had_tools and agent.current_response:
                 agent.current_response.add_class("summary")
             agent.current_response = None
-        self.query_one("#input", ChatInput).focus()
+        self.chat_input.focus()
         self.completions.put_nowait(event)
 
         # Continue worktree finish if this agent has a pending finish
@@ -947,8 +989,8 @@ class ChatApp(App):
         chat_view = self._chat_view
         if chat_view:
             chat_view.remove_class("hidden")
-        self.query_one("#input", ChatInput).clear()
-        self.query_one("#input", ChatInput).focus()
+        self.chat_input.clear()
+        self.chat_input.focus()
 
     @work(group="reconnect", exclusive=True, exit_on_error=False)
     async def _reconnect_sdk(self, new_cwd: Path) -> None:
@@ -1003,7 +1045,7 @@ class ChatApp(App):
             self.run_worker(self.client.interrupt(), exclusive=False)
             self._hide_thinking()
             self.notify("Interrupted")
-            self.query_one("#input", ChatInput).focus()
+            self.chat_input.focus()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if self._session_picker_active and event.text_area.id == "input":
@@ -1042,7 +1084,6 @@ class ChatApp(App):
             worktrees = list_worktrees()
         except Exception:
             return  # Not a git repo or git not available
-        sidebar = self.query_one("#agent-sidebar", AgentSidebar)
         # Get names of existing agents to skip
         agent_names = {a.name for a in self.agents.values()}
         for wt in worktrees:
@@ -1050,7 +1091,7 @@ class ChatApp(App):
                 continue  # Skip main worktree
             if wt.branch in agent_names:
                 continue  # Already have an agent
-            sidebar.add_worktree(wt.branch, wt.path)
+            self.agent_sidebar.add_worktree(wt.branch, wt.path)
 
     def on_agent_item_close_requested(self, event: AgentItem.CloseRequested) -> None:
         """Handle close button click on agent item."""
@@ -1076,26 +1117,22 @@ class ChatApp(App):
         if agent and agent.chat_view:
             agent.chat_view.remove_class("hidden")
         # Show new agent's prompt if it has one, otherwise show input
-        input_container = self.query_one("#input-container")
         if agent and agent.active_prompt:
             agent.active_prompt.remove_class("hidden")
-            input_container.add_class("hidden")
+            self.input_container.add_class("hidden")
         else:
-            input_container.remove_class("hidden")
+            self.input_container.remove_class("hidden")
         # Update sidebar selection
-        sidebar = self.query_one("#agent-sidebar", AgentSidebar)
-        sidebar.set_active(agent_id)
+        self.agent_sidebar.set_active(agent_id)
         # Update footer branch for new agent's cwd (async, non-blocking)
-        footer = self.query_one(StatusFooter)
-        asyncio.create_task(footer.refresh_branch(str(agent.cwd) if agent else None))
-        footer.auto_edit = agent.auto_approve_edits if agent else False
+        asyncio.create_task(self.status_footer.refresh_branch(str(agent.cwd) if agent else None))
+        self.status_footer.auto_edit = agent.auto_approve_edits if agent else False
         # Update todo panel for new agent
-        panel = self.query_one("#todo-panel", TodoPanel)
-        panel.update_todos(agent.todos if agent else [])
+        self.todo_panel.update_todos(agent.todos if agent else [])
         # Update context bar for new agent
         self.refresh_context()
         self._position_right_sidebar()
-        self.query_one("#input", ChatInput).focus()
+        self.chat_input.focus()
 
     def _handle_shell_command(self, command: str) -> None:
         """Handle /shell command - suspend TUI and run shell command."""
@@ -1179,8 +1216,7 @@ class ChatApp(App):
             return
 
         self.agents[agent.id] = agent
-        sidebar = self.query_one("#agent-sidebar", AgentSidebar)
-        sidebar.add_agent(agent.id, agent.name)
+        self.agent_sidebar.add_agent(agent.id, agent.name)
         if switch_to:
             self._switch_to_agent(agent.id)
         self._position_right_sidebar()
@@ -1246,8 +1282,7 @@ class ChatApp(App):
             agent.chat_view.remove()
 
         # Remove from sidebar
-        sidebar = self.query_one("#agent-sidebar", AgentSidebar)
-        sidebar.remove_agent(agent_id)
+        self.agent_sidebar.remove_agent(agent_id)
 
         # Remove from agents dict
         del self.agents[agent_id]
@@ -1260,47 +1295,41 @@ class ChatApp(App):
         self.notify(f"Agent '{name}' closed")
 
     def on_app_focus(self) -> None:
-        input_widgets = self.query("#input")
-        if input_widgets:
-            input_widgets.first(ChatInput).focus()
+        if self._chat_input:
+            self._chat_input.focus()
 
     def on_paste(self, event) -> None:
         """App-level paste handler - catches pastes when input isn't focused."""
+        if not self._chat_input:
+            return
         # Skip if already handled by ChatInput (check if input is focused)
-        input_widgets = self.query("#input")
-        if input_widgets and self.focused == input_widgets.first(ChatInput):
+        if self.focused == self._chat_input:
             return  # Let ChatInput handle it
 
         # Use ChatInput's image detection logic
-        input_widget = input_widgets.first(ChatInput) if input_widgets else None
-        if input_widget:
-            images = input_widget._is_image_path(event.text)
-            if images:
-                # Use ChatInput's dedup tracking
-                now = time.time()
-                last = input_widget._last_image_paste
-                if last and last[0] == event.text and now - last[1] < 0.5:
-                    event.prevent_default()
-                    event.stop()
-                    return
-                input_widget._last_image_paste = (event.text, now)
-
-                for path in images:
-                    self._attach_image(path)
+        images = self._chat_input._is_image_path(event.text)
+        if images:
+            # Use ChatInput's dedup tracking
+            now = time.time()
+            last = self._chat_input._last_image_paste
+            if last and last[0] == event.text and now - last[1] < 0.5:
                 event.prevent_default()
                 event.stop()
+                return
+            self._chat_input._last_image_paste = (event.text, now)
+
+            for path in images:
+                self._attach_image(path)
+            event.prevent_default()
+            event.stop()
 
     def on_key(self, event) -> None:
         if self.query(SelectionPrompt) or self.query(QuestionPrompt):
             return
-        input_widgets = self.query("#input")
-        if not input_widgets:
-            return
-        input_widget = input_widgets.first(ChatInput)
-        if self.focused == input_widget:
+        if not self._chat_input or self.focused == self._chat_input:
             return
         if len(event.character or "") == 1 and event.character.isprintable():
-            input_widget.focus()
-            input_widget.insert(event.character)
+            self._chat_input.focus()
+            self._chat_input.insert(event.character)
             event.prevent_default()
             event.stop()
