@@ -669,8 +669,6 @@ class ChatApp(App):
         if event.new_message or not agent.current_response:
             agent.current_response = ChatMessage("")
             agent.current_response.add_class("assistant-message")
-            if event.new_message:
-                agent.current_response.add_class("after-tool")
             chat_view.mount(agent.current_response)
         agent.current_response.append_content(event.text)
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)

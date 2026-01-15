@@ -74,9 +74,10 @@ ChatMessage.user-message {
     margin: 2 0 2 0;
 }
 
-/* Assistant messages - softer */
+/* Assistant messages - softer, consistent spacing */
 ChatMessage.assistant-message {
     border-left: wide #334455;
+    margin: 1 0 1 0;
 }
 
 /* Summary messages - final text after tool uses, emphasized like user messages */
@@ -113,10 +114,6 @@ ThinkingIndicator {
     color: $text-muted;
 }
 
-/* Add spacing when following tool uses */
-ChatMessage.after-tool, ThinkingIndicator.after-tool {
-    margin-top: 1;
-}
 
 /* Copy buttons - hidden until hover */
 .copy-btn, .tool-copy-btn {
