@@ -92,6 +92,8 @@ CHUNK_BATCH_INTERVAL = 0.016
 
 def _scroll_if_at_bottom(scroll_view: VerticalScroll) -> None:
     """Scroll to end only if user hasn't scrolled up."""
+    # Force layout recalculation to ensure scroll metrics are accurate
+    scroll_view.refresh(layout=True)
     # Consider "at bottom" if within 50px of the end
     at_bottom = scroll_view.scroll_y >= scroll_view.max_scroll_y - 50
     if at_bottom:
