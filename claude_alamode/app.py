@@ -45,7 +45,11 @@ from claude_alamode.messages import (
     ToolUseMessage,
     ToolResultMessage,
 )
-from claude_alamode.sessions import get_context_from_session, get_recent_sessions, load_session_messages
+from claude_alamode.sessions import (
+    get_context_from_session,
+    get_recent_sessions,
+    load_session_messages,
+)
 from claude_alamode.features.worktree import (
     handle_worktree_command,
     list_worktrees,
@@ -506,12 +510,17 @@ class ChatApp(App):
         self.file_index = FileIndex(root=cwd)
         self._refresh_file_index()
 
-        # Create client with resume if provided (avoids double client creation)
+        # Resolve resume ID (handle __most_recent__ sentinel from CLI)
         resume = self._resume_on_start
+        if resume == "__most_recent__":
+            sessions = await get_recent_sessions(limit=1)
+            resume = sessions[0][0] if sessions else None
+
+        # Create client with resume if provided
         agent.client = ClaudeSDKClient(self._make_options(resume=resume))
         await agent.client.connect()
         if resume:
-            self._load_and_display_history(resume)
+            await self._load_and_display_history(resume)
             agent.session_id = resume
             self.notify(f"Resuming {resume[:8]}...")
         # Fetch SDK commands and update autocomplete
@@ -557,13 +566,14 @@ class ChatApp(App):
         if self.file_index:
             await self.file_index.refresh()
 
-    def _load_and_display_history(self, session_id: str, cwd: Path | None = None) -> None:
+    async def _load_and_display_history(self, session_id: str, cwd: Path | None = None) -> None:
         """Load session history and display in chat view."""
         chat_view = self._chat_view
         if not chat_view:
             return
         chat_view.remove_children()
-        for m in load_session_messages(session_id, limit=50, cwd=cwd):
+        messages = await load_session_messages(session_id, limit=50, cwd=cwd)
+        for m in messages:
             if m["type"] == "user":
                 msg = ChatMessage(m["content"][:500])
                 msg.add_class("user-message")
@@ -578,12 +588,13 @@ class ChatApp(App):
                 chat_view.mount(widget)
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
 
-    def refresh_context(self) -> None:
+    @work(group="refresh_context", exclusive=True)
+    async def refresh_context(self) -> None:
         """Update context bar from session file (no API call)."""
         agent = self._agent
         if not agent or not agent.session_id:
             return
-        tokens = get_context_from_session(agent.session_id, cwd=agent.cwd)
+        tokens = await get_context_from_session(agent.session_id, cwd=agent.cwd)
         if tokens is not None:
             self.context_bar.tokens = tokens
 
@@ -615,7 +626,7 @@ class ChatApp(App):
         if prompt.strip().startswith("/resume"):
             parts = prompt.strip().split(maxsplit=1)
             if len(parts) > 1:
-                self._load_and_display_history(parts[1])
+                self.run_worker(self._load_and_display_history(parts[1]))
                 self.notify(f"Resuming {parts[1][:8]}...")
                 self.resume_session(parts[1])
             else:
@@ -977,10 +988,12 @@ class ChatApp(App):
         self._session_picker_active = True
         self._update_session_picker("")
 
-    def _update_session_picker(self, search: str) -> None:
+    @work(group="session_picker", exclusive=True)
+    async def _update_session_picker(self, search: str) -> None:
         picker = self.query_one("#session-picker", ListView)
         picker.clear()
-        for session_id, preview, _, msg_count in get_recent_sessions(search=search):
+        sessions = await get_recent_sessions(search=search)
+        for session_id, preview, _, msg_count in sessions:
             picker.append(SessionItem(session_id, preview, msg_count))
 
     def _hide_session_picker(self) -> None:
@@ -1000,7 +1013,7 @@ class ChatApp(App):
             return
         try:
             # Check for existing session BEFORE creating client
-            sessions = get_recent_sessions(limit=1, cwd=new_cwd)
+            sessions = await get_recent_sessions(limit=1, cwd=new_cwd)
             resume_id = sessions[0][0] if sessions else None
 
             await self._replace_client(self._make_options(cwd=new_cwd, resume=resume_id))
@@ -1013,7 +1026,7 @@ class ChatApp(App):
             agent.cwd = new_cwd
 
             if resume_id:
-                self._load_and_display_history(resume_id, cwd=new_cwd)
+                await self._load_and_display_history(resume_id, cwd=new_cwd)
                 agent.session_id = resume_id
                 self.notify(f"Resumed session in {new_cwd.name}")
             else:
@@ -1056,7 +1069,7 @@ class ChatApp(App):
             session_id = event.item.session_id
             log.info(f"Resuming session: {session_id}")
             self._hide_session_picker()
-            self._load_and_display_history(session_id)
+            self.run_worker(self._load_and_display_history(session_id))
             self.notify(f"Resuming {session_id[:8]}...")
             self.resume_session(session_id)
 
@@ -1206,7 +1219,7 @@ class ChatApp(App):
         try:
             resume_id = None
             if auto_resume:
-                sessions = get_recent_sessions(limit=1, cwd=cwd)
+                sessions = await get_recent_sessions(limit=1, cwd=cwd)
                 resume_id = sessions[0][0] if sessions else None
             agent.client = ClaudeSDKClient(self._make_options(cwd=cwd, resume=resume_id))
             await agent.client.connect()
@@ -1222,7 +1235,7 @@ class ChatApp(App):
         self._position_right_sidebar()
 
         if resume_id:
-            self._load_and_display_history(resume_id, cwd=cwd)
+            await self._load_and_display_history(resume_id, cwd=cwd)
             agent.session_id = resume_id
             self.notify(f"Resumed session in '{name}'")
         else:

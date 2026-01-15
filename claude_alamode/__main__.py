@@ -4,7 +4,6 @@ import argparse
 import sys
 
 from claude_alamode.app import ChatApp
-from claude_alamode.sessions import get_recent_sessions
 from claude_alamode.errors import setup_logging
 
 # Set up file logging to ~/claude-alamode.log
@@ -22,13 +21,8 @@ def main():
 
     initial_prompt = " ".join(args.prompt) if args.prompt else None
 
-    resume_id = None
-    if args.session:
-        resume_id = args.session
-    elif args.resume:
-        sessions = get_recent_sessions(limit=1)
-        if sessions:
-            resume_id = sessions[0][0]
+    # Pass resume flag or specific session ID - actual lookup happens in app
+    resume_id = args.session if args.session else ("__most_recent__" if args.resume else None)
 
     # Set terminal window title
     from pathlib import Path

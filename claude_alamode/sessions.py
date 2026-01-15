@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+import aiofiles
+
 
 def is_valid_uuid(s: str) -> bool:
     """Check if string is a valid UUID (not agent-* internal sessions)."""
@@ -32,7 +34,7 @@ def get_project_sessions_dir(cwd: Path | None = None) -> Path | None:
     return sessions_dir if sessions_dir.exists() else None
 
 
-def get_recent_sessions(
+async def get_recent_sessions(
     limit: int = 20, search: str = "", cwd: Path | None = None
 ) -> list[tuple[str, str, float, int]]:
     """Get recent sessions from a project.
@@ -53,7 +55,6 @@ def get_recent_sessions(
 
     search_lower = search.lower()
     for f in sessions_dir.glob("*.jsonl"):
-        # Skip non-UUID sessions (agent-* are internal)
         if not is_valid_uuid(f.stem):
             continue
         if f.stat().st_size == 0:
@@ -61,9 +62,9 @@ def get_recent_sessions(
         try:
             preview = ""
             msg_count = 0
-            matches_search = not search  # If no search, all match
-            with open(f) as fh:
-                for line in fh:
+            matches_search = not search
+            async with aiofiles.open(f) as fh:
+                async for line in fh:
                     d = json.loads(line)
                     if d.get("type") == "user" and not d.get("isMeta"):
                         content = d.get("message", {}).get("content", "")
@@ -83,7 +84,9 @@ def get_recent_sessions(
     return sessions[:limit]
 
 
-def load_session_messages(session_id: str, limit: int = 10, cwd: Path | None = None) -> list[dict]:
+async def load_session_messages(
+    session_id: str, limit: int = 10, cwd: Path | None = None
+) -> list[dict]:
     """Load recent messages from a session file.
 
     Args:
@@ -107,13 +110,12 @@ def load_session_messages(session_id: str, limit: int = 10, cwd: Path | None = N
 
     messages = []
     try:
-        with open(session_file) as f:
-            for line in f:
+        async with aiofiles.open(session_file) as f:
+            async for line in f:
                 d = json.loads(line)
                 if d.get("type") == "user":
                     content = d.get("message", {}).get("content", "")
                     if isinstance(content, str) and content.strip():
-                        # Skip slash commands and their output
                         if content.strip().startswith("/"):
                             continue
                         if "<command-name>/" in content:
@@ -133,21 +135,19 @@ def load_session_messages(session_id: str, limit: int = 10, cwd: Path | None = N
                                 if text.strip():
                                     messages.append({"type": "assistant", "content": text})
                             elif block.get("type") == "tool_use":
-                                messages.append(
-                                    {
-                                        "type": "tool_use",
-                                        "name": block.get("name", "?"),
-                                        "input": block.get("input", {}),
-                                        "id": block.get("id", ""),
-                                    }
-                                )
+                                messages.append({
+                                    "type": "tool_use",
+                                    "name": block.get("name", "?"),
+                                    "input": block.get("input", {}),
+                                    "id": block.get("id", ""),
+                                })
     except (json.JSONDecodeError, IOError):
         pass
 
     return messages[-limit:]
 
 
-def get_context_from_session(
+async def get_context_from_session(
     session_id: str, cwd: Path | None = None, agent_id: str | None = None
 ) -> int | None:
     """Get context token usage from session file.
@@ -167,7 +167,6 @@ def get_context_from_session(
     if not sessions_dir:
         return None
 
-    # Agent sessions use agent-{short_id}.jsonl
     if agent_id:
         session_file = sessions_dir / f"agent-{agent_id}.jsonl"
     else:
@@ -178,8 +177,8 @@ def get_context_from_session(
 
     last_usage = None
     try:
-        with open(session_file) as f:
-            for line in f:
+        async with aiofiles.open(session_file) as f:
+            async for line in f:
                 try:
                     data = json.loads(line)
                     if "message" in data and isinstance(data["message"], dict):
