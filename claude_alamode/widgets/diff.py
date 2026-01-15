@@ -3,9 +3,10 @@
 import difflib
 import re
 
+from pygments.token import Token
 from textual.content import Content
 from textual.containers import HorizontalScroll
-from textual.highlight import highlight
+from textual.highlight import HighlightTheme, highlight
 from textual.widgets import Static
 
 from claude_alamode.formatting import get_lang_from_path
@@ -19,12 +20,52 @@ REMOVED_WORD_STYLE = "underline on #330808"
 ADDED_WORD_STYLE = "underline on #083308"
 
 
+class DiffHighlightTheme(HighlightTheme):
+    """Syntax highlighting theme for diffs, aligned with alamode theme.
+
+    Uses orange as primary accent, saturated blues for structure,
+    and avoids red/green that clash with diff backgrounds.
+    """
+    STYLES = {
+        Token.Comment: "#888888",  # Brighter gray for visibility
+        Token.Error: "#ff6b6b",  # Soft red for errors
+        Token.Generic.Strong: "bold",
+        Token.Generic.Emph: "italic",
+        Token.Generic.Error: "#ff6b6b",
+        Token.Generic.Heading: "#ff9922 underline",  # Bright orange
+        Token.Generic.Subheading: "#ff9922",
+        Token.Keyword: "#ff9922",  # Bright orange for keywords
+        Token.Keyword.Constant: "#66bbff bold",  # Vivid blue
+        Token.Keyword.Namespace: "#ff9922",  # Bright orange
+        Token.Keyword.Type: "#66bbff bold",  # Vivid blue
+        Token.Literal.Number: "#ffcc66",  # Bright gold
+        Token.Literal.String.Backtick: "#888888",  # Gray
+        Token.Literal.String: "#77ccff",  # Bright cyan-blue
+        Token.Literal.String.Doc: "#77ccff italic",
+        Token.Literal.String.Double: "#77ccff",
+        Token.Name: "#dddddd",  # Bright base text
+        Token.Name.Attribute: "#ffcc66",  # Bright gold
+        Token.Name.Builtin: "#66bbff",  # Vivid blue
+        Token.Name.Builtin.Pseudo: "#66bbff italic",
+        Token.Name.Class: "#ff9922 bold",  # Bright orange
+        Token.Name.Constant: "#66bbff",  # Vivid blue
+        Token.Name.Decorator: "#ff9922 bold",  # Bright orange
+        Token.Name.Function: "#ffcc66",  # Bright gold
+        Token.Name.Function.Magic: "#ffcc66",
+        Token.Name.Tag: "#ff9922 bold",  # Bright orange
+        Token.Name.Variable: "#88ddff",  # Light cyan
+        Token.Operator: "#dddddd bold",  # Bright base
+        Token.Operator.Word: "#ff9922 bold",  # Bright orange
+        Token.Whitespace: "",
+    }
+
+
 def _highlight_lines(text: str, language: str) -> list[Content]:
     """Syntax highlight text and split into lines."""
     if not text:
         return []
     if language:
-        highlighted = highlight(text, language=language)
+        highlighted = highlight(text, language=language, theme=DiffHighlightTheme)
     else:
         highlighted = Content(text)
     return highlighted.split("\n")
