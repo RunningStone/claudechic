@@ -50,16 +50,11 @@ async def test_slash_command_autocomplete(mock_sdk, tmp_path: Path):
 @pytest.mark.asyncio
 async def test_path_autocomplete(mock_sdk, tmp_path: Path):
     """Test file path autocomplete with @ trigger."""
-    # Create some test files
-    (tmp_path / "file1.txt").touch()
-    (tmp_path / "file2.txt").touch()
-    (tmp_path / "subdir").mkdir()
-
     app = ChatApp()
-    # Override base_path for test
     async with app.run_test(size=(80, 24)) as pilot:
         autocomplete = app.query_one(TextAreaAutoComplete)
-        autocomplete.base_path = tmp_path
+        # Override app's file index to use test files
+        app.file_index.files = ["file1.txt", "file2.txt", "subdir/other.py"]
 
         input_widget = app.query_one(ChatInput)
 
@@ -67,9 +62,9 @@ async def test_path_autocomplete(mock_sdk, tmp_path: Path):
         input_widget.text = "@"
         await pilot.pause()
 
-        # Should show files from tmp_path
+        # Should show files from index
         assert autocomplete.styles.display == "block"
-        assert autocomplete.option_list.option_count == 3  # file1.txt, file2.txt, subdir/
+        assert autocomplete.option_list.option_count == 3
 
         # Filter to just .txt files
         input_widget.text = "@file"
