@@ -230,8 +230,6 @@ class TaskWidget(Static):
                     self._current_message.add_class("after-tool")
                 content.mount(self._current_message)
             self._current_message.append_content(text)
-            # Force layout recalculation to prevent scroll rendering issues
-            self.refresh(layout=True)
         except Exception:
             pass  # Widget may not be mounted
 
