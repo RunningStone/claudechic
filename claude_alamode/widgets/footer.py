@@ -1,6 +1,6 @@
 """Custom footer widget."""
 
-import subprocess
+import asyncio
 
 from textual.app import ComposeResult
 from textual.reactive import reactive
@@ -10,17 +10,17 @@ from textual.containers import Horizontal
 from claude_alamode.widgets.indicators import CPUBar, ContextBar
 
 
-def get_git_branch(cwd: str | None = None) -> str:
-    """Get current git branch name."""
+async def get_git_branch(cwd: str | None = None) -> str:
+    """Get current git branch name (async)."""
     try:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            timeout=1,
+        proc = await asyncio.create_subprocess_exec(
+            "git", "branch", "--show-current",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        return result.stdout.strip() or "detached"
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=1)
+        return stdout.decode().strip() or "detached"
     except Exception:
         return ""
 
@@ -33,12 +33,12 @@ class StatusFooter(Static):
     model = reactive("")
     branch = reactive("")
 
-    def on_mount(self) -> None:
-        self.branch = get_git_branch()
+    async def on_mount(self) -> None:
+        self.branch = await get_git_branch()
 
-    def refresh_branch(self, cwd: str | None = None) -> None:
-        """Update branch from given directory."""
-        self.branch = get_git_branch(cwd)
+    async def refresh_branch(self, cwd: str | None = None) -> None:
+        """Update branch from given directory (async)."""
+        self.branch = await get_git_branch(cwd)
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="footer-content"):

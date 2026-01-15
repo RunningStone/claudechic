@@ -1056,9 +1056,9 @@ class ChatApp(App):
         # Update sidebar selection
         sidebar = self.query_one("#agent-sidebar", AgentSidebar)
         sidebar.set_active(agent_id)
-        # Update footer branch for new agent's cwd
+        # Update footer branch for new agent's cwd (async, non-blocking)
         footer = self.query_one(StatusFooter)
-        footer.refresh_branch(str(agent.cwd) if agent else None)
+        asyncio.create_task(footer.refresh_branch(str(agent.cwd) if agent else None))
         footer.auto_edit = agent.auto_approve_edits if agent else False
         # Update todo panel for new agent
         panel = self.query_one("#todo-panel", TodoPanel)
