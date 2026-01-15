@@ -645,6 +645,10 @@ class ChatApp(App):
             self.action_command_palette()
             return
 
+        if prompt.strip() == "/exit":
+            self.exit()
+            return
+
         # Mount user message
         user_msg = ChatMessage(prompt)
         user_msg.add_class("user-message")
