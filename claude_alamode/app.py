@@ -660,7 +660,7 @@ class ChatApp(App):
             return
 
         if prompt.strip() == "/theme":
-            self.action_command_palette()
+            self.search_themes()
             return
 
         if prompt.strip() == "/exit":
