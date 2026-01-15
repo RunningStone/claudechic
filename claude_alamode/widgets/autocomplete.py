@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from dataclasses import dataclass
 from operator import itemgetter
 
 from textual import on
 from textual.app import ComposeResult
-from textual.cache import LRUCache
 from textual.content import Content
 from textual.css.query import NoMatches
-from textual.geometry import Offset, Region, Spacing
 from textual.style import Style
 from textual.widget import Widget
 from textual.widgets import OptionList, TextArea
@@ -20,6 +16,8 @@ from textual.widgets.option_list import Option
 from textual_autocomplete.fuzzy_search import FuzzySearch
 
 from rich.text import Text
+
+from claude_alamode.file_index import search_files
 
 
 @dataclass
@@ -63,25 +61,34 @@ class TextAreaAutoComplete(Widget):
     TextAreaAutoComplete {
         height: auto;
         width: auto;
-        max-height: 12;
+        max-height: 16;
         display: none;
-        background: $surface;
+        background: #111111;
+        border-left: tall #333333;
         overlay: screen;
+        padding: 0 1;
 
         & OptionList {
             width: auto;
             height: auto;
+            max-height: 14;
             border: none;
             padding: 0;
             margin: 0;
             scrollbar-size-vertical: 1;
             text-wrap: nowrap;
-            color: $foreground;
+            color: $text-muted;
             background: transparent;
+        }
+
+        & OptionList > .option-list--option-highlighted {
+            background: #222222;
+            color: $text;
         }
 
         & .autocomplete--highlight-match {
             text-style: bold;
+            color: #cc7700;
         }
     }
     """
@@ -92,7 +99,6 @@ class TextAreaAutoComplete(Widget):
         self,
         target: TextArea | str,
         slash_commands: list[str] | None = None,
-        base_path: str | Path = ".",
         *,
         name: str | None = None,
         id: str | None = None,
@@ -101,12 +107,22 @@ class TextAreaAutoComplete(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self._target = target
         self.slash_commands = slash_commands or []
-        self.base_path = Path(base_path)
+        self._file_index: list[str] = []  # Set by app
         self._fuzzy_search = FuzzySearch()
-        self._directory_cache: LRUCache[str, list[os.DirEntry]] = LRUCache(100)
         self._mode: str | None = None  # "slash" or "path" or None
         self._trigger_pos: int = 0  # Position of / or @
         self._completing: bool = False  # Flag to prevent re-showing during completion
+
+    @property
+    def file_index(self) -> list[str]:
+        """Get file index from app if available."""
+        if hasattr(self.app, "file_index") and self.app.file_index:  # type: ignore[attr-defined]
+            return self.app.file_index.files  # type: ignore[attr-defined]
+        return self._file_index
+
+    @file_index.setter
+    def file_index(self, value: list[str]) -> None:
+        self._file_index = value
 
     def compose(self) -> ComposeResult:
         option_list = OptionList()
@@ -184,12 +200,13 @@ class TextAreaAutoComplete(Widget):
 
         if self._mode:
             self._rebuild_options(state)
-            self._align_to_target()
             if self.option_list.option_count > 0:
                 search = self._get_search_string(state)
                 # Show if there's something to filter, or we're at the trigger
                 if self._should_show(search):
                     self.action_show()
+                    # Reposition after layout is complete
+                    self.call_after_refresh(self._align_to_target)
                 else:
                     self.action_hide()
             else:
@@ -219,10 +236,8 @@ class TextAreaAutoComplete(Widget):
         if self._mode == "slash":
             return text_to_check  # Include the /
         elif self._mode == "path":
-            path_text = text_to_check[self._trigger_pos + 1:]  # After @
-            if "/" in path_text:
-                return path_text[path_text.rfind("/") + 1:]
-            return path_text
+            # Return full query after @ for fuzzy file matching
+            return text_to_check[self._trigger_pos + 1:]
         return ""
 
     def _get_candidates(self, state: TargetState) -> list[DropdownItem]:
@@ -234,40 +249,30 @@ class TextAreaAutoComplete(Widget):
         return []
 
     def _get_path_candidates(self, state: TargetState) -> list[DropdownItem]:
-        """Get filesystem path candidates."""
-        text_before_cursor = state.text[:state.cursor_position]
-        path_text = text_before_cursor[self._trigger_pos + 1:]  # After @
+        """Get file path candidates from index with fuzzy matching."""
+        query = self._get_search_string(state)
+        files = self.file_index
 
-        # Determine directory to list
-        if "/" in path_text:
-            last_slash = path_text.rfind("/")
-            dir_path = path_text[:last_slash] or "/"
-            directory = self.base_path / dir_path
-        else:
-            directory = self.base_path
+        if not files:
+            return []
 
-        cache_key = str(directory)
-        entries = self._directory_cache.get(cache_key)
-        if entries is None:
-            try:
-                entries = list(os.scandir(directory))
-                self._directory_cache[cache_key] = entries
-            except OSError:
-                return []
+        # Use fuzzy search with highlighting
+        results = search_files(query, files, limit=15)
 
-        results = []
-        for entry in entries:
-            name = entry.name
-            if name.startswith("."):
-                continue  # Skip dotfiles
-            if entry.is_dir():
-                results.append(DropdownItem(name + "/", prefix="📂 "))
-            else:
-                results.append(DropdownItem(name, prefix="📄 "))
+        items = []
+        for path, _score, indices in results:
+            # Create highlighted content
+            content = Content(path)
+            match_style = Style.from_rich_style(
+                self.get_component_rich_style("autocomplete--highlight-match", partial=True)
+            )
+            for idx in indices:
+                if idx < len(path):
+                    content = content.stylize(match_style, idx, idx + 1)
 
-        # Sort: directories first, then alphabetically
-        results.sort(key=lambda x: (not x.value.endswith("/"), x.value.lower()))
-        return results
+            items.append(DropdownItem(content, prefix="📄 "))
+
+        return items
 
     def _rebuild_options(self, state: TargetState) -> None:
         """Rebuild dropdown options."""
@@ -275,12 +280,18 @@ class TextAreaAutoComplete(Widget):
         option_list.clear_options()
 
         candidates = self._get_candidates(state)
-        search_string = self._get_search_string(state)
-        matches = self._get_matches(candidates, search_string)
+
+        # For path mode, candidates are already filtered and highlighted
+        if self._mode == "path":
+            matches = candidates
+        else:
+            search_string = self._get_search_string(state)
+            matches = self._get_matches(candidates, search_string)
 
         if matches:
-            option_list.add_options(matches)
-            option_list.highlighted = 0
+            # Reverse order so best match is at bottom (near cursor)
+            option_list.add_options(list(reversed(matches)))
+            option_list.highlighted = len(matches) - 1  # Select bottom item
 
     def _get_matches(
         self, candidates: list[DropdownItem], search_string: str
@@ -323,15 +334,17 @@ class TextAreaAutoComplete(Widget):
         return candidate
 
     def _align_to_target(self) -> None:
-        """Position dropdown near cursor."""
+        """Position dropdown above input."""
         try:
-            x, y = self.target.cursor_screen_offset
-            dropdown = self.option_list
-            width, height = dropdown.outer_size
-            x, y, _, _ = Region(x - 1, y + 1, width, height).constrain(
-                "inside", "none", Spacing.all(0), self.screen.scrollable_content_region
-            )
-            self.absolute_offset = Offset(x, y)
+            from textual.geometry import Offset
+            # Get where input is on screen
+            input_region = self.target.content_region
+            # Get current dropdown height
+            _, height = self.option_list.outer_size
+            # Position so bottom of dropdown is just above input
+            y = input_region.y - height - 1
+            x = input_region.x
+            self.absolute_offset = Offset(x, max(1, y))
         except Exception:
             pass  # Widget may not be fully mounted
 
@@ -351,11 +364,13 @@ class TextAreaAutoComplete(Widget):
 
         highlighted = option_list.highlighted or 0
 
-        if key == "down":
-            option_list.highlighted = (highlighted + 1) % option_list.option_count
+        # Up moves toward better matches (higher index = bottom of list)
+        # Down moves toward worse matches (lower index = top of list)
+        if key == "up":
+            option_list.highlighted = min(highlighted + 1, option_list.option_count - 1)
             return True
-        elif key == "up":
-            option_list.highlighted = (highlighted - 1) % option_list.option_count
+        elif key == "down":
+            option_list.highlighted = max(highlighted - 1, 0)
             return True
         elif key == "tab":
             self._complete(highlighted)
@@ -388,25 +403,18 @@ class TextAreaAutoComplete(Widget):
         option = self.option_list.get_option_at_index(option_index)
         value = option.prompt.plain if isinstance(option.prompt, Text) else str(option.prompt)
         # Strip prefix (emoji + space)
-        if value.startswith(("⚡ ", "📂 ", "📄 ")):
+        if value.startswith(("⚡ ", "📄 ")):
             value = value[2:]
 
         state = self._get_target_state()
-        keep_open = self._mode == "path" and value.endswith("/")
-
         self._completing = True
         self._apply_completion(value, state)
 
-        # Keep open for directory navigation, otherwise hide after refresh cycle
-        if keep_open:
+        # Use call_after_refresh to hide after all pending updates
+        def hide_and_reset():
             self._completing = False
-            self._handle_text_change()
-        else:
-            # Use call_after_refresh to hide after all pending updates
-            def hide_and_reset():
-                self._completing = False
-                self.action_hide()
-            self.call_after_refresh(hide_and_reset)
+            self.action_hide()
+        self.call_after_refresh(hide_and_reset)
 
     def _apply_completion(self, value: str, state: TargetState) -> None:
         """Insert the completion into the TextArea."""
@@ -421,14 +429,8 @@ class TextAreaAutoComplete(Widget):
             target.text = value
             target.move_cursor((0, len(value)))
         elif self._mode == "path":
-            path_text = text[self._trigger_pos + 1:cursor_pos]
-            if "/" in path_text:
-                # Replace only the filename part
-                last_slash = path_text.rfind("/")
-                replace_start = self._trigger_pos + 1 + last_slash + 1
-            else:
-                replace_start = self._trigger_pos + 1
-
+            # Replace @query with the selected path (keep the @)
+            replace_start = self._trigger_pos + 1  # After @
             new_text = text[:replace_start] + value + text[cursor_pos:]
             target.text = new_text
             new_cursor = replace_start + len(value)

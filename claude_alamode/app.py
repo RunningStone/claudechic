@@ -51,6 +51,7 @@ from claude_alamode.features.worktree import (
 from claude_alamode.features.worktree.commands import on_response_complete_finish
 from claude_alamode.permissions import PermissionRequest
 from claude_alamode.agent import AgentSession, create_agent_session
+from claude_alamode.file_index import FileIndex
 from claude_alamode.widgets import (
     ContextBar,
     ChatMessage,
@@ -130,6 +131,8 @@ class ChatApp(App):
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
         # Pending images to attach to next message
         self.pending_images: list[tuple[str, str, str, str]] = []  # (path, filename, media_type, base64_data)
+        # File index for fuzzy file search
+        self.file_index: FileIndex | None = None
 
     # Properties to access active agent's state (backward compatibility)
     @property
@@ -400,7 +403,6 @@ class ChatApp(App):
                 yield TextAreaAutoComplete(
                     "#input",
                     slash_commands=self.LOCAL_COMMANDS,  # Updated in on_mount
-                    base_path=Path.cwd(),
                 )
         yield StatusFooter()
 
@@ -432,6 +434,10 @@ class ChatApp(App):
 
         # Populate ghost worktrees (feature branches only)
         self._populate_worktrees()
+
+        # Initialize file index for fuzzy file search
+        self.file_index = FileIndex(root=cwd)
+        self._refresh_file_index()
 
         # Create client with resume if provided (avoids double client creation)
         resume = self._resume_on_start
@@ -478,6 +484,12 @@ class ChatApp(App):
         except Exception as e:
             log.warning(f"Failed to fetch SDK commands: {e}")
         self.refresh_context()
+
+    @work(exclusive=True, group="file_index")
+    async def _refresh_file_index(self) -> None:
+        """Refresh the file index in the background."""
+        if self.file_index:
+            await self.file_index.refresh()
 
     def _load_and_display_history(self, session_id: str, cwd: Path | None = None) -> None:
         """Load session history and display in chat view."""
