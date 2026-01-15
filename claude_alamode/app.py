@@ -1033,6 +1033,8 @@ class ChatApp(App):
         # Update todo panel for new agent
         panel = self.query_one("#todo-panel", TodoPanel)
         panel.update_todos(agent.todos if agent else [])
+        # Update context bar for new agent
+        self.refresh_context()
         self._position_right_sidebar()
         self.query_one("#input", ChatInput).focus()
 
