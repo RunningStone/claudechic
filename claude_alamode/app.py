@@ -651,6 +651,7 @@ class ChatApp(App):
                             self.post_message(ToolResultMessage(block, parent_tool_use_id=parent_id, agent_id=agent_id))
                 elif isinstance(message, UserMessage):
                     content = getattr(message, "content", "")
+                    user_parent_id = getattr(message, "parent_tool_use_id", None)
                     # After compact_boundary, first UserMessage with string content is the summary
                     # (the second is <local-command-stdout>Compacted</local-command-stdout>)
                     if awaiting_compact_summary and isinstance(content, str) and not content.startswith("<"):
@@ -660,7 +661,7 @@ class ChatApp(App):
                         # UserMessage contains tool results as a list of ToolResultBlock
                         for block in content:
                             if isinstance(block, ToolResultBlock):
-                                self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent_id))
+                                self.post_message(ToolResultMessage(block, parent_tool_use_id=user_parent_id, agent_id=agent_id))
                 elif isinstance(message, SystemMessage):
                     subtype = getattr(message, "subtype", "")
                     if subtype == "compact_boundary":

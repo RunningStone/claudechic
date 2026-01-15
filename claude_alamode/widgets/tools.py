@@ -73,18 +73,19 @@ class ToolUseWidget(Static):
 
     def stop_spinner(self) -> None:
         """Stop the spinner and show static header."""
-        if self.result is not None:
-            return
-        self.result = True  # Mark as complete
         if self._spinner_timer:
             self._spinner_timer.stop()
             self._spinner_timer = None
+        if self.result is not None:
+            return
+        self.result = True  # Mark as complete
         try:
             from textual.widgets._collapsible import CollapsibleTitle
             collapsible = self.query_one(Collapsible)
             collapsible.title = self._header
             title_widget = collapsible.query_one(CollapsibleTitle)
             title_widget.label = self._header
+            title_widget.refresh()  # Force repaint
         except Exception:
             pass  # Widget may not be fully mounted
 
@@ -143,10 +144,10 @@ class ToolUseWidget(Static):
 
     def set_result(self, result: ToolResultBlock) -> None:
         """Update with tool result."""
-        self.result = result
         if self._spinner_timer:
             self._spinner_timer.stop()
             self._spinner_timer = None
+        self.result = result  # Set after stopping timer to prevent race
         log.debug(f"Tool result for {self.block.name}: {len(str(result.content or ''))} chars")
         try:
             from textual.widgets._collapsible import CollapsibleTitle
@@ -154,6 +155,7 @@ class ToolUseWidget(Static):
             collapsible.title = self._header  # Remove spinner
             title_widget = collapsible.query_one(CollapsibleTitle)
             title_widget.label = self._header
+            title_widget.refresh()  # Force repaint
             if result.is_error:
                 collapsible.add_class("error")
             # Edit uses Static for diff, others use Markdown
