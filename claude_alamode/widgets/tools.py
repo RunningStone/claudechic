@@ -13,9 +13,9 @@ from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 from claude_alamode.formatting import (
     format_tool_header,
     format_tool_details,
-    format_diff_text,
     get_lang_from_path,
 )
+from claude_alamode.widgets.diff import DiffWidget
 from claude_alamode.widgets.chat import ChatMessage
 
 log = logging.getLogger(__name__)
@@ -41,11 +41,13 @@ class ToolUseWidget(Static):
         title = self._header if self.result else f"{self.SPINNER_FRAMES[0]} {self._header}"
         with Collapsible(title=title, collapsed=self._initial_collapsed):
             if self.block.name == "Edit":
-                diff = format_diff_text(
+                yield DiffWidget(
                     self.block.input.get("old_string", ""),
                     self.block.input.get("new_string", ""),
+                    path=self.block.input.get("file_path", ""),
+                    replace_all=self.block.input.get("replace_all", False),
+                    id="diff-content",
                 )
-                yield Static(diff, id="diff-content")
             else:
                 details = format_tool_details(self.block.name, self.block.input)
                 yield Markdown(details.rstrip(), id="md-content")

@@ -32,11 +32,38 @@ def truncate_path(path: str, max_len: int) -> str:
     return "..." + suffix
 
 
+def count_diff_changes(old: str, new: str) -> tuple[int, int]:
+    """Count additions and deletions in a diff.
+
+    Returns (additions, deletions) as line counts.
+    """
+    old_lines = old.splitlines() if old else []
+    new_lines = new.splitlines() if new else []
+    sm = difflib.SequenceMatcher(None, old_lines, new_lines)
+
+    additions = 0
+    deletions = 0
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "delete":
+            deletions += i2 - i1
+        elif tag == "insert":
+            additions += j2 - j1
+        elif tag == "replace":
+            deletions += i2 - i1
+            additions += j2 - j1
+    return additions, deletions
+
+
 def format_tool_header(name: str, input: dict) -> str:
     """Format a one-line header for a tool use."""
     if name == "Edit":
-        path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 6)
-        return f"Edit: {path}"
+        old = input.get("old_string", "")
+        new = input.get("new_string", "")
+        additions, deletions = count_diff_changes(old, new)
+        # Leave room for path + change counts
+        stats = f" (+{additions}, -{deletions})"
+        path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 6 - len(stats))
+        return f"Edit: {path}{stats}"
     elif name == "Write":
         path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 7)
         return f"Write: {path}"

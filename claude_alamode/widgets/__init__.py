@@ -3,6 +3,7 @@
 from claude_alamode.widgets.indicators import CPUBar, ContextBar
 from claude_alamode.widgets.chat import ChatMessage, ChatInput, ThinkingIndicator, ImageAttachments, ErrorMessage, ChatAttachment
 from claude_alamode.widgets.tools import ToolUseWidget, TaskWidget
+from claude_alamode.widgets.diff import DiffWidget
 from claude_alamode.widgets.todo import TodoWidget, TodoPanel
 from claude_alamode.widgets.prompts import BasePrompt, SelectionPrompt, QuestionPrompt, SessionItem
 from claude_alamode.widgets.autocomplete import TextAreaAutoComplete
@@ -20,6 +21,7 @@ __all__ = [
     "ErrorMessage",
     "ToolUseWidget",
     "TaskWidget",
+    "DiffWidget",
     "TodoWidget",
     "TodoPanel",
     "BasePrompt",

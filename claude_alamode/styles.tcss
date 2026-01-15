@@ -321,8 +321,14 @@ ToolUseWidget Collapsible Contents {
     background: transparent;
 }
 
-#diff-content {
+DiffWidget {
+    height: auto;
+    scrollbar-size: 1 1;
+}
+
+DiffContent {
     color: $text;
+    width: auto;
 }
 
 /* Footer indicators (CPU and context bars) */
