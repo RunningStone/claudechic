@@ -14,7 +14,7 @@ from claude_alamode.widgets import (
     TodoPanel,
 )
 from claude_alamode.widgets.todo import TodoItem
-from claude_alamode.widgets.header import ContextBar
+from claude_alamode.widgets.indicators import ContextBar
 from claude_alamode.widgets.footer import StatusFooter
 
 

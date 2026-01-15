@@ -9,9 +9,9 @@ def test_image_attachment_message_building():
     """Test that images are correctly formatted in messages."""
     app = ChatApp()
 
-    # Add a test image
+    # Add a test image (path, filename, media_type, base64_data)
     test_data = base64.b64encode(b"fake image data").decode()
-    app.pending_images.append(("test.png", "image/png", test_data))
+    app.pending_images.append(("/tmp/test.png", "test.png", "image/png", test_data))
 
     # Build message
     msg = app._build_message_with_images("What is this?")

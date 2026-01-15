@@ -92,6 +92,29 @@ class ChatMessage(Static):
                 self.app.notify(f"Copy failed: {e}", severity="error")
 
 
+class ChatAttachment(Button):
+    """Clickable attachment tag in chat messages - opens file on click."""
+
+    def __init__(self, path: str, display_name: str) -> None:
+        super().__init__(f"📎 {display_name}", classes="chat-attachment")
+        self._path = path
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Open the file when clicked."""
+        import subprocess
+        import sys
+        event.stop()
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["open", self._path], check=True)
+            elif sys.platform == "win32":
+                subprocess.run(["start", self._path], shell=True, check=True)
+            else:
+                subprocess.run(["xdg-open", self._path], check=True)
+        except Exception as e:
+            self.app.notify(f"Failed to open: {e}", severity="error")
+
+
 class ImageAttachments(Horizontal):
     """Shows pending image attachments as removable tags."""
 

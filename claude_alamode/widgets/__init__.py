@@ -1,7 +1,7 @@
 """Textual widgets for Claude Code UI."""
 
 from claude_alamode.widgets.indicators import CPUBar, ContextBar
-from claude_alamode.widgets.chat import ChatMessage, ChatInput, ThinkingIndicator, ImageAttachments, ErrorMessage
+from claude_alamode.widgets.chat import ChatMessage, ChatInput, ThinkingIndicator, ImageAttachments, ErrorMessage, ChatAttachment
 from claude_alamode.widgets.tools import ToolUseWidget, TaskWidget
 from claude_alamode.widgets.todo import TodoWidget, TodoPanel
 from claude_alamode.widgets.prompts import BasePrompt, SelectionPrompt, QuestionPrompt, SessionItem
@@ -14,6 +14,7 @@ __all__ = [
     "ContextBar",
     "ChatMessage",
     "ChatInput",
+    "ChatAttachment",
     "ThinkingIndicator",
     "ImageAttachments",
     "ErrorMessage",

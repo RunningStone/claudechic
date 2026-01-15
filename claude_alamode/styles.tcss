@@ -226,6 +226,23 @@ ToolUseWidget:hover .tool-copy-btn {
     color: #ffffff;
 }
 
+/* Clickable attachment tags in chat messages */
+.chat-attachment {
+    min-width: 10;
+    width: auto;
+    height: 1;
+    margin: 0 1 1 1;
+    padding: 0 1;
+    background: #333333;
+    color: #aaaaaa;
+    border: none;
+}
+
+.chat-attachment:hover {
+    background: #444444;
+    color: #ffffff;
+}
+
 /* Input wrapper for centering */
 #input-wrapper {
     dock: bottom;

@@ -55,6 +55,7 @@ from claude_alamode.widgets import (
     ContextBar,
     ChatMessage,
     ChatInput,
+    ChatAttachment,
     ThinkingIndicator,
     ImageAttachments,
     ErrorMessage,
@@ -126,7 +127,7 @@ class ChatApp(App):
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
         # Pending images to attach to next message
-        self.pending_images: list[tuple[str, str, str]] = []  # (filename, media_type, base64_data)
+        self.pending_images: list[tuple[str, str, str, str]] = []  # (path, filename, media_type, base64_data)
 
     # Properties to access active agent's state (backward compatibility)
     @property
@@ -243,7 +244,7 @@ class ChatApp(App):
         try:
             data = base64.b64encode(path.read_bytes()).decode()
             media_type = mimetypes.guess_type(str(path))[0] or "image/png"
-            self.pending_images.append((path.name, media_type, data))
+            self.pending_images.append((str(path), path.name, media_type, data))
             # Update visual indicator
             self.query_one("#image-attachments", ImageAttachments).add_image(path.name)
         except Exception as e:
@@ -252,14 +253,14 @@ class ChatApp(App):
     def on_image_attachments_removed(self, event: ImageAttachments.Removed) -> None:
         """Handle removal of an image attachment."""
         self.pending_images = [
-            (name, media, data) for name, media, data in self.pending_images
+            (path, name, media, data) for path, name, media, data in self.pending_images
             if name != event.filename
         ]
 
     def _build_message_with_images(self, prompt: str) -> dict[str, Any]:
         """Build a message dict with text and any pending images."""
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-        for filename, media_type, data in self.pending_images:
+        for _path, _filename, media_type, data in self.pending_images:
             content.append({
                 "type": "image",
                 "source": {"type": "base64", "media_type": media_type, "data": data}
@@ -553,15 +554,22 @@ class ChatApp(App):
             self._handle_shell_command(prompt.strip())
             return
 
-        # Build display text with image indicators
-        display_text = prompt
-        if self.pending_images:
-            attachments = ", ".join(f"📎 {name}" for name, _, _ in self.pending_images)
-            display_text = f"{prompt}\n{attachments}"
-
-        user_msg = ChatMessage(display_text)
+        # Mount user message
+        user_msg = ChatMessage(prompt)
         user_msg.add_class("user-message")
         chat_view.mount(user_msg)
+
+        # Mount clickable attachment tags for images
+        attachments_to_mount = list(self.pending_images)  # Copy before clearing
+        screenshot_num = 0
+        for path, name, _media, _data in attachments_to_mount:
+            if name.lower().startswith("screenshot"):
+                screenshot_num += 1
+                display_name = f"Screenshot #{screenshot_num}"
+            else:
+                display_name = name
+            chat_view.mount(ChatAttachment(path, display_name))
+
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
 
         self.current_response = None
