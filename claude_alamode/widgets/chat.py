@@ -67,7 +67,7 @@ class ChatMessage(Static):
         self._content = content.rstrip()
 
     def compose(self) -> ComposeResult:
-        yield Button("\u238c", id="copy-btn", classes="copy-btn")
+        yield Button("⧉", id="copy-btn", classes="copy-btn")
         yield Markdown(self._content, id="content")
 
     def append_content(self, text: str) -> None:
@@ -82,6 +82,13 @@ class ChatMessage(Static):
     def get_raw_content(self) -> str:
         """Get raw content for copying."""
         return self._content
+
+    def on_mouse_move(self) -> None:
+        if not self.has_class("hovered"):
+            self.add_class("hovered")
+
+    def on_leave(self) -> None:
+        self.remove_class("hovered")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "copy-btn":

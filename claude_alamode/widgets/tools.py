@@ -37,7 +37,7 @@ class ToolUseWidget(Static):
         self._spinner_timer = None
 
     def compose(self) -> ComposeResult:
-        yield Button("\u238c", id="tool-copy-btn", classes="tool-copy-btn")
+        yield Button("⧉", classes="copy-btn")
         title = self._header if self.result else f"{self.SPINNER_FRAMES[0]} {self._header}"
         with Collapsible(title=title, collapsed=self._initial_collapsed):
             if self.block.name == "Edit":
@@ -122,7 +122,7 @@ class ToolUseWidget(Static):
         return "\n\n".join(parts)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "tool-copy-btn":
+        if "copy-btn" in event.button.classes:
             event.stop()
             try:
                 pyperclip.copy(self.get_copyable_content())

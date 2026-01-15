@@ -115,8 +115,8 @@ ThinkingIndicator {
 }
 
 
-/* Copy buttons - hidden until hover */
-.copy-btn, .tool-copy-btn {
+/* Copy buttons - top-right corner of block, visible on block hover */
+.copy-btn {
     dock: right;
     width: 3;
     min-width: 3;
@@ -124,15 +124,15 @@ ThinkingIndicator {
     background: transparent;
     border: none;
     color: transparent;
+    offset: -1 0;
 }
 
-ChatMessage:hover .copy-btn,
-ToolUseWidget:hover .tool-copy-btn {
+.hovered .copy-btn {
     color: $text-muted;
 }
 
-.copy-btn:hover, .tool-copy-btn:hover {
-    color: $text;
+.copy-btn:hover {
+    color: #cc7700;
 }
 
 /* Main layout */
