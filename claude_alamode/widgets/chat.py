@@ -76,6 +76,8 @@ class ChatMessage(Static):
         try:
             md = self.query_one("#content", Markdown)
             md.update(self._content.rstrip())
+            # Force layout recalculation to prevent scroll rendering issues
+            self.refresh(layout=True)
         except Exception:
             pass  # Widget not mounted yet
 
