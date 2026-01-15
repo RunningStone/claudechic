@@ -65,25 +65,40 @@ class ChatMessage(Static):
     """A single chat message with copy button."""
 
     can_focus = False
+    DEBOUNCE_MS = 50  # Batch updates every 50ms
 
     def __init__(self, content: str = "") -> None:
         super().__init__()
         self._content = content.rstrip()
+        self._debounce_timer = None
 
     def compose(self) -> ComposeResult:
         yield Button("⧉", id="copy-btn", classes="copy-btn")
         yield Markdown(self._content, id="content")
 
     def append_content(self, text: str) -> None:
-        """Append text to message content."""
+        """Append text to message content (debounced)."""
         self._content += text
+        if self._debounce_timer is None:
+            self._debounce_timer = self.set_timer(
+                self.DEBOUNCE_MS / 1000, self._flush_content
+            )
+
+    def _flush_content(self) -> None:
+        """Flush pending content to the Markdown widget."""
+        self._debounce_timer = None
         try:
             md = self.query_one("#content", Markdown)
             md.update(self._content.rstrip())
-            # Force layout recalculation to prevent scroll rendering issues
-            self.refresh(layout=True)
         except Exception:
             pass  # Widget not mounted yet
+
+    def flush(self) -> None:
+        """Force flush any pending content (call on stream complete)."""
+        if self._debounce_timer:
+            self._debounce_timer.stop()
+            self._debounce_timer = None
+        self._flush_content()
 
     def get_raw_content(self) -> str:
         """Get raw content for copying."""
