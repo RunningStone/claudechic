@@ -152,7 +152,8 @@ def _render_word_diff(old_line: str, new_line: str, result: Text) -> None:
         if tag == "equal":
             result.append(chunk, style="on #2d0000")
         elif tag in ("delete", "replace"):
-            result.append(chunk, style="bold red on #401010")
+            # Brighter background for changed words instead of bold/underline
+            result.append(chunk, style="on #552222")
     result.append("\n")
 
     # Build new line with subtle green background
@@ -162,7 +163,8 @@ def _render_word_diff(old_line: str, new_line: str, result: Text) -> None:
         if tag == "equal":
             result.append(chunk, style="on #002d00")
         elif tag in ("insert", "replace"):
-            result.append(chunk, style="bold green on #104010")
+            # Brighter background for changed words instead of bold/underline
+            result.append(chunk, style="on #225522")
     result.append("\n")
 
 
