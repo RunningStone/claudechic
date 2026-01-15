@@ -1,5 +1,7 @@
 """Claude Code Textual UI - Main application."""
 
+from __future__ import annotations
+
 import asyncio
 import base64
 from contextlib import asynccontextmanager
@@ -506,6 +508,22 @@ class ChatApp(App):
         self.file_index = FileIndex(root=cwd)
         self._refresh_file_index()
 
+        # Focus input immediately - UI is ready
+        self.chat_input.focus()
+
+        # Connect SDK in background - UI renders while this happens
+        self._connect_initial_client()
+
+    @work(exclusive=True, group="connect")
+    async def _connect_initial_client(self) -> None:
+        """Connect to SDK in background after UI renders."""
+        agent = self._agent
+        if not agent:
+            return
+
+        # Show connecting status
+        self.status_footer.model = "connecting..."
+
         # Resolve resume ID (handle __most_recent__ sentinel from CLI)
         resume = self._resume_on_start
         if resume == "__most_recent__":
@@ -521,7 +539,7 @@ class ChatApp(App):
             self.notify(f"Resuming {resume[:8]}...")
         # Fetch SDK commands and update autocomplete
         await self._update_slash_commands()
-        self.chat_input.focus()
+
         # Send initial prompt if provided
         if self._initial_prompt:
             self._send_initial_prompt()
