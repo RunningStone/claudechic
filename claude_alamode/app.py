@@ -1061,6 +1061,7 @@ class ChatApp(App):
                     sys.stdin.read(1)
                 finally:
                     termios.tcsetattr(fd, termios.TCSADRAIN, old)
+                    print()  # newline after keypress
 
     def _handle_agent_command(self, command: str) -> None:
         """Handle /agent commands."""
