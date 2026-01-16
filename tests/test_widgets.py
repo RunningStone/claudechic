@@ -4,7 +4,7 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from claude_alamode.widgets import (
+from claudechic.widgets import (
     ChatInput,
     ChatMessage,
     ThinkingIndicator,
@@ -13,9 +13,9 @@ from claude_alamode.widgets import (
     AgentSidebar,
     TodoPanel,
 )
-from claude_alamode.widgets.todo import TodoItem
-from claude_alamode.widgets.indicators import ContextBar
-from claude_alamode.widgets.footer import StatusFooter
+from claudechic.widgets.todo import TodoItem
+from claudechic.widgets.indicators import ContextBar
+from claudechic.widgets.footer import StatusFooter
 
 
 class WidgetTestApp(App):
@@ -327,7 +327,7 @@ async def test_thinking_indicator_animates():
 @pytest.mark.asyncio
 async def test_history_search_filters():
     """HistorySearch filters history and cycles through matches."""
-    from claude_alamode.widgets.history_search import HistorySearch
+    from claudechic.widgets.history_search import HistorySearch
     from unittest.mock import patch
 
     class TestApp(App):
@@ -337,7 +337,7 @@ async def test_history_search_filters():
     # Mock history data (most recent first)
     mock_history = ["fix the bug", "add new feature", "fix another bug", "refactor code"]
 
-    with patch("claude_alamode.widgets.history_search.load_global_history", return_value=mock_history):
+    with patch("claudechic.widgets.history_search.load_global_history", return_value=mock_history):
         app = TestApp()
         async with app.run_test() as pilot:
             hs = app.query_one(HistorySearch)

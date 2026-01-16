@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from claude_alamode.formatting import format_tool_header
+from claudechic.formatting import format_tool_header
 
 
 @dataclass

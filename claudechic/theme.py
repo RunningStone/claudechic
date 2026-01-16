@@ -1,10 +1,10 @@
-"""Theme definition for Claude à la Mode."""
+"""Theme definition for Claude Chic."""
 
 from textual.theme import Theme
 
-# Custom theme for Claude à la Mode
-ALAMODE_THEME = Theme(
-    name="alamode",
+# Custom theme for Claude Chic
+CHIC_THEME = Theme(
+    name="chic",
     primary="#cc7700",
     secondary="#5599dd",  # Sky blue for syntax highlighting
     accent="#445566",

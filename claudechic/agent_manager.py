@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Awaitable, Callable, Iterator
 
 from claude_agent_sdk import ClaudeAgentOptions
 
-from claude_alamode.agent import Agent
+from claudechic.agent import Agent
 
 if TYPE_CHECKING:
     from claude_agent_sdk import ResultMessage
-    from claude_alamode.permissions import PermissionRequest
+    from claudechic.permissions import PermissionRequest
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class AgentManager:
         self.on_agent_todos_updated: Callable[[Agent], None] | None = None
 
         # Fine-grained streaming callbacks
-        from claude_alamode.agent import ToolUse
+        from claudechic.agent import ToolUse
         self.on_agent_text_chunk: Callable[[Agent, str, bool, str | None], None] | None = None
         self.on_agent_tool_use: Callable[[Agent, ToolUse], None] | None = None
         self.on_agent_tool_result: Callable[[Agent, ToolUse], None] | None = None

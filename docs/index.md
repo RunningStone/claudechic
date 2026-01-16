@@ -1,12 +1,12 @@
-# Claude à la Mode
+# Claude Chic
 
 A stylish terminal UI for Claude Code.
 
-![Claude à la Mode screenshot](images/screenshot.png)
+![Claude Chic screenshot](images/screenshot.png)
 
 ## What is this?
 
-Claude à la Mode wraps the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) in a [Textual](https://textual.textualize.io/) interface. You get the same Claude Code agent, but with a more visually polished and hackable experience:
+Claude Chic wraps the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) in a [Textual](https://textual.textualize.io/) interface. You get the same Claude Code agent, but with a more visually polished and hackable experience:
 
 -  **Focused** - designed to remove clutter and focus attention
 -  **Hackable** - easily extensible with Python Code
@@ -20,7 +20,7 @@ Also, by putting a layer around the Agent SDK we're able to provide some nice fe
 ## Installation
 
 ```bash
-uv tool install claude-alamode
+uv tool install claudechic
 ```
 
 Requires Claude Code with a Max/Pro subscription:
@@ -32,7 +32,7 @@ claude /login
 ## Run
 
 ```bash
-claude-alamode
+claudechic
 ```
 
 ## FAQ

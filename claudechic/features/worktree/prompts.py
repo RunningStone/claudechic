@@ -3,7 +3,7 @@
 from textual.app import ComposeResult
 from textual.widgets import Static
 
-from claude_alamode.widgets.prompts import BasePrompt
+from claudechic.widgets.prompts import BasePrompt
 
 
 class WorktreePrompt(BasePrompt):

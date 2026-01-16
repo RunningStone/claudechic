@@ -1,6 +1,6 @@
-"""In-process MCP server for alamode agent control.
+"""In-process MCP server for claudechic agent control.
 
-Exposes tools for Claude to manage agents within alamode:
+Exposes tools for Claude to manage agents within claudechic:
 - spawn_agent: Create new agent, optionally with initial prompt
 - spawn_worktree: Create git worktree + agent
 - ask_agent: Send prompt to existing agent, wait for response
@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import tool, create_sdk_mcp_server
 
-from claude_alamode.features.worktree.git import start_worktree
+from claudechic.features.worktree.git import start_worktree
 
 if TYPE_CHECKING:
-    from claude_alamode.app import ChatApp
+    from claudechic.app import ChatApp
 
 # Global app reference, set by ChatApp.on_mount()
 _app: ChatApp | None = None
@@ -57,7 +57,7 @@ async def _send_prompt_to_agent(agent, prompt: str) -> None:
 
 @tool(
     "spawn_agent",
-    "Create a new Claude agent in alamode. The agent gets its own chat view and can work independently.",
+    "Create a new Claude agent in claudechic. The agent gets its own chat view and can work independently.",
     {"name": str, "path": str, "prompt": str},
 )
 async def spawn_agent(args: dict[str, Any]) -> dict[str, Any]:
@@ -173,7 +173,7 @@ async def ask_agent(args: dict[str, Any]) -> dict[str, Any]:
 
 @tool(
     "list_agents",
-    "List all agents currently running in alamode with their status and working directory.",
+    "List all agents currently running in claudechic with their status and working directory.",
     {},
 )
 async def list_agents(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
@@ -193,10 +193,10 @@ async def list_agents(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
     return _text_response("\n".join(lines))
 
 
-def create_alamode_server():
-    """Create the alamode MCP server with all tools."""
+def create_chic_server():
+    """Create the chic MCP server with all tools."""
     return create_sdk_mcp_server(
-        name="alamode",
+        name="chic",
         version="1.0.0",
         tools=[spawn_agent, spawn_worktree, ask_agent, list_agents],
     )

@@ -1,7 +1,0 @@
-"""Claude à la Mode - A stylish terminal UI for Claude Code."""
-
-from claude_alamode.app import ChatApp
-from claude_alamode.theme import ALAMODE_THEME
-
-__all__ = ["ChatApp", "ALAMODE_THEME"]
-__version__ = "0.1.0"

@@ -14,7 +14,7 @@ The multi-agent organization and `git worktree` management in this project remov
 
 One traditional `claude` session is bound to one `agent`.  If you want a new agent, you either `/clear` to reset your `claude` session, or you open a new terminal to start a `claude` session in parallel.
 
-In Claude a la mode, you type `/agent some-new-name` and a new agent starts running in your session with access to all the same files.  You can switch back and forth between these agents easily.
+In Claude Chic, you type `/agent some-new-name` and a new agent starts running in your session with access to all the same files.  You can switch back and forth between these agents easily.
 
 ### Example: Review
 
@@ -59,11 +59,11 @@ You can work in each directory safely, editing code, running tests, etc, without
 
 The lifecycle of the directory and the branch are also linked, so as you clean up the worktree the directory is cleaned up as well.
 
-They're great features, and great when paired with concurrent development with Claude, but they're rarely-used enough that few people are familiar with how they work (or at least that was true of the library authors).  And so, we automated them into Claude a la mode.
+They're great features, and great when paired with concurrent development with Claude, but they're rarely-used enough that few people are familiar with how they work (or at least that was true of the library authors).  And so, we automated them into Claude Chic.
 
 ## Worktree Workflow
 
-Claude a la mode worktree commands automate the process of setting up a worktree, putting an agent in it, doing work, and then automating the merge/rebase/close process back with main.  The process is as follows:
+Claude Chic worktree commands automate the process of setting up a worktree, putting an agent in it, doing work, and then automating the merge/rebase/close process back with main.  The process is as follows:
 
 ```
 # Make a new branch+directory, create a new agent in that directory, move there
@@ -79,7 +79,7 @@ Commit
 /worktree finish
 ```
 
-Claude a la mode sets up worktrees for you and runs new agents in them.  When you're done, we ask Claude to safely handle the rebase/merge process so you have nice linear history, despite all of the concurrent development you've been doing.
+Claude Chic sets up worktrees for you and runs new agents in them.  When you're done, we ask Claude to safely handle the rebase/merge process so you have nice linear history, despite all of the concurrent development you've been doing.
 
 ## Concurrent development
 
@@ -87,7 +87,7 @@ Used together, agents and worktrees make it trivial to have many ongoing threads
 
 ## Resuming work
 
-When you restart Claude a la mode, your worktrees will be listed in the agent list.  If you click on them we'll resume the last session in that worktree for you.  All of your state is, as always, stored in Claude state in `~/.claude/projects/`.
+When you restart Claude Chic, your worktrees will be listed in the agent list.  If you click on them we'll resume the last session in that worktree for you.  All of your state is, as always, stored in Claude state in `~/.claude/projects/`.
 
 In practice this means you can start work freely without worrying about
 finishing it soon.  It is free to keep agents and worktrees around.

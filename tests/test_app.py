@@ -2,7 +2,7 @@
 
 import base64
 
-from claude_alamode import ChatApp
+from claudechic import ChatApp
 
 
 def test_image_attachment_message_building():

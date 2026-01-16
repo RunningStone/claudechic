@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from textual.containers import Center
 from textual import work
 
-from claude_alamode.features.worktree.git import (
+from claudechic.features.worktree.git import (
     FinishPhase,
     FinishState,
     ResolutionAction,
@@ -27,11 +27,11 @@ from claude_alamode.features.worktree.git import (
     remove_worktree,
     start_worktree,
 )
-from claude_alamode.features.worktree.prompts import UncommittedChangesPrompt, WorktreePrompt
+from claudechic.features.worktree.prompts import UncommittedChangesPrompt, WorktreePrompt
 
 if TYPE_CHECKING:
-    from claude_alamode.app import ChatApp
-    from claude_alamode.agent import Agent
+    from claudechic.app import ChatApp
+    from claudechic.agent import Agent
 
 # Max retries for worktree cleanup before giving up
 MAX_CLEANUP_ATTEMPTS = 3
@@ -68,7 +68,7 @@ def _handle_finish(app: "ChatApp") -> None:
     2. Resolution: handle uncommitted, merge/rebase
     3. Cleanup: remove worktree and branch
     """
-    from claude_alamode.widgets import ChatMessage
+    from claudechic.widgets import ChatMessage
 
     agent = app._agent
     if not agent:
@@ -125,7 +125,7 @@ def _show_finish_status(app: "ChatApp", status: WorktreeStatus) -> None:
 @work(group="finish", exclusive=True, exit_on_error=False)
 async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
     """Run Phase 2: Resolution. May invoke Claude or prompt user."""
-    from claude_alamode.widgets import ChatInput
+    from claudechic.widgets import ChatInput
 
     state = agent.finish_state
     if not state or not state.status:
@@ -238,7 +238,7 @@ def _run_cleanup(app: "ChatApp", agent: "Agent") -> None:
 
 def _show_cleanup_failure(agent: "Agent", error: str) -> None:
     """Display cleanup failure in chat."""
-    from claude_alamode.widgets import ChatMessage
+    from claudechic.widgets import ChatMessage
 
     state = agent.finish_state
     if not state:
@@ -359,7 +359,7 @@ def _handle_cleanup(app: "ChatApp", branches: list[str] | None) -> None:
 @work(group="cleanup_prompt", exclusive=True, exit_on_error=False)
 async def _run_cleanup_prompt(app: "ChatApp", needs_confirm: list[tuple[str, str]]) -> None:
     """Show prompt for confirming worktree removal."""
-    from claude_alamode.widgets import SelectionPrompt, ChatInput
+    from claudechic.widgets import SelectionPrompt, ChatInput
 
     branches_to_confirm = [b for b, _ in needs_confirm]
     options = [("all", f"Remove all ({len(needs_confirm)})")]

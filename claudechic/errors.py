@@ -9,17 +9,17 @@ import traceback
 from pathlib import Path
 
 # Log to file in user's home directory
-LOG_FILE = Path.home() / "claude-alamode.log"
+LOG_FILE = Path.home() / "claudechic.log"
 
 # Configure module logger
-log = logging.getLogger("claude_alamode")
+log = logging.getLogger("claudechic")
 
 
 def setup_logging(level: int = logging.DEBUG) -> None:
     """Initialize logging to file. Call once at app startup.
 
-    Configures the root 'claude_alamode' logger so all child loggers
-    (claude_alamode.app, claude_alamode.widgets.*, etc.) inherit the handler.
+    Configures the root 'claudechic' logger so all child loggers
+    (claudechic.app, claudechic.widgets.*, etc.) inherit the handler.
     """
     handler = logging.FileHandler(LOG_FILE, mode="a")
     handler.setFormatter(

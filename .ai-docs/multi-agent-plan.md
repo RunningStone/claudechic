@@ -2,7 +2,7 @@
 
 ## Overview
 
-Claude alamode supports multiple concurrent Claude agents, each with its own SDK connection, chat history, and working directory. The architecture uses a single source of truth pattern with `AgentManager` coordinating agents and `Agent` owning per-agent state.
+Claude Chic supports multiple concurrent Claude agents, each with its own SDK connection, chat history, and working directory. The architecture uses a single source of truth pattern with `AgentManager` coordinating agents and `Agent` owning per-agent state.
 
 ## Core Classes
 

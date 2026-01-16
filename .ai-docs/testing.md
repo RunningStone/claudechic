@@ -29,7 +29,7 @@ def mock_sdk():
     mock_client.connect = AsyncMock()
     mock_client.query = AsyncMock()
     # ...
-    with patch("claude_alamode.app.ClaudeSDKClient", return_value=mock_client):
+    with patch("claudechic.app.ClaudeSDKClient", return_value=mock_client):
         yield mock_client
 ```
 

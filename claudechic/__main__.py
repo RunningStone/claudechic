@@ -1,16 +1,16 @@
-"""Entry point for claude-alamode CLI."""
+"""Entry point for claudechic CLI."""
 
 import argparse
 
-from claude_alamode.app import ChatApp
-from claude_alamode.errors import setup_logging
+from claudechic.app import ChatApp
+from claudechic.errors import setup_logging
 
-# Set up file logging to ~/claude-alamode.log
+# Set up file logging to ~/claudechic.log
 setup_logging()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Claude à la Mode")
+    parser = argparse.ArgumentParser(description="Claude Chic")
     parser.add_argument(
         "--resume", "-r", action="store_true", help="Resume the most recent session"
     )
@@ -27,7 +27,7 @@ def main():
     from pathlib import Path
     from rich.console import Console
     from rich.control import Control
-    Console().control(Control.title(f"Claude à la Mode · {Path.cwd().name}"))
+    Console().control(Control.title(f"Claude Chic · {Path.cwd().name}"))
 
     try:
         app = ChatApp(resume_session_id=resume_id, initial_prompt=initial_prompt)
@@ -37,7 +37,7 @@ def main():
     except Exception:
         import traceback
 
-        with open("/tmp/claude-alamode-crash.log", "w") as f:
+        with open("/tmp/claudechic-crash.log", "w") as f:
             traceback.print_exc(file=f)
         raise
 

@@ -30,8 +30,8 @@ from claude_agent_sdk.types import (
     ToolPermissionContext,
 )
 
-from claude_alamode.file_index import FileIndex
-from claude_alamode.permissions import PermissionRequest
+from claudechic.file_index import FileIndex
+from claudechic.permissions import PermissionRequest
 
 if TYPE_CHECKING:
     pass
@@ -475,10 +475,10 @@ class Agent:
         if tool_name == "AskUserQuestion":
             return await self._handle_ask_user_question(tool_input)
 
-        # Always allow ExitPlanMode and alamode MCP tools
+        # Always allow ExitPlanMode and chic MCP tools
         if tool_name == "ExitPlanMode":
             return PermissionResultAllow()
-        if tool_name.startswith("mcp__alamode__"):
+        if tool_name.startswith("mcp__chic__"):
             return PermissionResultAllow()
 
         # Auto-approve edits if enabled

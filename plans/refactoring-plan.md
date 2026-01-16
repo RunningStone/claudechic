@@ -20,7 +20,7 @@ The codebase has many `try/except Exception: pass` blocks that swallow errors si
 
 ### Tasks
 
-1. **Create `claude_alamode/errors.py`** with:
+1. **Create `claudechic/errors.py`** with:
    - `log_exception(e, context="")` - logs to file and optionally shows in UI
    - Exception types for recoverable vs fatal errors
 
@@ -41,8 +41,8 @@ The codebase has many `try/except Exception: pass` blocks that swallow errors si
 4. **Update `styles.tcss`** with error message styling (red border, like user messages but red)
 
 ### Files to Modify
-- Create: `claude_alamode/errors.py`
-- Modify: `claude_alamode/app.py`, `claude_alamode/widgets/chat.py`, `claude_alamode/widgets/tools.py`, `claude_alamode/widgets/prompts.py`, `claude_alamode/styles.tcss`
+- Create: `claudechic/errors.py`
+- Modify: `claudechic/app.py`, `claudechic/widgets/chat.py`, `claudechic/widgets/tools.py`, `claudechic/widgets/prompts.py`, `claudechic/styles.tcss`
 
 ### Verification
 - Introduce a deliberate error and confirm it appears in chat and log file
@@ -62,7 +62,7 @@ Worktree functionality is split between:
 
 ### Tasks
 
-1. **Create `claude_alamode/features/worktree/` package**:
+1. **Create `claudechic/features/worktree/` package**:
    ```
    features/worktree/
    ├── __init__.py      # Public API
@@ -86,7 +86,7 @@ Worktree functionality is split between:
 
 4. **Create integration point** in app.py:
    ```python
-   from claude_alamode.features.worktree import handle_worktree_command
+   from claudechic.features.worktree import handle_worktree_command
 
    # In _handle_prompt:
    if prompt.strip().startswith("/worktree"):
@@ -97,17 +97,17 @@ Worktree functionality is split between:
 5. **Update imports** in `widgets/__init__.py` to re-export WorktreePrompt for backward compat
 
 ### Files to Create
-- `claude_alamode/features/__init__.py`
-- `claude_alamode/features/worktree/__init__.py`
-- `claude_alamode/features/worktree/git.py`
-- `claude_alamode/features/worktree/commands.py`
-- `claude_alamode/features/worktree/prompts.py`
+- `claudechic/features/__init__.py`
+- `claudechic/features/worktree/__init__.py`
+- `claudechic/features/worktree/git.py`
+- `claudechic/features/worktree/commands.py`
+- `claudechic/features/worktree/prompts.py`
 
 ### Files to Modify
-- `claude_alamode/app.py` (remove ~150 lines)
-- `claude_alamode/widgets/prompts.py` (remove WorktreePrompt)
-- `claude_alamode/widgets/__init__.py` (update exports)
-- Delete: `claude_alamode/worktree.py` (moved to features/worktree/git.py)
+- `claudechic/app.py` (remove ~150 lines)
+- `claudechic/widgets/prompts.py` (remove WorktreePrompt)
+- `claudechic/widgets/__init__.py` (update exports)
+- Delete: `claudechic/worktree.py` (moved to features/worktree/git.py)
 
 ### Verification
 - Test `/worktree` command creates worktree
@@ -130,7 +130,7 @@ Agent management is in:
 
 ### Tasks
 
-1. **Create `claude_alamode/features/agents/` package**:
+1. **Create `claudechic/features/agents/` package**:
    ```
    features/agents/
    ├── __init__.py      # Public API
@@ -155,15 +155,15 @@ Agent management is in:
 4. **Update imports** in `widgets/__init__.py`
 
 ### Files to Create
-- `claude_alamode/features/agents/__init__.py`
-- `claude_alamode/features/agents/session.py`
-- `claude_alamode/features/agents/commands.py`
-- `claude_alamode/features/agents/widgets.py`
+- `claudechic/features/agents/__init__.py`
+- `claudechic/features/agents/session.py`
+- `claudechic/features/agents/commands.py`
+- `claudechic/features/agents/widgets.py`
 
 ### Files to Modify
-- `claude_alamode/app.py` (remove ~150 lines + proxy properties)
-- `claude_alamode/widgets/__init__.py`
-- Delete: `claude_alamode/agent.py`, `claude_alamode/widgets/agents.py`
+- `claudechic/app.py` (remove ~150 lines + proxy properties)
+- `claudechic/widgets/__init__.py`
+- Delete: `claudechic/agent.py`, `claudechic/widgets/agents.py`
 
 ### Verification
 - Test `/agent` lists agents
@@ -187,7 +187,7 @@ Simple commands still in app.py:
 
 ### Tasks
 
-1. **Create `claude_alamode/commands.py`** for simple commands:
+1. **Create `claudechic/commands.py`** for simple commands:
    ```python
    def handle_clear(app) -> bool:
        """Handle /clear command. Returns True if handled."""
@@ -223,10 +223,10 @@ Simple commands still in app.py:
    - `_hide_session_picker()` → `commands.py`
 
 ### Files to Create
-- `claude_alamode/commands.py`
+- `claudechic/commands.py`
 
 ### Files to Modify
-- `claude_alamode/app.py` (remove ~80 lines)
+- `claudechic/app.py` (remove ~80 lines)
 
 ### Verification
 - Test `/clear` clears chat
@@ -247,7 +247,7 @@ Simple commands still in app.py:
 
 ### Tasks
 
-1. **Create `claude_alamode/widgets/spinner.py`**:
+1. **Create `claudechic/widgets/spinner.py`**:
    ```python
    SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
    SPINNER_INTERVAL = 1/10
@@ -263,8 +263,8 @@ Simple commands still in app.py:
 3. **Refactor `ToolUseWidget`** to use SpinnerMixin
 
 4. **Replace `threading.Event` with `asyncio.Event`** in:
-   - `claude_alamode/permissions.py`: `PermissionRequest`
-   - `claude_alamode/widgets/prompts.py`: `BasePrompt`
+   - `claudechic/permissions.py`: `PermissionRequest`
+   - `claudechic/widgets/prompts.py`: `BasePrompt`
 
    Change from:
    ```python
@@ -281,14 +281,14 @@ Simple commands still in app.py:
    ```
 
 ### Files to Create
-- `claude_alamode/widgets/spinner.py`
+- `claudechic/widgets/spinner.py`
 
 ### Files to Modify
-- `claude_alamode/widgets/chat.py` (ThinkingIndicator)
-- `claude_alamode/widgets/tools.py` (ToolUseWidget)
-- `claude_alamode/permissions.py`
-- `claude_alamode/widgets/prompts.py`
-- `claude_alamode/widgets/__init__.py`
+- `claudechic/widgets/chat.py` (ThinkingIndicator)
+- `claudechic/widgets/tools.py` (ToolUseWidget)
+- `claudechic/permissions.py`
+- `claudechic/widgets/prompts.py`
+- `claudechic/widgets/__init__.py`
 
 ### Verification
 - Spinner animates correctly in ThinkingIndicator
@@ -318,9 +318,9 @@ Some widgets define `DEFAULT_CSS` inline:
 5. **Document styling policy** in CLAUDE.md: "All styles in styles.tcss"
 
 ### Files to Modify
-- `claude_alamode/styles.tcss` (add ~60 lines)
-- `claude_alamode/widgets/agents.py` (remove DEFAULT_CSS)
-- `claude_alamode/widgets/autocomplete.py` (remove DEFAULT_CSS)
+- `claudechic/styles.tcss` (add ~60 lines)
+- `claudechic/widgets/agents.py` (remove DEFAULT_CSS)
+- `claudechic/widgets/autocomplete.py` (remove DEFAULT_CSS)
 - `CLAUDE.md` (document policy)
 
 ### Verification
@@ -343,7 +343,7 @@ Constants scattered across files:
 
 ### Tasks
 
-1. **Create `claude_alamode/config.py`**:
+1. **Create `claudechic/config.py`**:
    ```python
    # Context
    MAX_CONTEXT_TOKENS = 200_000
@@ -366,13 +366,13 @@ Constants scattered across files:
 3. **Replace magic numbers** with named constants where appropriate
 
 ### Files to Create
-- `claude_alamode/config.py`
+- `claudechic/config.py`
 
 ### Files to Modify
-- `claude_alamode/formatting.py`
-- `claude_alamode/app.py`
-- `claude_alamode/widgets/tools.py`
-- `claude_alamode/features/worktree/commands.py` (if MAX_CLEANUP_ATTEMPTS moved)
+- `claudechic/formatting.py`
+- `claudechic/app.py`
+- `claudechic/widgets/tools.py`
+- `claudechic/features/worktree/commands.py` (if MAX_CLEANUP_ATTEMPTS moved)
 
 ### Verification
 - App behaves identically
@@ -428,7 +428,7 @@ Current state:
 After all phases, app.py should be ~400-500 lines (down from 1,254), with:
 
 ```
-claude_alamode/
+claudechic/
 ├── __init__.py
 ├── __main__.py
 ├── app.py              # ~400 lines - core app, event handlers

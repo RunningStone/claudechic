@@ -4,8 +4,8 @@ Provides isolated feature development via git worktrees.
 """
 
 # Public API - only what app.py needs
-from claude_alamode.features.worktree.git import list_worktrees
-from claude_alamode.features.worktree.commands import handle_worktree_command
+from claudechic.features.worktree.git import list_worktrees
+from claudechic.features.worktree.commands import handle_worktree_command
 
 __all__ = [
     "list_worktrees",

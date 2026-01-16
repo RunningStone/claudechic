@@ -15,7 +15,7 @@ from typing import Any, Literal
 
 from textual.app import App, ComposeResult
 
-from claude_alamode.theme import ALAMODE_THEME
+from claudechic.theme import CHIC_THEME
 from textual.binding import Binding
 from textual.containers import VerticalScroll, Vertical, Horizontal
 from textual.events import MouseUp
@@ -35,29 +35,29 @@ from claude_agent_sdk.types import (
     PermissionResultDeny,
 )
 
-from claude_alamode.messages import (
+from claudechic.messages import (
     StreamChunk,
     ResponseComplete,
     ToolUseMessage,
     ToolResultMessage,
 )
-from claude_alamode.sessions import (
+from claudechic.sessions import (
     get_context_from_session,
     get_recent_sessions,
     load_session_messages,
 )
-from claude_alamode.features.worktree import (
+from claudechic.features.worktree import (
     handle_worktree_command,
     list_worktrees,
 )
-from claude_alamode.features.worktree.commands import on_response_complete_finish
-from claude_alamode.permissions import PermissionRequest
-from claude_alamode.agent import Agent, ToolUse
-from claude_alamode.agent_manager import AgentManager
-from claude_alamode.mcp import set_app, create_alamode_server
-from claude_alamode.file_index import FileIndex
-from claude_alamode.history import append_to_history
-from claude_alamode.widgets import (
+from claudechic.features.worktree.commands import on_response_complete_finish
+from claudechic.permissions import PermissionRequest
+from claudechic.agent import Agent, ToolUse
+from claudechic.agent_manager import AgentManager
+from claudechic.mcp import set_app, create_chic_server
+from claudechic.file_index import FileIndex
+from claudechic.history import append_to_history
+from claudechic.widgets import (
     ContextBar,
     ChatMessage,
     ChatInput,
@@ -80,9 +80,9 @@ from claude_alamode.widgets import (
     WorktreeItem,
     AutoHideScroll,
 )
-from claude_alamode.widgets.footer import StatusFooter
-from claude_alamode.errors import setup_logging  # noqa: F401 - used at startup
-from claude_alamode.profiling import profile
+from claudechic.widgets.footer import StatusFooter
+from claudechic.errors import setup_logging  # noqa: F401 - used at startup
+from claudechic.profiling import profile
 
 log = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ def _scroll_if_at_bottom(scroll_view: VerticalScroll) -> None:
 class ChatApp(App):
     """Main chat application."""
 
-    TITLE = "Claude à la Mode"
+    TITLE = "Claude Chic"
     CSS_PATH = Path(__file__).parent / "styles.tcss"
 
     BINDINGS = [
@@ -402,8 +402,8 @@ class ChatApp(App):
         if tool_name == "ExitPlanMode":
             return PermissionResultAllow()
 
-        # Alamode MCP tools are always allowed (they're our own tools)
-        if tool_name.startswith("mcp__alamode__"):
+        # Chic MCP tools are always allowed (they're our own tools)
+        if tool_name.startswith("mcp__chic__"):
             return PermissionResultAllow()
 
         if self._agent and self._agent.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
@@ -508,7 +508,7 @@ class ChatApp(App):
             cwd=cwd,
             resume=resume,
             can_use_tool=self._handle_permission,
-            mcp_servers={"alamode": create_alamode_server()},
+            mcp_servers={"chic": create_chic_server()},
             include_partial_messages=True,
         )
 
@@ -517,8 +517,8 @@ class ChatApp(App):
         set_app(self)
 
         # Register and activate custom theme
-        self.register_theme(ALAMODE_THEME)
-        self.theme = "alamode"
+        self.register_theme(CHIC_THEME)
+        self.theme = "chic"
 
         # Initialize AgentManager (new architecture)
         self.agent_mgr = AgentManager(self._make_options)
@@ -824,8 +824,8 @@ class ChatApp(App):
         if event.block.name == "Task":
             widget = TaskWidget(event.block, collapsed=collapsed)
             agent.active_task_widgets[event.block.id] = widget
-        elif event.block.name.startswith("mcp__alamode__"):
-            # Custom widget for alamode MCP tools
+        elif event.block.name.startswith("mcp__chic__"):
+            # Custom widget for chic MCP tools
             widget = AgentToolWidget(event.block)
         else:
             widget = ToolUseWidget(event.block, collapsed=collapsed)

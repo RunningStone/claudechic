@@ -9,7 +9,7 @@ from textual.containers import HorizontalScroll
 from textual.highlight import HighlightTheme, highlight
 from textual.widgets import Static
 
-from claude_alamode.formatting import get_lang_from_path
+from claudechic.formatting import get_lang_from_path
 
 
 # Colors - line backgrounds (subtle tint)
@@ -21,7 +21,7 @@ ADDED_WORD_STYLE = "underline on #083308"
 
 
 class DiffHighlightTheme(HighlightTheme):
-    """Syntax highlighting theme for diffs, aligned with alamode theme.
+    """Syntax highlighting theme for diffs, aligned with chic theme.
 
     Uses orange as primary accent, saturated blues for structure,
     and avoids red/green that clash with diff backgrounds.

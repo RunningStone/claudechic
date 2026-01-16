@@ -4,9 +4,9 @@ Errors in Textual apps are invisible by default (stderr is captured). This doc e
 
 ## Log File
 
-All logs go to `~/claude-alamode.log`. View with:
+All logs go to `~/claudechic.log`. View with:
 ```bash
-tail -f ~/claude-alamode.log
+tail -f ~/claudechic.log
 ```
 
 ## How to Log
@@ -15,14 +15,14 @@ tail -f ~/claude-alamode.log
 import logging
 log = logging.getLogger(__name__)
 
-# These all write to ~/claude-alamode.log
+# These all write to ~/claudechic.log
 log.info("Something happened")
 log.warning("Something concerning")
 log.error("Something failed")
 log.exception("Something failed with traceback")  # includes stack trace
 ```
 
-Child loggers (e.g., `claude_alamode.app`, `claude_alamode.widgets.tools`) automatically inherit the file handler configured in `errors.py`.
+Child loggers (e.g., `claudechic.app`, `claudechic.widgets.tools`) automatically inherit the file handler configured in `errors.py`.
 
 ## Showing Errors to Users
 
@@ -38,7 +38,7 @@ except Exception as e:
 This:
 1. Displays an `ErrorMessage` widget in the chat view (red border, visible)
 2. Shows a toast notification
-3. Logs full traceback to `~/claude-alamode.log`
+3. Logs full traceback to `~/claudechic.log`
 
 ## When to Use What
 

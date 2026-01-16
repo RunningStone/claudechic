@@ -1,7 +1,7 @@
 [project]
-name = "claude-alamode"
+name = "claudechic"
 version = "0.1.0"
-description = "Claude à la Mode - A stylish terminal UI for Claude Code"
+description = "Claude Chic - A stylish terminal UI for Claude Code"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-claude-alamode = "claude_alamode.__main__:main"
+claudechic = "claudechic.__main__:main"
 
 [dependency-groups]
 dev = [

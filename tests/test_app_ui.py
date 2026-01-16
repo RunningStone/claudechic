@@ -2,10 +2,10 @@
 
 import pytest
 
-from claude_alamode.app import ChatApp
-from claude_alamode.widgets import ChatInput, ChatMessage, AgentSidebar, TodoPanel
-from claude_alamode.widgets.footer import StatusFooter
-from claude_alamode.messages import StreamChunk, ResponseComplete, ToolUseMessage, ToolResultMessage
+from claudechic.app import ChatApp
+from claudechic.widgets import ChatInput, ChatMessage, AgentSidebar, TodoPanel
+from claudechic.widgets.footer import StatusFooter
+from claudechic.messages import StreamChunk, ResponseComplete, ToolUseMessage, ToolResultMessage
 from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 from tests.conftest import wait_for_workers
 

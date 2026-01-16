@@ -1,1 +1,1 @@
-"""Tests for Claude à la Mode."""
+"""Tests for Claude Chic."""

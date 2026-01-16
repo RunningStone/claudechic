@@ -1,6 +1,6 @@
 # Architecture
 
-Claude à la Mode combines two libraries:
+Claude Chic combines two libraries:
 
 - **[Textual](https://textual.textualize.io/)** - Modern TUI framework for Python
 - **[claude-agent-sdk](https://docs.anthropic.com/en/docs/claude-code)** - Official SDK for Claude Code
@@ -34,7 +34,7 @@ Textual is made by the same authors, and focuses on interactivity, turning the t
 -  CSS
 -  ... and more
 
-The only reason Claude a la mode looks good is because Textual makes it really easy to make the terminal look good.
+The only reason Claude Chic looks good is because Textual makes it really easy to make the terminal look good.
 
 ## Hackability and Openness
 
@@ -47,4 +47,4 @@ And now, as a result, it's very easy to screw around and play with new terminal 
 -  Want Bash tool uses to pop out a new terminal to run the command yourself if you click on it?  Sure!
 -  Want to rebuild the whole thing in React + Electron?  Sure!
 
-It's pretty trivial to add features to Claude a la mode, or to build your own version.   Please enjoy playing with code.
+It's pretty trivial to add features to Claude Chic, or to build your own version.   Please enjoy playing with code.

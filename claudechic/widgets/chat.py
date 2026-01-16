@@ -13,8 +13,8 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Markdown, TextArea, Static, Button
 
-from claude_alamode.errors import log_exception
-from claude_alamode.profiling import profile
+from claudechic.errors import log_exception
+from claudechic.profiling import profile
 
 
 class ThinkingIndicator(Static):

@@ -12,14 +12,14 @@ from textual.widgets import Markdown, Static, Collapsible, Button
 
 from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 
-from claude_alamode.formatting import (
+from claudechic.formatting import (
     format_tool_header,
     format_tool_details,
     get_lang_from_path,
 )
-from claude_alamode.widgets.diff import DiffWidget
-from claude_alamode.widgets.chat import ChatMessage
-from claude_alamode.profiling import profile
+from claudechic.widgets.diff import DiffWidget
+from claudechic.widgets.chat import ChatMessage
+from claudechic.profiling import profile
 
 log = logging.getLogger(__name__)
 
@@ -274,7 +274,7 @@ class TaskWidget(Static):
 
 
 class AgentToolWidget(Static):
-    """Widget for displaying alamode agent MCP tool calls (spawn_agent, ask_agent, etc.)."""
+    """Widget for displaying chic agent MCP tool calls (spawn_agent, ask_agent, etc.)."""
 
     SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
@@ -321,7 +321,7 @@ class AgentToolWidget(Static):
         self._spinner_timer = None
 
     def compose(self) -> ComposeResult:
-        tool_short = self.block.name.replace("mcp__alamode__", "")
+        tool_short = self.block.name.replace("mcp__chic__", "")
 
         if tool_short == "spawn_agent":
             yield Static(f"Spawning agent: {self._agent_name}", classes="agent-header")
@@ -349,11 +349,11 @@ class AgentToolWidget(Static):
             yield Static("Listing agents", classes="agent-header")
 
         else:
-            # Fallback for unknown alamode tools
+            # Fallback for unknown chic tools
             yield Static(f"{tool_short}: {self._agent_name}", classes="agent-header")
 
     def on_mount(self) -> None:
-        tool_short = self.block.name.replace("mcp__alamode__", "")
+        tool_short = self.block.name.replace("mcp__chic__", "")
         if tool_short == "ask_agent" and self.result is None:
             self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
 
@@ -393,7 +393,7 @@ class AgentToolWidget(Static):
         except Exception:
             pass
         # For list_agents, show the result text
-        tool_short = self.block.name.replace("mcp__alamode__", "")
+        tool_short = self.block.name.replace("mcp__chic__", "")
         if tool_short == "list_agents" and result.content:
             content = result.content if isinstance(result.content, str) else str(result.content)
             try:

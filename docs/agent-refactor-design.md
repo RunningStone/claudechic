@@ -124,7 +124,7 @@ class ChatItem:
 
 ## Agent Class
 
-See `claude_alamode/agent.py` for implementation.
+See `claudechic/agent.py` for implementation.
 
 Key attributes:
 - **Identity**: `id`, `name`, `cwd`, `worktree`
@@ -152,7 +152,7 @@ Callbacks:
 
 ## AgentManager Class
 
-See `claude_alamode/agent_manager.py` for implementation.
+See `claudechic/agent_manager.py` for implementation.
 
 ```python
 class AgentManager:
@@ -264,7 +264,7 @@ Agents can be created and prompted without UI switching.
 ## File Changes
 
 ```
-claude_alamode/
+claudechic/
 ├── agent.py              # AgentSession dataclass → Agent class ✅
 ├── agent_manager.py      # NEW ✅
 ├── widgets/

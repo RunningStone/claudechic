@@ -1,13 +1,13 @@
-# Claude à la Mode
+# Claude Chic
 
 A stylish terminal UI for Claude Code, built with Textual and wrapping the `claude-agent-sdk`.
 
 ## Run
 
 ```bash
-uv run claude-alamode
-uv run claude-alamode --resume     # Resume most recent session
-uv run claude-alamode -s <uuid>    # Resume specific session
+uv run claudechic
+uv run claudechic --resume     # Resume most recent session
+uv run claudechic -s <uuid>    # Resume specific session
 ```
 
 Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login`).
@@ -15,7 +15,7 @@ Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login
 ## File Map
 
 ```
-claude_alamode/
+claudechic/
 ├── __init__.py        # Package entry, exports ChatApp
 ├── __main__.py        # CLI entry point
 ├── agent.py           # AgentSession dataclass for multi-agent state

@@ -7,8 +7,8 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from rich.text import Text
 
-from claude_alamode.formatting import MAX_CONTEXT_TOKENS
-from claude_alamode.profiling import profile
+from claudechic.formatting import MAX_CONTEXT_TOKENS
+from claudechic.profiling import profile
 
 
 class CPUBar(Widget):

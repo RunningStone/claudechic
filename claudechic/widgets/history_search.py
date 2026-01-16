@@ -12,7 +12,7 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Input, Static
 
-from claude_alamode.history import load_global_history
+from claudechic.history import load_global_history
 
 
 class HistorySearch(Widget):

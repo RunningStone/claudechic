@@ -25,5 +25,5 @@ def mock_sdk():
     mock_client.get_server_info = AsyncMock(return_value={"commands": [], "models": []})
     mock_client.receive_response = lambda: empty_async_gen()
 
-    with patch("claude_alamode.app.ClaudeSDKClient", return_value=mock_client):
+    with patch("claudechic.app.ClaudeSDKClient", return_value=mock_client):
         yield mock_client

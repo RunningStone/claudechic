@@ -17,7 +17,7 @@ from textual_autocomplete.fuzzy_search import FuzzySearch
 
 from rich.text import Text
 
-from claude_alamode.file_index import search_files
+from claudechic.file_index import search_files
 
 
 @dataclass

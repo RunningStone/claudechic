@@ -7,7 +7,7 @@ from textual.reactive import reactive
 from textual.widgets import Static
 from textual.containers import Horizontal
 
-from claude_alamode.widgets.indicators import CPUBar, ContextBar
+from claudechic.widgets.indicators import CPUBar, ContextBar
 
 
 async def get_git_branch(cwd: str | None = None) -> str:

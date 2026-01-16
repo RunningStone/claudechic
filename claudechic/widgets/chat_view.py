@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 
 from textual.containers import VerticalScroll
 
-from claude_alamode.agent import Agent, ChatItem, UserContent, AssistantContent, ToolUse
-from claude_alamode.widgets.chat import ChatMessage, ChatAttachment, ThinkingIndicator
-from claude_alamode.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
+from claudechic.agent import Agent, ChatItem, UserContent, AssistantContent, ToolUse
+from claudechic.widgets.chat import ChatMessage, ChatAttachment, ThinkingIndicator
+from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
 
 if TYPE_CHECKING:
     from claude_agent_sdk import ToolUseBlock
@@ -103,7 +103,7 @@ class ChatView(VerticalScroll):
                 _make_tool_block(tool),
                 collapsed=collapsed,
             )
-        elif tool.name.startswith("mcp__alamode__"):
+        elif tool.name.startswith("mcp__chic__"):
             widget = AgentToolWidget(_make_tool_block(tool))
         else:
             widget = ToolUseWidget(
