@@ -514,11 +514,11 @@ class ChatApp(App):
         messages = await load_session_messages(session_id, limit=50, cwd=cwd)
         for m in messages:
             if m["type"] == "user":
-                msg = ChatMessage(m["content"][:500])
+                msg = ChatMessage(m["content"])
                 msg.add_class("user-message")
                 chat_view.mount(msg)
             elif m["type"] == "assistant":
-                msg = ChatMessage(m["content"][:1000])
+                msg = ChatMessage(m["content"])
                 msg.add_class("assistant-message")
                 chat_view.mount(msg)
             elif m["type"] == "tool_use":
