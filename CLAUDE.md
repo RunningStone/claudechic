@@ -20,22 +20,43 @@ claude_alamode/
 ├── __main__.py        # CLI entry point
 ├── agent.py           # AgentSession dataclass for multi-agent state
 ├── app.py             # ChatApp - main application, event handlers
+├── errors.py          # Logging infrastructure, error handling
+├── file_index.py      # Fuzzy file search using git ls-files
 ├── formatting.py      # Tool formatting, diff rendering (pure functions)
+├── mcp.py             # In-process MCP server for agent control tools
 ├── messages.py        # Custom Textual Message types for SDK events
 ├── permissions.py     # PermissionRequest dataclass for tool approval
 ├── sessions.py        # Session file loading and listing (pure functions)
 ├── styles.tcss        # Textual CSS - visual styling
+├── theme.py           # Textual theme definition
+├── features/
+│   ├── __init__.py    # Feature module exports
+│   └── worktree/
+│       ├── __init__.py   # Public API (list_worktrees, handle_worktree_command)
+│       ├── commands.py   # /worktree command handlers
+│       ├── git.py        # Git worktree operations
+│       └── prompts.py    # WorktreePrompt widget
 └── widgets/
     ├── __init__.py    # Re-exports all widgets
     ├── agents.py      # AgentSidebar, AgentItem for multi-agent UI
+    ├── autocomplete.py # Autocomplete for slash commands and file paths
     ├── chat.py        # ChatMessage, ChatInput, ThinkingIndicator
-    ├── header.py      # CPUBar, ContextBar, ContextHeader
+    ├── diff.py        # Syntax-highlighted diff widget
+    ├── footer.py      # Custom footer with git branch, CPU/context bars
+    ├── indicators.py  # CPUBar, ContextBar resource monitors
     ├── prompts.py     # SelectionPrompt, QuestionPrompt, SessionItem
+    ├── scroll.py      # AutoHideScroll - auto-hiding scrollbar container
+    ├── todo.py        # TodoPanel for TodoWrite tool display
     └── tools.py       # ToolUseWidget, TaskWidget
 
 tests/
+├── __init__.py        # Package marker
 ├── conftest.py        # Shared fixtures (wait_for)
-└── test_app.py        # E2E tests
+├── test_app.py        # E2E tests with real SDK
+├── test_app_ui.py     # App UI tests without SDK
+├── test_autocomplete.py # Autocomplete widget tests
+├── test_file_index.py # Fuzzy file search tests
+└── test_widgets.py    # Pure widget tests
 ```
 
 ## Architecture
@@ -45,10 +66,15 @@ tests/
 **Pure functions (no UI dependencies):**
 - `formatting.py` - Tool header formatting, diff rendering, language detection
 - `sessions.py` - Session file I/O, listing, filtering
+- `file_index.py` - Fuzzy file search, git ls-files integration
 
 **Internal protocol:**
 - `messages.py` - Custom `Message` subclasses for async event communication
 - `permissions.py` - `PermissionRequest` dataclass bridging SDK callbacks to UI
+- `mcp.py` - MCP server exposing agent control tools to Claude
+
+**Features:**
+- `features/worktree/` - Git worktree management for isolated development
 
 **UI components:**
 - `widgets/` - Textual widgets with associated styles
@@ -58,13 +84,9 @@ tests/
 
 ```
 ChatApp
-├── ContextHeader (custom Header)
-│   └── HeaderIndicators
-│       ├── CPUBar
-│       └── ContextBar
 ├── Horizontal #main
 │   ├── ListView #session-picker (hidden by default)
-│   ├── VerticalScroll #chat-view (one per agent, only active visible)
+│   ├── AutoHideScroll #chat-view (one per agent, only active visible)
 │   │   ├── ChatMessage (user/assistant)
 │   │   ├── ToolUseWidget (collapsible tool display)
 │   │   ├── TaskWidget (for Task tool - nested content)
@@ -73,8 +95,11 @@ ChatApp
 │       ├── AgentSidebar (list of agents with status)
 │       └── TodoPanel (todos for active agent)
 ├── Horizontal #input-wrapper
-│   └── ChatInput (or SelectionPrompt/QuestionPrompt when prompting)
-└── Footer
+│   └── Vertical #input-container
+│       ├── ImageAttachments (hidden by default)
+│       ├── ChatInput (or SelectionPrompt/QuestionPrompt when prompting)
+│       └── TextAreaAutoComplete (slash commands, file paths)
+└── StatusFooter (git branch, CPU/context bars)
 ```
 
 ### Message Flow (Async Communication)
