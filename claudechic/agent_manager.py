@@ -67,6 +67,7 @@ class AgentManager:
         self.on_agent_text_chunk: Callable[[Agent, str, bool, str | None], None] | None = None
         self.on_agent_tool_use: Callable[[Agent, ToolUse], None] | None = None
         self.on_agent_tool_result: Callable[[Agent, ToolUse], None] | None = None
+        self.on_agent_command_output: Callable[[Agent, str], None] | None = None
 
     @property
     def active(self) -> Agent | None:
@@ -194,6 +195,8 @@ class AgentManager:
             agent.on_tool_use = self.on_agent_tool_use
         if self.on_agent_tool_result:
             agent.on_tool_result = self.on_agent_tool_result
+        if self.on_agent_command_output:
+            agent.on_command_output = self.on_agent_command_output
 
     def switch(self, agent_id: str) -> bool:
         """Switch to a different agent.

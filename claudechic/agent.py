@@ -171,6 +171,7 @@ class Agent:
         self.on_text_chunk: Callable[[Agent, str, bool, str | None], None] | None = None  # agent, text, new_message, parent_tool_id
         self.on_tool_use: Callable[[Agent, ToolUse], None] | None = None
         self.on_tool_result: Callable[[Agent, ToolUse], None] | None = None
+        self.on_command_output: Callable[[Agent, str], None] | None = None  # agent, markdown_content
 
         # Permission UI callback (ChatApp provides this to show prompts)
         self.permission_ui_callback: (
@@ -345,9 +346,13 @@ class Agent:
                     self._handle_tool_result(block)
 
         elif isinstance(message, UserMessage):
-            # UserMessage can contain tool results
+            # UserMessage can contain tool results or command output
             content = getattr(message, "content", "")
-            if isinstance(content, list):
+            if isinstance(content, str):
+                # Handle local command output (e.g., /context)
+                if "<local-command-stdout>" in content:
+                    self._handle_command_output(content)
+            elif isinstance(content, list):
                 for block in content:
                     if isinstance(block, ToolResultBlock):
                         self._handle_tool_result(block)
@@ -410,6 +415,14 @@ class Agent:
             self._current_assistant.text = self._current_text_buffer
             self._current_text_buffer = ""
             self._emit_message_updated()
+
+    def _handle_command_output(self, content: str) -> None:
+        """Handle command output from UserMessage (e.g., /context)."""
+        import re
+        # Extract content from <local-command-stdout>...</local-command-stdout>
+        match = re.search(r"<local-command-stdout>(.*?)</local-command-stdout>", content, re.DOTALL)
+        if match and self.on_command_output:
+            self.on_command_output(self, match.group(1).strip())
 
     def _handle_tool_use(self, block: ToolUseBlock, parent_tool_id: str | None) -> None:  # noqa: ARG002
         """Handle tool use start."""

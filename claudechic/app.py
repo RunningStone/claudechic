@@ -40,6 +40,7 @@ from claudechic.messages import (
     ResponseComplete,
     ToolUseMessage,
     ToolResultMessage,
+    CommandOutputMessage,
 )
 from claudechic.sessions import (
     get_context_from_session,
@@ -913,6 +914,26 @@ class ChatApp(App):
         if agent and agent.finish_state:
             on_response_complete_finish(self, agent)
 
+    def on_command_output_message(self, event: CommandOutputMessage) -> None:
+        """Handle command output (e.g., /context) by displaying in chat."""
+        self._hide_thinking(event.agent_id)
+        agent = self._get_agent(event.agent_id)
+        chat_view = agent.chat_view if agent else self._chat_view
+        if not chat_view:
+            return
+
+        # Use custom widget for context reports
+        if "## Context Usage" in event.content:
+            from claudechic.widgets.context_report import ContextReport
+            widget = ContextReport(event.content)
+        else:
+            # Fallback to system message for other command output
+            widget = ChatMessage(event.content)
+            widget.add_class("system-message")
+
+        chat_view.mount(widget)
+        chat_view.scroll_end(animate=False)
+
     @work(group="resume", exclusive=True, exit_on_error=False)
     async def resume_session(self, session_id: str) -> None:
         """Resume a session by creating a new client."""
@@ -1434,6 +1455,7 @@ class ChatApp(App):
         self.agent_mgr.on_agent_text_chunk = self._on_agent_text_chunk
         self.agent_mgr.on_agent_tool_use = self._on_agent_tool_use
         self.agent_mgr.on_agent_tool_result = self._on_agent_tool_result
+        self.agent_mgr.on_agent_command_output = self._on_agent_command_output
 
         # Permission UI callback
         self.agent_mgr.permission_ui_callback = self._handle_agent_permission_ui
@@ -1547,6 +1569,10 @@ class ChatApp(App):
         from claude_agent_sdk import ToolResultBlock
         block = ToolResultBlock(tool_use_id=tool.id, content=tool.result or "", is_error=tool.is_error)
         self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent.id))
+
+    def _on_agent_command_output(self, agent: Agent, content: str) -> None:
+        """Handle command output from agent (e.g., /context)."""
+        self.post_message(CommandOutputMessage(content, agent_id=agent.id))
 
     async def _handle_agent_permission_ui(
         self, agent: Agent, request: PermissionRequest

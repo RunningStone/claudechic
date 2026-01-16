@@ -52,3 +52,12 @@ class ToolResultMessage(Message):
         self.parent_tool_use_id = parent_tool_use_id
         self.agent_id = agent_id
         super().__init__()
+
+
+class CommandOutputMessage(Message):
+    """Message sent when a local command (e.g., /context) produces output."""
+
+    def __init__(self, content: str, agent_id: str | None = None) -> None:
+        self.content = content  # Markdown content
+        self.agent_id = agent_id
+        super().__init__()

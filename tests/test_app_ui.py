@@ -357,3 +357,61 @@ async def test_sidebar_shows_with_multiple_agents(mock_sdk):
         sidebar = app.query_one("#right-sidebar")
         # With multiple agents and wide enough, sidebar should show
         assert not sidebar.has_class("hidden")
+
+
+@pytest.mark.asyncio
+async def test_command_output_displays(mock_sdk):
+    """CommandOutputMessage displays content in chat."""
+    from claudechic.messages import CommandOutputMessage
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+
+        # Post a command output message
+        agent_id = app.active_agent_id
+        app.post_message(CommandOutputMessage("## Test Output\n\nSome content", agent_id=agent_id))
+        await pilot.pause()
+
+        # Should have created a ChatMessage with system-message class
+        messages = list(chat_view.query(ChatMessage))
+        assert len(messages) == 1
+        assert "## Test Output" in messages[0].get_raw_content()
+        assert messages[0].has_class("system-message")
+
+
+@pytest.mark.asyncio
+async def test_context_report_displays(mock_sdk):
+    """Context command output displays as ContextReport widget."""
+    from claudechic.messages import CommandOutputMessage
+    from claudechic.widgets.context_report import ContextReport
+
+    CONTEXT_OUTPUT = """## Context Usage
+
+**Model:** claude-opus-4-5-20251101
+**Tokens:** 81.0k / 200.0k (41%)
+
+### Categories
+
+| Category | Tokens | Percentage |
+|----------|--------|------------|
+| System prompt | 3.0k | 1.5% |
+| Messages | 58.8k | 29.4% |
+| Free space | 74.0k | 36.9% |
+"""
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+
+        agent_id = app.active_agent_id
+        app.post_message(CommandOutputMessage(CONTEXT_OUTPUT, agent_id=agent_id))
+        await pilot.pause()
+
+        # Should have created a ContextReport, not ChatMessage
+        reports = list(chat_view.query(ContextReport))
+        assert len(reports) == 1
+
+        # Verify data was parsed
+        assert reports[0].data["model"] == "claude-opus-4-5-20251101"
+        assert reports[0].data["tokens_used"] == 81000
