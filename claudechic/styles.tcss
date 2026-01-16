@@ -151,10 +151,16 @@ TaskWidget #task-content {
     padding-left: 2;
 }
 
-/* Thinking indicator - subtle */
-ThinkingIndicator {
-    border-left: wide $panel;
+/* Thinking indicator - fixed position above input */
+#thinking-indicator {
+    height: 1;
+    padding: 0 2;
     color: $text-muted;
+    margin: 0;
+}
+
+#thinking-indicator.hidden {
+    display: none;
 }
 
 

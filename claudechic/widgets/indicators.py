@@ -26,8 +26,10 @@ class CPUBar(Widget):
         try:
             with timed("CPUBar.psutil_call"):
                 pct = self._process.cpu_percent()
-            with timed("CPUBar.reactive_set"):
-                self.cpu_pct = pct
+            # Only update if rounded value changed (avoids unnecessary refresh)
+            if round(pct) != round(self.cpu_pct):
+                with timed("CPUBar.reactive_set"):
+                    self.cpu_pct = pct
         except Exception:
             pass  # Process may have exited
 

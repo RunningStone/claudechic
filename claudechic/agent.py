@@ -121,6 +121,7 @@ class Agent:
 
         # Status
         self.status: Literal["idle", "busy", "needs_input"] = "idle"
+        self._thinking: bool = False  # Whether this agent is currently thinking
 
         # Chat history
         self.messages: list[ChatItem] = []

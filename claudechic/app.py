@@ -491,6 +491,7 @@ class ChatApp(App):
         with Horizontal(id="input-wrapper"):
             with Vertical(id="input-container"):
                 yield ImageAttachments(id="image-attachments", classes="hidden")
+                yield ThinkingIndicator(id="thinking-indicator", classes="hidden")
                 yield HistorySearch(id="history-search")
                 yield ChatInput(id="input")
                 yield TextAreaAutoComplete(
@@ -749,24 +750,42 @@ class ChatApp(App):
         asyncio.create_task(agent.send(prompt), name=f"send-{agent.id}")
 
     def _show_thinking(self, agent_id: str | None = None) -> None:
-        """Show the thinking indicator for a specific agent."""
+        """Show the fixed thinking indicator (only if this agent is active)."""
         agent = self._get_agent(agent_id)
-        if not agent or not agent.chat_view:
-            return
-        if agent.chat_view.query(ThinkingIndicator):
-            return
-        agent.chat_view.mount(ThinkingIndicator())
-        self.call_after_refresh(_scroll_if_at_bottom, agent.chat_view)
+        if agent:
+            agent._thinking = True
+        # Only show if this is the active agent
+        if agent_id is None or agent_id == self.active_agent_id:
+            try:
+                indicator = self.query_one("#thinking-indicator", ThinkingIndicator)
+                indicator.remove_class("hidden")
+            except Exception:
+                pass
 
     def _hide_thinking(self, agent_id: str | None = None) -> None:
-        """Hide thinking indicator for a specific agent."""
+        """Hide the fixed thinking indicator."""
+        agent = self._get_agent(agent_id)
+        if agent:
+            agent._thinking = False
+        # Only hide if this is the active agent
+        if agent_id is None or agent_id == self.active_agent_id:
+            try:
+                indicator = self.query_one("#thinking-indicator", ThinkingIndicator)
+                indicator.add_class("hidden")
+            except Exception:
+                pass  # OK to fail during shutdown
+
+    def _sync_thinking_indicator(self) -> None:
+        """Sync thinking indicator to active agent's state."""
+        agent = self._agent
         try:
-            agent = self._get_agent(agent_id)
-            if agent and agent.chat_view:
-                for ind in agent.chat_view.query(ThinkingIndicator):
-                    ind.remove()
+            indicator = self.query_one("#thinking-indicator", ThinkingIndicator)
+            if agent and agent._thinking:
+                indicator.remove_class("hidden")
+            else:
+                indicator.add_class("hidden")
         except Exception:
-            pass  # OK to fail during shutdown
+            pass
 
     @profile
     def on_stream_chunk(self, event: StreamChunk) -> None:
@@ -1558,6 +1577,9 @@ class ChatApp(App):
         # Show new agent's chat view
         if new_agent.chat_view:
             new_agent.chat_view.remove_class("hidden")
+
+        # Sync thinking indicator to new agent's state
+        self._sync_thinking_indicator()
 
         # Update sidebar
         try:

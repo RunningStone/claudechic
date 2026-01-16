@@ -17,7 +17,7 @@ from claudechic.profiling import profile, timed
 
 
 class Spinner(Static):
-    """Animated spinner with fixed size - updates don't trigger parent layout."""
+    """Animated spinner - all instances share a single timer for efficiency."""
 
     FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
     DEFAULT_CSS = """
@@ -28,24 +28,52 @@ class Spinner(Static):
     }
     """
 
+    # Class-level shared state
+    _instances: set["Spinner"] = set()
+    _frame: int = 0
+    _timer = None
+
     def __init__(self, text: str = "") -> None:
         self._text = f" {text}" if text else ""
-        super().__init__(f"{self.FRAMES[0]}{self._text}")
-        self._frame = 0
-        self._timer = None
+        super().__init__()
+
+    def render(self) -> str:
+        """Return current frame from shared counter."""
+        return f"{self.FRAMES[Spinner._frame]}{self._text}"
 
     def on_mount(self) -> None:
-        self._timer = self.set_interval(1 / 10, self._tick)
+        Spinner._instances.add(self)
+        # Start shared timer if this is the first spinner
+        if Spinner._timer is None:
+            Spinner._timer = self.set_interval(1 / 10, Spinner._tick_all)  # 10 FPS
 
     def on_unmount(self) -> None:
-        if self._timer:
-            self._timer.stop()
+        Spinner._instances.discard(self)
+        # Stop timer if no spinners left
+        if not Spinner._instances and Spinner._timer is not None:
+            Spinner._timer.stop()
+            Spinner._timer = None
 
+    def _is_visible(self) -> bool:
+        """Check if spinner and all ancestors are visible."""
+        if self.has_class("hidden") or not self.display or not self.is_attached:
+            return False
+        node = self.parent
+        while node is not None:
+            if node.has_class("hidden"):
+                return False
+            node = node.parent
+        return True
+
+    @staticmethod
     @profile
-    def _tick(self) -> None:
-        self._frame = (self._frame + 1) % len(self.FRAMES)
-        with timed("Spinner._tick.update"):
-            self.update(f"{self.FRAMES[self._frame]}{self._text}", layout=False)
+    def _tick_all() -> None:
+        """Advance frame and refresh only visible spinners."""
+        Spinner._frame = (Spinner._frame + 1) % len(Spinner.FRAMES)
+        with timed("Spinner._tick_all.refresh"):
+            for spinner in list(Spinner._instances):
+                if spinner._is_visible():
+                    spinner.refresh()
 
 
 class ThinkingIndicator(Spinner):
@@ -59,8 +87,12 @@ class ThinkingIndicator(Spinner):
     }
     """
 
-    def __init__(self) -> None:
+    def __init__(self, id: str | None = None, classes: str | None = None) -> None:
         super().__init__("Thinking...")
+        if id:
+            self.id = id
+        if classes:
+            self.set_classes(classes)
 
 
 class ErrorMessage(Static):
