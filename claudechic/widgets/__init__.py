@@ -1,7 +1,7 @@
 """Textual widgets for Claude Code UI."""
 
 from claudechic.widgets.indicators import CPUBar, ContextBar
-from claudechic.widgets.chat import ChatMessage, ChatInput, ThinkingIndicator, ImageAttachments, ErrorMessage, ChatAttachment
+from claudechic.widgets.chat import ChatMessage, ChatInput, ThinkingIndicator, ImageAttachments, ErrorMessage, ChatAttachment, Spinner
 from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
 from claudechic.widgets.diff import DiffWidget
 from claudechic.widgets.todo import TodoWidget, TodoPanel
@@ -18,6 +18,7 @@ __all__ = [
     "ChatMessage",
     "ChatInput",
     "ChatAttachment",
+    "Spinner",
     "ThinkingIndicator",
     "ImageAttachments",
     "ErrorMessage",

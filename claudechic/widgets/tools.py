@@ -18,8 +18,7 @@ from claudechic.formatting import (
     get_lang_from_path,
 )
 from claudechic.widgets.diff import DiffWidget
-from claudechic.widgets.chat import ChatMessage
-from claudechic.profiling import profile
+from claudechic.widgets.chat import ChatMessage, Spinner
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +30,6 @@ class ToolUseWidget(Static):
     """A collapsible widget showing a tool use."""
 
     can_focus = False
-    SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
     def __init__(self, block: ToolUseBlock, collapsed: bool = False, completed: bool = False) -> None:
         super().__init__()
@@ -39,13 +37,12 @@ class ToolUseWidget(Static):
         self.result: ToolResultBlock | bool | None = True if completed else None
         self._initial_collapsed = collapsed
         self._header = format_tool_header(self.block.name, self.block.input)
-        self._spinner_frame = 0
-        self._spinner_timer = None
 
     def compose(self) -> ComposeResult:
         yield Button("⧉", classes="copy-btn")
-        title = self._header if self.result else f"{self.SPINNER_FRAMES[0]} {self._header}"
-        with Collapsible(title=title, collapsed=self._initial_collapsed):
+        if not self.result:
+            yield Spinner()
+        with Collapsible(title=self._header, collapsed=self._initial_collapsed):
             if self.block.name == "Edit":
                 yield DiffWidget(
                     self.block.input.get("old_string", ""),
@@ -58,45 +55,15 @@ class ToolUseWidget(Static):
                 details = format_tool_details(self.block.name, self.block.input)
                 yield Markdown(details.rstrip(), id="md-content")
 
-    def on_mount(self) -> None:
-        if self.result is None:  # Only start spinner for in-progress tools
-            self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
-
-    @profile
-    def _tick_spinner(self) -> None:
-        if self.result is not None or self._spinner_timer is None:
-            if self._spinner_timer:
-                self._spinner_timer.stop()
-                self._spinner_timer = None
-            return
-        self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
-        try:
-            from textual.widgets._collapsible import CollapsibleTitle
-            collapsible = self.query_one(Collapsible)
-            new_title = f"{self.SPINNER_FRAMES[self._spinner_frame]} {self._header}"
-            collapsible.title = new_title
-            title_widget = collapsible.query_one(CollapsibleTitle)
-            title_widget.label = new_title
-        except Exception:
-            pass  # Widget may not be fully mounted
-
     def stop_spinner(self) -> None:
-        """Stop the spinner and show static header."""
-        if self._spinner_timer:
-            self._spinner_timer.stop()
-            self._spinner_timer = None
+        """Stop and remove the spinner."""
         if self.result is not None:
             return
-        self.result = True  # Mark as complete
+        self.result = True
         try:
-            from textual.widgets._collapsible import CollapsibleTitle
-            collapsible = self.query_one(Collapsible)
-            collapsible.title = self._header
-            title_widget = collapsible.query_one(CollapsibleTitle)
-            title_widget.label = self._header
-            title_widget.refresh()  # Force repaint
+            self.query_one(Spinner).remove()
         except Exception:
-            pass  # Widget may not be fully mounted
+            pass
 
     def collapse(self) -> None:
         """Collapse this widget."""
@@ -154,18 +121,15 @@ class ToolUseWidget(Static):
 
     def set_result(self, result: ToolResultBlock) -> None:
         """Update with tool result."""
-        if self._spinner_timer:
-            self._spinner_timer.stop()
-            self._spinner_timer = None
-        self.result = result  # Set after stopping timer to prevent race
+        self.result = result
         log.debug(f"Tool result for {self.block.name}: {len(str(result.content or ''))} chars")
+        # Remove spinner
         try:
-            from textual.widgets._collapsible import CollapsibleTitle
+            self.query_one(Spinner).remove()
+        except Exception:
+            pass
+        try:
             collapsible = self.query_one(Collapsible)
-            collapsible.title = self._header  # Remove spinner
-            title_widget = collapsible.query_one(CollapsibleTitle)
-            title_widget.label = self._header
-            title_widget.refresh()  # Force repaint
             if result.is_error:
                 collapsible.add_class("error")
             # Edit uses Static for diff, others use Markdown
@@ -285,8 +249,6 @@ class TaskWidget(Static):
 class AgentToolWidget(Static):
     """Widget for displaying chic agent MCP tool calls (spawn_agent, ask_agent, etc.)."""
 
-    SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-
     DEFAULT_CSS = """
     AgentToolWidget {
         border-left: solid $panel;
@@ -308,8 +270,7 @@ class AgentToolWidget(Static):
         margin-top: 1;
         color: $text-muted;
     }
-    AgentToolWidget .spinner {
-        color: $text-muted;
+    AgentToolWidget Spinner {
         margin-left: 2;
     }
     """
@@ -326,8 +287,6 @@ class AgentToolWidget(Static):
         self.block = block
         self.result: ToolResultBlock | None = None
         self._agent_name = block.input.get("name", "?")
-        self._spinner_frame = 0
-        self._spinner_timer = None
 
     def compose(self) -> ComposeResult:
         tool_short = self.block.name.replace("mcp__chic__", "")
@@ -351,7 +310,7 @@ class AgentToolWidget(Static):
             if prompt := self.block.input.get("prompt"):
                 preview = prompt[:80] + "..." if len(prompt) > 80 else prompt
                 yield Static(f'"{preview}"', classes="agent-prompt")
-            yield Static(f"{self.SPINNER_FRAMES[0]} waiting...", classes="spinner", id="ask-spinner")
+            yield Spinner()
             yield Button(f"Go to {self._agent_name}", classes="go-btn")
 
         elif tool_short == "list_agents":
@@ -360,25 +319,6 @@ class AgentToolWidget(Static):
         else:
             # Fallback for unknown chic tools
             yield Static(f"{tool_short}: {self._agent_name}", classes="agent-header")
-
-    def on_mount(self) -> None:
-        tool_short = self.block.name.replace("mcp__chic__", "")
-        if tool_short == "ask_agent" and self.result is None:
-            self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
-
-    @profile
-    def _tick_spinner(self) -> None:
-        if self.result is not None:
-            if self._spinner_timer:
-                self._spinner_timer.stop()
-                self._spinner_timer = None
-            return
-        self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
-        try:
-            spinner = self.query_one("#ask-spinner", Static)
-            spinner.update(f"{self.SPINNER_FRAMES[self._spinner_frame]} waiting...")
-        except Exception:
-            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if "go-btn" in event.button.classes:
@@ -392,14 +332,8 @@ class AgentToolWidget(Static):
     def set_result(self, result: ToolResultBlock) -> None:
         """Update with tool result."""
         self.result = result
-        # Stop spinner
-        if self._spinner_timer:
-            self._spinner_timer.stop()
-            self._spinner_timer = None
-        # Remove spinner widget for ask_agent
         try:
-            spinner = self.query_one("#ask-spinner", Static)
-            spinner.remove()
+            self.query_one(Spinner).remove()
         except Exception:
             pass
         # For list_agents, show the result text
