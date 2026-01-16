@@ -17,7 +17,7 @@ from textual.app import App, ComposeResult
 
 from claudechic.theme import CHIC_THEME
 from textual.binding import Binding
-from textual.containers import VerticalScroll, Vertical, Horizontal
+from textual.containers import Vertical, Horizontal
 from textual.events import MouseUp
 from textual.widgets import ListView, TextArea
 from textual import work
@@ -64,13 +64,9 @@ from claudechic.widgets import (
     ContextBar,
     ChatMessage,
     ChatInput,
-    ChatAttachment,
-    ThinkingIndicator,
     ImageAttachments,
     ErrorMessage,
-    SystemInfo,
     ToolUseWidget,
-    TaskWidget,
     AgentToolWidget,
     TodoWidget,
     TodoPanel,
@@ -82,11 +78,11 @@ from claudechic.widgets import (
     AgentSidebar,
     AgentItem,
     WorktreeItem,
-    AutoHideScroll,
+    ChatView,
 )
 from claudechic.widgets.footer import StatusFooter
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
-from claudechic.profiling import profile, timed
+from claudechic.profiling import profile
 
 log = logging.getLogger(__name__)
 
@@ -119,11 +115,6 @@ class ChatApp(App):
 
     # Auto-approve Edit/Write tools (but still prompt for Bash, etc.)
     AUTO_EDIT_TOOLS = {"Edit", "Write"}
-
-    # Tools to collapse by default
-    COLLAPSE_BY_DEFAULT = {"WebSearch", "WebFetch", "AskUserQuestion", "Read", "Glob", "Grep"}
-
-    RECENT_TOOLS_EXPANDED = 2
 
     # Width threshold for showing sidebar
     SIDEBAR_MIN_WIDTH = 140
@@ -202,28 +193,7 @@ class ChatApp(App):
             self._agent.cwd = value
 
     @property
-    def current_response(self) -> ChatMessage | None:
-        return self._agent.current_response if self._agent else None
-
-    @current_response.setter
-    def current_response(self, value: ChatMessage | None) -> None:
-        if self._agent:
-            self._agent.current_response = value
-
-    @property
-    def pending_tools(self) -> dict[str, ToolUseWidget | TaskWidget | AgentToolWidget]:
-        return self._agent.pending_tool_widgets if self._agent else {}
-
-    @property
-    def active_tasks(self) -> dict[str, TaskWidget]:
-        return self._agent.active_task_widgets if self._agent else {}
-
-    @property
-    def recent_tools(self) -> list[ToolUseWidget | TaskWidget | AgentToolWidget]:
-        return self._agent.recent_tools if self._agent else []
-
-    @property
-    def _chat_view(self) -> VerticalScroll | None:
+    def _chat_view(self) -> ChatView | None:
         """Get the active agent's chat view."""
         return self._agent.chat_view if self._agent else None
 
@@ -484,14 +454,13 @@ class ChatApp(App):
     def compose(self) -> ComposeResult:
         with Horizontal(id="main"):
             yield ListView(id="session-picker", classes="hidden")
-            yield AutoHideScroll(id="chat-view")
+            yield ChatView(id="chat-view")
             with Vertical(id="right-sidebar", classes="hidden"):
                 yield AgentSidebar(id="agent-sidebar")
                 yield TodoPanel(id="todo-panel")
         with Horizontal(id="input-wrapper"):
             with Vertical(id="input-container"):
                 yield ImageAttachments(id="image-attachments", classes="hidden")
-                yield ThinkingIndicator(id="thinking-indicator", classes="hidden")
                 yield HistorySearch(id="history-search")
                 yield ChatInput(id="input")
                 yield TextAreaAutoComplete(
@@ -670,7 +639,7 @@ class ChatApp(App):
             append_to_history(prompt, agent.cwd, agent.session_id or agent.id)
 
         if prompt.strip() == "/clear":
-            chat_view.remove_children()
+            chat_view.clear()
             self.notify("Conversation cleared")
             self._send_to_active_agent(prompt)
             return
@@ -709,26 +678,12 @@ class ChatApp(App):
             self.exit()
             return
 
-        # Mount user message
-        user_msg = ChatMessage(prompt)
-        user_msg.add_class("user-message")
-        chat_view.mount(user_msg)
+        # Append user message via ChatView
+        images = [(name, media) for _path, name, media, _data in self.pending_images]
+        chat_view.append_user_message(prompt, images)
 
-        # Mount clickable attachment tags for images
-        attachments_to_mount = list(self.pending_images)  # Copy before clearing
-        screenshot_num = 0
-        for path, name, _media, _data in attachments_to_mount:
-            if name.lower().startswith("screenshot"):
-                screenshot_num += 1
-                display_name = f"Screenshot #{screenshot_num}"
-            else:
-                display_name = name
-            chat_view.mount(ChatAttachment(path, display_name))
-
-        self.call_after_refresh(_scroll_if_at_bottom, chat_view)
-
-        self.current_response = None
-        self._show_thinking()
+        # Show thinking indicator via ChatView
+        chat_view.start_response()
         self._send_to_active_agent(prompt)
 
     def _send_to_active_agent(self, prompt: str) -> None:
@@ -750,85 +705,32 @@ class ChatApp(App):
         asyncio.create_task(agent.send(prompt), name=f"send-{agent.id}")
 
     def _show_thinking(self, agent_id: str | None = None) -> None:
-        """Show the fixed thinking indicator (only if this agent is active)."""
+        """Show the thinking indicator for a specific agent."""
         agent = self._get_agent(agent_id)
-        if agent:
-            agent._thinking = True
-        # Only show if this is the active agent
-        if agent_id is None or agent_id == self.active_agent_id:
-            try:
-                indicator = self.query_one("#thinking-indicator", ThinkingIndicator)
-                indicator.remove_class("hidden")
-            except Exception:
-                pass
+        if agent and agent.chat_view:
+            agent.chat_view.start_response()
 
     def _hide_thinking(self, agent_id: str | None = None) -> None:
-        """Hide the fixed thinking indicator."""
-        agent = self._get_agent(agent_id)
-        if agent:
-            agent._thinking = False
-        # Only hide if this is the active agent
-        if agent_id is None or agent_id == self.active_agent_id:
-            try:
-                indicator = self.query_one("#thinking-indicator", ThinkingIndicator)
-                indicator.add_class("hidden")
-            except Exception:
-                pass  # OK to fail during shutdown
-
-    def _sync_thinking_indicator(self) -> None:
-        """Sync thinking indicator to active agent's state."""
-        agent = self._agent
+        """Hide thinking indicator for a specific agent."""
         try:
-            indicator = self.query_one("#thinking-indicator", ThinkingIndicator)
-            if agent and agent._thinking:
-                indicator.remove_class("hidden")
-            else:
-                indicator.add_class("hidden")
+            agent = self._get_agent(agent_id)
+            if agent and agent.chat_view:
+                agent.chat_view._hide_thinking()
         except Exception:
-            pass
+            pass  # OK to fail during shutdown
 
     @profile
     def on_stream_chunk(self, event: StreamChunk) -> None:
         agent = self._get_agent(event.agent_id)
-        if not agent:
+        if not agent or not agent.chat_view:
             return
 
-        # Only hide thinking once per response (avoid 252 redundant calls)
-        if not agent._thinking_hidden:
-            self._hide_thinking(event.agent_id)
-            agent._thinking_hidden = True
-
-        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_task_widgets:
-            task = agent.active_task_widgets[event.parent_tool_use_id]
-            task.add_text(event.text, new_message=event.new_message)
-            return
-
-        chat_view = agent.chat_view
-        if not chat_view:
-            return
-        if event.new_message or not agent.current_response:
-            with timed("on_stream_chunk.create_message"):
-                agent.current_response = ChatMessage("")
-                agent.current_response.add_class("assistant-message")
-                chat_view.mount(agent.current_response)
-        with timed("on_stream_chunk.append"):
-            agent.current_response.append_content(event.text)
-        self.call_after_refresh(_scroll_if_at_bottom, chat_view)
+        agent.chat_view.append_text(event.text, event.new_message, event.parent_tool_use_id)
 
     @profile
     def on_tool_use_message(self, event: ToolUseMessage) -> None:
-        self._hide_thinking()
         agent = self._get_agent(event.agent_id)
-        if not agent:
-            return
-
-        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_task_widgets:
-            task = agent.active_task_widgets[event.parent_tool_use_id]
-            task.add_tool_use(event.block)
-            return
-
-        chat_view = agent.chat_view
-        if not chat_view:
+        if not agent or not agent.chat_view:
             return
 
         # TodoWrite gets special handling - update sidebar panel and/or inline widget
@@ -842,51 +744,21 @@ class ChatApp(App):
             if existing:
                 existing[0].update_todos(todos)
             elif self.size.width < self.SIDEBAR_MIN_WIDTH:
-                chat_view.mount(TodoWidget(todos))
-            self.call_after_refresh(_scroll_if_at_bottom, chat_view)
+                agent.chat_view.mount(TodoWidget(todos))
             self._show_thinking(event.agent_id)
             return
 
-        with timed("on_tool_use.collapse_old"):
-            while len(agent.recent_tools) >= self.RECENT_TOOLS_EXPANDED:
-                old = agent.recent_tools.pop(0)
-                old.collapse()
-
-        collapsed = event.block.name in self.COLLAPSE_BY_DEFAULT
-        with timed("on_tool_use.create_widget"):
-            if event.block.name == "Task":
-                widget = TaskWidget(event.block, collapsed=collapsed)
-                agent.active_task_widgets[event.block.id] = widget
-            elif event.block.name.startswith("mcp__chic__"):
-                # Custom widget for chic MCP tools
-                widget = AgentToolWidget(event.block)
-            else:
-                widget = ToolUseWidget(event.block, collapsed=collapsed)
-
-        agent.pending_tool_widgets[event.block.id] = widget
-        agent.recent_tools.append(widget)
-        with timed("on_tool_use.mount"):
-            chat_view.mount(widget)
-        self.call_after_refresh(_scroll_if_at_bottom, chat_view)
-        self._hide_thinking(event.agent_id)  # Tool widget has its own spinner
+        # Create ToolUse data object for ChatView
+        tool = ToolUse(id=event.block.id, name=event.block.name, input=event.block.input)
+        agent.chat_view.append_tool_use(tool, event.block, event.parent_tool_use_id)
 
     @profile
     def on_tool_result_message(self, event: ToolResultMessage) -> None:
         agent = self._get_agent(event.agent_id)
-        if not agent:
+        if not agent or not agent.chat_view:
             return
 
-        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_task_widgets:
-            task = agent.active_task_widgets[event.parent_tool_use_id]
-            task.add_tool_result(event.block)
-            return
-
-        widget = agent.pending_tool_widgets.get(event.block.tool_use_id)
-        if widget:
-            widget.set_result(event.block)
-            del agent.pending_tool_widgets[event.block.tool_use_id]
-            if event.block.tool_use_id in agent.active_task_widgets:
-                del agent.active_task_widgets[event.block.tool_use_id]
+        agent.chat_view.update_tool_result(event.block.tool_use_id, event.block, event.parent_tool_use_id)
         self._show_thinking(event.agent_id)
 
     def on_system_notification(self, event: SystemNotification) -> None:
@@ -936,15 +808,13 @@ class ChatApp(App):
     def _show_system_info(self, message: str, severity: str, agent_id: str | None) -> None:
         """Show system info message in chat view (not stored in history)."""
         agent = self._get_agent(agent_id)
-        if not agent or not hasattr(agent, "chat_view") or not agent.chat_view:
+        if not agent or not agent.chat_view:
             # Fallback to notify if no chat view
             notify_map = {"warning": "warning", "error": "error"}
             self.notify(message[:100], severity=notify_map.get(severity, "information"))  # type: ignore[arg-type]
             return
 
-        widget = SystemInfo(message, severity)
-        agent.chat_view.mount(widget)
-        widget.scroll_visible()
+        agent.chat_view.append_system_info(message, severity)
 
     def on_resize(self, event) -> None:
         """Reposition right sidebar on resize."""
@@ -966,7 +836,6 @@ class ChatApp(App):
             self.right_sidebar.add_class("hidden")
 
     def on_response_complete(self, event: ResponseComplete) -> None:
-        self._hide_thinking()
         agent = self._get_agent(event.agent_id)
         self._set_agent_status("idle", event.agent_id)
         if event.result and agent:
@@ -975,14 +844,15 @@ class ChatApp(App):
             agent._last_response = event.result.result or ""
             agent._completion_event.set()
             self.refresh_context()
-        if agent:
-            # Flush any pending debounced content
-            if agent.current_response:
-                agent.current_response.flush()
-            # Mark final message as summary if tools were used
-            if agent.response_had_tools and agent.current_response:
-                agent.current_response.add_class("summary")
-            agent.current_response = None
+        if agent and agent.chat_view:
+            # End response via ChatView (hides thinking, flushes content)
+            agent.chat_view.end_response()
+            # Flush any pending debounced content and mark summary
+            current = agent.chat_view._current_response
+            if current:
+                current.flush()
+                if agent.response_had_tools:
+                    current.add_class("summary")
         self.chat_input.focus()
         self.completions.put_nowait(event)
 
@@ -1028,7 +898,7 @@ class ChatApp(App):
     def action_clear(self) -> None:
         chat_view = self._chat_view
         if chat_view:
-            chat_view.remove_children()
+            chat_view.clear()
 
     def action_copy_selection(self) -> None:
         selected = self.screen.get_selected_text()
@@ -1134,11 +1004,9 @@ class ChatApp(App):
 
             await self._replace_client(self._make_options(cwd=new_cwd, resume=resume_id))
 
-            # Clear internal state
-            agent.current_response = None
-            agent.pending_tool_widgets.clear()
-            agent.active_task_widgets.clear()
-            agent.recent_tools.clear()
+            # Clear ChatView state
+            if agent.chat_view:
+                agent.chat_view.clear()
             agent.cwd = new_cwd
 
             if resume_id:
@@ -1146,12 +1014,6 @@ class ChatApp(App):
                 agent.session_id = resume_id
                 self.notify(f"Resumed session in {new_cwd.name}")
             else:
-                # Clear chat view only if not resuming (resume does its own clear)
-                if agent.chat_view:
-                    try:
-                        agent.chat_view.remove_children()
-                    except Exception:
-                        pass  # App may be exiting
                 agent.session_id = None
                 self.notify(f"SDK reconnected in {new_cwd.name}")
         except Exception as e:
@@ -1547,16 +1409,17 @@ class ChatApp(App):
             is_first_agent = len(self.agent_mgr.agents) == 1 if self.agent_mgr else True
             if is_first_agent:
                 # First agent uses the existing chat view from compose()
-                chat_view = self.query_one("#chat-view", AutoHideScroll)
+                chat_view = self.query_one("#chat-view", ChatView)
                 chat_view.add_class("chat-view")  # Add class for consistent query behavior
             else:
                 # Additional agents get new chat views
-                chat_view = AutoHideScroll(id=f"chat-view-{agent.id}", classes="chat-view hidden")
+                chat_view = ChatView(id=f"chat-view-{agent.id}", classes="chat-view hidden")
                 main = self.query_one("#main", Horizontal)
                 main.mount(chat_view, after=self.query_one("#session-picker"))
 
-            # Store chat view on agent
+            # Store chat view on agent and set agent reference
             agent.chat_view = chat_view
+            chat_view.set_agent(agent)
 
             # Add to sidebar
             try:
@@ -1577,9 +1440,6 @@ class ChatApp(App):
         # Show new agent's chat view
         if new_agent.chat_view:
             new_agent.chat_view.remove_class("hidden")
-
-        # Sync thinking indicator to new agent's state
-        self._sync_thinking_indicator()
 
         # Update sidebar
         try:

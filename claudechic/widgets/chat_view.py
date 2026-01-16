@@ -1,178 +1,234 @@
-"""ChatView: renders an Agent's message history to widgets."""
+"""ChatView: renders an Agent's message history to widgets and handles streaming."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from textual.containers import VerticalScroll
-
-from claudechic.agent import Agent, ChatItem, UserContent, AssistantContent, ToolUse
-from claudechic.widgets.chat import ChatMessage, ChatAttachment
+from claudechic.agent import Agent, UserContent, AssistantContent, ToolUse
+from claudechic.widgets.chat import ChatMessage, ChatAttachment, ThinkingIndicator, SystemInfo
+from claudechic.widgets.scroll import AutoHideScroll
 from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
 
 if TYPE_CHECKING:
-    from claude_agent_sdk import ToolUseBlock
-
+    from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 
 # Tools to collapse by default
 COLLAPSE_BY_DEFAULT = {"WebSearch", "WebFetch", "AskUserQuestion", "Read", "Glob", "Grep"}
 
+# How many recent tools to keep expanded
+RECENT_TOOLS_EXPANDED = 3
 
-class ChatView(VerticalScroll):
-    """A scrollable view that renders an Agent's message history.
 
-    This widget renders `agent.messages` to Textual widgets. It supports:
-    - Full re-render (on agent switch)
-    - Incremental updates (for streaming responses)
+class ChatView(AutoHideScroll):
+    """A scrollable view that renders chat messages and handles streaming.
 
-    The view maintains a mapping from message indices to widgets for efficient updates.
+    Inherits from AutoHideScroll for thin scrollbar and smart tailing behavior.
+
+    This widget owns:
+    - Rendering agent.messages to Textual widgets
+    - Streaming text updates (current_response tracking)
+    - Tool widget lifecycle (pending_tool_widgets, active_task_widgets)
+    - Thinking indicator lifecycle
+    - Auto-collapse of old tool widgets
     """
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._agent: Agent | None = None
-        self._rendered_count = 0  # Number of messages rendered
-        self._current_assistant_widget: ChatMessage | None = None
-        self._tool_widgets: dict[str, ToolUseWidget | TaskWidget | AgentToolWidget] = {}
+
+        # Widget tracking
+        self._current_response: ChatMessage | None = None
+        self._pending_tool_widgets: dict[str, ToolUseWidget | TaskWidget | AgentToolWidget] = {}
+        self._active_task_widgets: dict[str, TaskWidget] = {}
+        self._recent_tools: list[ToolUseWidget | TaskWidget | AgentToolWidget] = []
+
+    # -----------------------------------------------------------------------
+    # Agent switching (full re-render)
+    # -----------------------------------------------------------------------
 
     def set_agent(self, agent: Agent | None) -> None:
-        """Set the agent to render. Triggers full re-render."""
+        """Set the agent to render. Triggers full re-render from history."""
         self._agent = agent
         self._render_full()
 
     def _render_full(self) -> None:
         """Fully re-render the chat view from agent.messages."""
-        # Clear existing content
-        self.remove_children()
-        self._rendered_count = 0
-        self._current_assistant_widget = None
-        self._tool_widgets.clear()
-
+        self.clear()
         if not self._agent:
             return
 
-        # Render all messages
         for item in self._agent.messages:
-            self._render_item(item)
+            if item.role == "user" and isinstance(item.content, UserContent):
+                self._mount_user_message(item.content.text, item.content.images)
+            elif item.role == "assistant" and isinstance(item.content, AssistantContent):
+                self._render_assistant_history(item.content)
 
-        self._rendered_count = len(self._agent.messages)
         self.scroll_end(animate=False)
 
-    def _render_item(self, item: ChatItem) -> None:
-        """Render a single chat item."""
-        if item.role == "user" and isinstance(item.content, UserContent):
-            self._render_user(item.content)
-        elif item.role == "assistant" and isinstance(item.content, AssistantContent):
-            self._render_assistant(item.content)
+    def _render_assistant_history(self, content: AssistantContent) -> None:
+        """Render an assistant message from history."""
+        if content.text:
+            msg = ChatMessage(content.text)
+            msg.add_class("assistant-message")
+            self.mount(msg)
 
-    def _render_user(self, content: UserContent) -> None:
-        """Render a user message."""
-        msg = ChatMessage(content.text)
+        for tool in content.tool_uses:
+            self._mount_tool_widget(tool, completed=True)
+
+    # -----------------------------------------------------------------------
+    # Streaming API - called by ChatApp during live response
+    # -----------------------------------------------------------------------
+
+    def append_user_message(self, text: str, images: list[tuple[str, str]]) -> None:
+        """Append a user message to the view."""
+        self._mount_user_message(text, images)
+        self._scroll_if_tailing()
+
+    def start_response(self) -> None:
+        """Show thinking indicator at start of response."""
+        if not self.query(ThinkingIndicator):
+            self.mount(ThinkingIndicator())
+            self._scroll_if_tailing()
+
+    def end_response(self) -> None:
+        """Clean up at end of response."""
+        self._hide_thinking()
+        self._current_response = None
+
+    def append_text(self, text: str, new_message: bool, parent_tool_id: str | None) -> None:
+        """Append streaming text to the view.
+
+        Args:
+            text: The text chunk to append
+            new_message: Whether this starts a new ChatMessage
+            parent_tool_id: If set, text belongs to a Task widget
+        """
+        self._hide_thinking()
+
+        # Route to Task widget if nested
+        if parent_tool_id and parent_tool_id in self._active_task_widgets:
+            task = self._active_task_widgets[parent_tool_id]
+            task.add_text(text, new_message=new_message)
+            return
+
+        # Create new message widget if needed
+        if new_message or not self._current_response:
+            self._current_response = ChatMessage("")
+            self._current_response.add_class("assistant-message")
+            self.mount(self._current_response)
+
+        self._current_response.append_content(text)
+        self._scroll_if_tailing()
+
+    def append_tool_use(self, tool: ToolUse, block: "ToolUseBlock", parent_tool_id: str | None) -> None:
+        """Append a tool use widget to the view.
+
+        Args:
+            tool: The ToolUse data object
+            block: The SDK ToolUseBlock for widget construction
+            parent_tool_id: If set, tool belongs to a Task widget
+        """
+        self._hide_thinking()
+
+        # Route to Task widget if nested
+        if parent_tool_id and parent_tool_id in self._active_task_widgets:
+            task = self._active_task_widgets[parent_tool_id]
+            task.add_tool_use(block)
+            return
+
+        # Auto-collapse old tools
+        while len(self._recent_tools) >= RECENT_TOOLS_EXPANDED:
+            old = self._recent_tools.pop(0)
+            old.collapse()
+
+        # Create widget based on tool type
+        collapsed = tool.name in COLLAPSE_BY_DEFAULT
+        if tool.name == "Task":
+            widget = TaskWidget(block, collapsed=collapsed)
+            self._active_task_widgets[tool.id] = widget
+        elif tool.name.startswith("mcp__chic__"):
+            widget = AgentToolWidget(block)
+        else:
+            widget = ToolUseWidget(block, collapsed=collapsed)
+
+        self._pending_tool_widgets[tool.id] = widget
+        self._recent_tools.append(widget)
+        self.mount(widget)
+        self._scroll_if_tailing()
+
+    def update_tool_result(self, tool_id: str, block: "ToolResultBlock", parent_tool_id: str | None) -> None:
+        """Update a tool widget with its result.
+
+        Args:
+            tool_id: The tool use ID
+            block: The SDK ToolResultBlock
+            parent_tool_id: If set, result belongs to a Task widget
+        """
+        # Route to Task widget if nested
+        if parent_tool_id and parent_tool_id in self._active_task_widgets:
+            task = self._active_task_widgets[parent_tool_id]
+            task.add_tool_result(block)
+            return
+
+        widget = self._pending_tool_widgets.get(tool_id)
+        if widget:
+            widget.set_result(block)
+            del self._pending_tool_widgets[tool_id]
+            # Clean up task tracking if this was a task
+            self._active_task_widgets.pop(tool_id, None)
+
+    def append_system_info(self, message: str, severity: str) -> None:
+        """Append a system info message (not stored in history)."""
+        widget = SystemInfo(message, severity)
+        self.mount(widget)
+        widget.scroll_visible()
+
+    def clear(self) -> None:
+        """Clear all content from the view."""
+        self.remove_children()
+        self._current_response = None
+        self._pending_tool_widgets.clear()
+        self._active_task_widgets.clear()
+        self._recent_tools.clear()
+
+    # -----------------------------------------------------------------------
+    # Helpers
+    # -----------------------------------------------------------------------
+
+    def _mount_user_message(self, text: str, images: list[tuple[str, str]]) -> None:
+        """Mount a user message widget with optional image attachments."""
+        msg = ChatMessage(text)
         msg.add_class("user-message")
         self.mount(msg)
 
-        # Render image attachments as clickable tags
-        for i, (filename, _) in enumerate(content.images):
+        for i, (filename, _) in enumerate(images):
             if filename.lower().startswith("screenshot"):
                 display_name = f"Screenshot #{i + 1}"
             else:
                 display_name = filename
             self.mount(ChatAttachment(filename, display_name))
 
-    def _render_assistant(self, content: AssistantContent) -> None:
-        """Render an assistant message."""
-        # Render text if present
-        if content.text:
-            msg = ChatMessage(content.text)
-            msg.add_class("assistant-message")
-            self.mount(msg)
-            self._current_assistant_widget = msg
-
-        # Render tool uses
-        for tool in content.tool_uses:
-            self._render_tool(tool)
-
-    def _render_tool(self, tool: ToolUse) -> None:
-        """Render a tool use."""
+    def _mount_tool_widget(self, tool: ToolUse, completed: bool = False) -> None:
+        """Mount a tool widget (for history rendering)."""
+        from claude_agent_sdk import ToolUseBlock
+        block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
         collapsed = tool.name in COLLAPSE_BY_DEFAULT
-        completed = tool.result is not None
 
-        # Create appropriate widget based on tool type
         if tool.name == "Task":
-            widget = TaskWidget(
-                _make_tool_block(tool),
-                collapsed=collapsed,
-            )
+            widget = TaskWidget(block, collapsed=collapsed)
         elif tool.name.startswith("mcp__chic__"):
-            widget = AgentToolWidget(_make_tool_block(tool))
+            widget = AgentToolWidget(block)
         else:
-            widget = ToolUseWidget(
-                _make_tool_block(tool),
-                collapsed=collapsed,
-                completed=completed,
-            )
+            widget = ToolUseWidget(block, collapsed=collapsed, completed=completed)
 
-        self._tool_widgets[tool.id] = widget
         self.mount(widget)
 
-    def update_incremental(self) -> None:
-        """Update the view incrementally from agent state.
+    def _hide_thinking(self) -> None:
+        """Remove thinking indicator if present."""
+        for ind in self.query(ThinkingIndicator):
+            ind.remove()
 
-        Call this when agent.messages changes (new text, new tools, etc.)
-        for efficient updates without full re-render.
-        """
-        if not self._agent:
-            return
-
-        messages = self._agent.messages
-
-        # Handle new messages
-        while self._rendered_count < len(messages):
-            item = messages[self._rendered_count]
-            self._render_item(item)
-            self._rendered_count += 1
-
-        # Update current assistant message (for streaming)
-        if messages and messages[-1].role == "assistant":
-            content = messages[-1].content
-            if isinstance(content, AssistantContent):
-                self._update_current_assistant(content)
-
-        self.scroll_end(animate=False)
-
-    def _update_current_assistant(self, content: AssistantContent) -> None:
-        """Update the current assistant message widget."""
-        # Handle new tool uses not yet rendered
-        for tool in content.tool_uses:
-            if tool.id not in self._tool_widgets:
-                self._render_tool(tool)
-            else:
-                # Update existing tool widget if result arrived
-                widget = self._tool_widgets.get(tool.id)
-                if widget and tool.result is not None:
-                    # Create a fake ToolResultBlock for the widget
-                    from claude_agent_sdk import ToolResultBlock
-                    result = ToolResultBlock(
-                        tool_use_id=tool.id,
-                        content=tool.result,
-                        is_error=tool.is_error,
-                    )
-                    widget.set_result(result)
-
-    def show_thinking(self) -> None:
-        """Show the thinking indicator (now handled at app level)."""
-        pass
-
-    def hide_thinking(self) -> None:
-        """Hide the thinking indicator (now handled at app level)."""
-        pass
-
-
-def _make_tool_block(tool: ToolUse) -> "ToolUseBlock":
-    """Create a ToolUseBlock from our ToolUse dataclass."""
-    from claude_agent_sdk import ToolUseBlock
-    return ToolUseBlock(
-        id=tool.id,
-        name=tool.name,
-        input=tool.input,
-    )
+    def _scroll_if_tailing(self) -> None:
+        """Scroll to end if in tailing mode (inherited from AutoHideScroll)."""
+        if self._tailing:
+            self.scroll_end(animate=False)

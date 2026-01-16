@@ -2,7 +2,7 @@
 
 ## Status
 
-**In Progress** - Agent, AgentManager, and ChatView created. ChatApp integration pending.
+**ChatView Integration Complete** - ChatView now owns all message rendering. ChatApp delegates to ChatView methods.
 
 ## Overview
 
@@ -253,13 +253,17 @@ async def list_agents(args):
    - `ask_agent` uses `agent.send()` and `agent.wait_for_completion()`
    - `list_agents` iterates over `agent_mgr`
    - No more UI switching needed - agents run concurrently
-10. ⬜ Remove old code (delegators, AgentSession, etc.)
-11. ⬜ Test concurrent agents
+10. ✅ Integrate ChatView - ChatApp handlers now delegate to ChatView
+    - `on_stream_chunk` → `chat_view.append_text()`
+    - `on_tool_use_message` → `chat_view.append_tool_use()`
+    - `on_tool_result_message` → `chat_view.update_tool_result()`
+    - Widget state moved from Agent to ChatView
+    - Removed delegator properties from ChatApp
+11. ⬜ Remove old code (AgentSession, etc.)
+12. ⬜ Test concurrent agents
 
-**Current state**: All 50 tests pass. MCP tools now use AgentManager API.
-Agents can be created and prompted without UI switching.
-
-**Next step**: Clean up old code (run_claude, _create_new_agent, etc.) once confident in new path.
+**Current state**: All 58 tests pass. ChatView owns message rendering.
+ChatApp is now a thin UI orchestration layer.
 
 ## File Changes
 

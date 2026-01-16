@@ -147,14 +147,9 @@ class Agent:
         # Worktree finish state (for /worktree finish flow)
         self.finish_state: Any = None
 
-        # UI state (widgets are stored here for convenience)
-        self.chat_view: Any = None  # VerticalScroll widget
-        self.current_response: Any = None  # ChatMessage widget being streamed to
-        self.recent_tools: list[Any] = []  # Recent ToolUseWidget for collapsing
+        # UI state - ChatView reference and active prompt
+        self.chat_view: Any = None  # ChatView widget (set by ChatApp)
         self.active_prompt: Any = None  # Active SelectionPrompt/QuestionPrompt
-        # Widget tracking (separate from data tracking above)
-        self.pending_tool_widgets: dict[str, Any] = {}  # tool_id -> ToolUseWidget/TaskWidget
-        self.active_task_widgets: dict[str, Any] = {}  # task_id -> TaskWidget
 
         # MCP ask_agent support
         self._completion_event = asyncio.Event()
