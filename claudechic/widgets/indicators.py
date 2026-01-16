@@ -8,7 +8,7 @@ from textual.widget import Widget
 from rich.text import Text
 
 from claudechic.formatting import MAX_CONTEXT_TOKENS
-from claudechic.profiling import profile
+from claudechic.profiling import profile, timed
 
 
 class CPUBar(Widget):
@@ -24,7 +24,10 @@ class CPUBar(Widget):
     @profile
     def _update_cpu(self) -> None:
         try:
-            self.cpu_pct = self._process.cpu_percent()
+            with timed("CPUBar.psutil_call"):
+                pct = self._process.cpu_percent()
+            with timed("CPUBar.reactive_set"):
+                self.cpu_pct = pct
         except Exception:
             pass  # Process may have exited
 
