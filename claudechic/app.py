@@ -41,10 +41,8 @@ from claudechic.sessions import (
     get_context_from_session,
     get_recent_sessions,
 )
-from claudechic.features.worktree import (
-    handle_worktree_command,
-    list_worktrees,
-)
+from claudechic.features.worktree import list_worktrees
+from claudechic.commands import handle_command
 from claudechic.features.worktree.commands import on_response_complete_finish
 from claudechic.permissions import PermissionRequest
 from claudechic.agent import Agent, ImageAttachment, ToolUse
@@ -552,44 +550,8 @@ class ChatApp(App):
         if agent:
             append_to_history(prompt, agent.cwd, agent.session_id or agent.id)
 
-        if prompt.strip() == "/clear":
-            chat_view.clear()
-            self.notify("Conversation cleared")
-            self._send_to_active_agent(prompt)
-            return
-
-        if prompt.strip().startswith("/resume"):
-            parts = prompt.strip().split(maxsplit=1)
-            if len(parts) > 1:
-                self.run_worker(self._load_and_display_history(parts[1]))
-                self.notify(f"Resuming {parts[1][:8]}...")
-                self.resume_session(parts[1])
-            else:
-                self._show_session_picker()
-            return
-
-        if prompt.strip().startswith("/worktree"):
-            handle_worktree_command(self, prompt.strip())
-            return
-
-        if prompt.strip().startswith("/agent"):
-            self._handle_agent_command(prompt.strip())
-            return
-
-        if prompt.strip().startswith("/shell"):
-            self._handle_shell_command(prompt.strip())
-            return
-
-        if prompt.strip() == "/theme":
-            self.search_themes()
-            return
-
-        if prompt.strip().startswith("/compactish"):
-            self._handle_compactish_command(prompt.strip())
-            return
-
-        if prompt.strip() == "/exit":
-            self.exit()
+        # Try slash commands first
+        if prompt.strip().startswith("/") and handle_command(self, prompt):
             return
 
         # User message will be mounted by _on_agent_prompt_sent callback
@@ -1043,106 +1005,11 @@ class ChatApp(App):
         self._position_right_sidebar()
         self.chat_input.focus()
 
-    def _handle_compactish_command(self, command: str) -> None:
-        """Handle /compactish command - compact the current session.
-
-        Flags:
-            -n, --dry: Show stats without modifying
-            -a, --aggressive: Use lower size thresholds
-            --no-reconnect: Don't reconnect after compaction
-        """
-        from claudechic.compact import compact_session, format_compact_summary
-
-        agent = self._agent
-        if not agent or not agent.session_id:
-            self.notify("No active session to compact", severity="warning")
-            return
-
-        session_id = agent.session_id
-        parts = command.split()
-
-        # Parse flags
-        dry_run = "--dry" in parts or "-n" in parts
-        aggressive = "--aggressive" in parts or "-a" in parts
-        reconnect = "--no-reconnect" not in parts
-
-        # Run compaction (dry_run just returns stats without modifying)
-        result = compact_session(session_id, cwd=agent.cwd, aggressive=aggressive, dry_run=dry_run)
-        if "error" in result:
-            self.notify(f"Error: {result['error']}", severity="error")
-            return
-
-        # Display summary table
-        summary_md = format_compact_summary(result, dry_run=dry_run)
-        chat_view = self._chat_view
-        if chat_view:
-            summary_msg = ChatMessage(summary_md)
-            summary_msg.add_class("system-message")
-            chat_view.mount(summary_msg)
-            _scroll_if_at_bottom(chat_view)
-
-        if dry_run:
-            self.notify("Dry run - no changes made", timeout=3)
-        elif reconnect:
-            self.run_worker(self._reconnect_agent(agent, session_id))
-            self.notify("Session compacted, reconnecting...", timeout=3)
-        else:
-            self.notify("Session compacted", timeout=3)
-
     async def _reconnect_agent(self, agent: "Agent", session_id: str) -> None:
         """Disconnect and reconnect an agent to reload its session."""
         await agent.disconnect()
         options = self._make_options(cwd=agent.cwd, resume=session_id)
         await agent.connect(options, resume=session_id)
-
-    def _handle_shell_command(self, command: str) -> None:
-        """Handle /shell command - suspend TUI and run shell command."""
-        parts = command.split(maxsplit=1)
-        if len(parts) < 2:
-            self.notify("Usage: /shell <command>")
-            return
-        cmd = parts[1]
-        agent = self._agent
-        cwd = str(agent.cwd) if agent else None
-        with self.suspend():
-            import subprocess, sys, tty, termios, time
-            env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-            shell = os.environ.get("SHELL", "/bin/sh")
-            start = time.monotonic()
-            subprocess.run([shell, "-lc", cmd], cwd=cwd, env=env)
-            # Only prompt if command completed quickly (likely non-interactive)
-            if time.monotonic() - start < 1.0:
-                print("\nPress any key to continue...", end="", flush=True)
-                fd = sys.stdin.fileno()
-                old = termios.tcgetattr(fd)
-                try:
-                    tty.setraw(fd)
-                    sys.stdin.read(1)
-                finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old)
-                    print()  # newline after keypress
-
-    def _handle_agent_command(self, command: str) -> None:
-        """Handle /agent commands."""
-        parts = command.split(maxsplit=2)
-        if len(parts) == 1:
-            # List agents
-            for i, (aid, agent) in enumerate(self.agents.items(), 1):
-                marker = "*" if aid == self.active_agent_id else " "
-                self.notify(f"{marker}{i}. {agent.name} ({agent.status})")
-            return
-
-        subcommand = parts[1]
-        if subcommand == "close":
-            # Close agent by name or position
-            target = parts[2] if len(parts) > 2 else None
-            self._close_agent(target)
-            return
-
-        # Otherwise, create new agent
-        name = subcommand
-        path = Path(parts[2]) if len(parts) > 2 else Path.cwd()
-        self._create_new_agent(name, path)
 
     @work(group="new_agent", exclusive=True, exit_on_error=False)
     async def _create_new_agent(

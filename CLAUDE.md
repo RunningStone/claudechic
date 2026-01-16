@@ -20,6 +20,7 @@ claudechic/
 ├── __main__.py        # CLI entry point
 ├── agent.py           # AgentSession dataclass for multi-agent state
 ├── app.py             # ChatApp - main application, event handlers
+├── commands.py        # Slash command routing (/agent, /shell, /clear, etc.)
 ├── errors.py          # Logging infrastructure, error handling
 ├── file_index.py      # Fuzzy file search using git ls-files
 ├── formatting.py      # Tool formatting, diff rendering (pure functions)
