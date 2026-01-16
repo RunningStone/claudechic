@@ -11,6 +11,7 @@ from claudechic.widgets.agents import AgentItem, AgentSidebar, WorktreeItem
 from claudechic.widgets.scroll import AutoHideScroll
 from claudechic.widgets.chat_view import ChatView
 from claudechic.widgets.history_search import HistorySearch
+from claudechic.widgets.usage import UsageReport
 
 __all__ = [
     "CPUBar",
@@ -40,4 +41,5 @@ __all__ = [
     "AutoHideScroll",
     "ChatView",
     "HistorySearch",
+    "UsageReport",
 ]

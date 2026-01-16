@@ -366,7 +366,7 @@ class ChatApp(App):
             pass  # Footer may not be mounted yet
 
     # Built-in slash commands (local to this app)
-    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell", "/theme", "/compactish"]
+    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell", "/theme", "/compactish", "/usage"]
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="main"):
@@ -1019,6 +1019,21 @@ class ChatApp(App):
         await agent.disconnect()
         options = self._make_options(cwd=agent.cwd, resume=session_id)
         await agent.connect(options, resume=session_id)
+
+    @work(group="usage", exclusive=True, exit_on_error=False)
+    async def _handle_usage_command(self) -> None:
+        """Handle /usage command - show API usage limits."""
+        from claudechic.usage import fetch_usage
+        from claudechic.widgets.usage import UsageReport
+
+        chat_view = self._chat_view
+        if not chat_view:
+            return
+
+        usage = await fetch_usage()
+        widget = UsageReport(usage)
+        chat_view.mount(widget)
+        _scroll_if_at_bottom(chat_view)
 
     @work(group="new_agent", exclusive=True, exit_on_error=False)
     async def _create_new_agent(

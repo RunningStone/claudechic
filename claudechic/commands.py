@@ -52,6 +52,10 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
     if cmd.startswith("/compactish"):
         return _handle_compactish(app, cmd)
 
+    if cmd == "/usage":
+        app._handle_usage_command()
+        return True
+
     if cmd == "/exit":
         app.exit()
         return True
