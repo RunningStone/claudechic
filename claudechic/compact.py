@@ -16,6 +16,21 @@ from pathlib import Path
 from claudechic.sessions import get_project_sessions_dir
 
 
+# Files that should never have their Read results compacted (matched by basename).
+READ_WHITELIST = [
+    "CLAUDE.md",
+    "README.md",
+    "pyproject.toml",
+    "package.json",
+    "Cargo.toml",
+]
+
+
+def _is_whitelisted_read(file_path: str) -> bool:
+    """Check if a file's basename matches the read whitelist."""
+    return Path(file_path).name in READ_WHITELIST
+
+
 # Compacted output strings for each tool type.
 # These are minimal strings that won't crash Claude Code's renderer.
 COMPACTED_RESULTS = {
@@ -50,6 +65,8 @@ def compact_session(
     - Small tool results (<1KB) kept regardless of age
     - Small tool inputs (<2KB) kept regardless of age
     - Recent items (last N per tool type) kept regardless of size
+    - Read results preserved unless followed by Write/Edit to same file
+    - Whitelisted files (CLAUDE.md, etc.) never compacted
     """
     # Aggressive mode uses lower thresholds
     if aggressive:
@@ -72,25 +89,36 @@ def compact_session(
                 messages.append(json.loads(line))
 
     # First pass: collect tool_use info and track order
-    # tool_id -> (name, input, input_size, msg_idx, block_idx)
-    tool_uses: dict = {}
-    tool_order: list = []  # [(tool_id, msg_idx), ...] in order
+    tool_uses: dict = {}  # tool_id -> {name, input, input_size, msg_idx}
+    tool_order: list = []  # tool_ids in order
+
+    # Track file operations for Read compaction heuristics
+    file_reads: dict[str, list[str]] = defaultdict(list)  # file_path -> [tool_ids]
+    file_writes: dict[str, list[str]] = defaultdict(list)
 
     for msg_idx, m in enumerate(messages):
         if m.get("type") == "assistant":
-            for block_idx, block in enumerate(m.get("message", {}).get("content", [])):
+            for block in m.get("message", {}).get("content", []):
                 if isinstance(block, dict) and block.get("type") == "tool_use":
                     tool_id = block["id"]
                     inp = block.get("input", {})
                     input_size = len(json.dumps(inp))
+                    tool_name = block.get("name")
                     tool_uses[tool_id] = {
-                        "name": block.get("name"),
+                        "name": tool_name,
                         "input": inp,
                         "input_size": input_size,
                         "msg_idx": msg_idx,
-                        "block_idx": block_idx,
                     }
                     tool_order.append(tool_id)
+
+                    # Track file operations
+                    file_path = inp.get("file_path")
+                    if file_path:
+                        if tool_name == "Read":
+                            file_reads[file_path].append(tool_id)
+                        elif tool_name in ("Write", "Edit"):
+                            file_writes[file_path].append(tool_id)
 
     # Second pass: collect tool_result info
     # tool_id -> result_size
@@ -134,6 +162,30 @@ def compact_session(
         if result_size < min_result_size:
             continue  # Keep small
         compact_result_ids.add(tool_id)
+
+    # Special handling for Read: preserve reads unless followed by a write to same file
+    # This keeps "context gathering" reads while compacting "read before edit" patterns
+    for file_path, read_ids in file_reads.items():
+        write_ids = file_writes.get(file_path, [])
+
+        for read_id in read_ids:
+            if read_id not in compact_result_ids:
+                continue  # Already preserved (recent or small)
+
+            # Check whitelist
+            if _is_whitelisted_read(file_path):
+                compact_result_ids.discard(read_id)
+                continue
+
+            # Check if there's any write to this file after this read
+            read_msg_idx = tool_uses[read_id]["msg_idx"]
+            has_later_write = any(
+                tool_uses[wid]["msg_idx"] > read_msg_idx for wid in write_ids
+            )
+
+            # Preserve if no write follows (this read provides unique context)
+            if not has_later_write:
+                compact_result_ids.discard(read_id)
 
     # Create compacted messages
     compacted_messages = []
