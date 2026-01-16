@@ -310,14 +310,15 @@ class Agent:
         if not self.client:
             raise RuntimeError("Agent not connected")
 
-        # Add user message to history
+        # Add user message to history (store display text if provided)
+        display_text = display_as or prompt
         self.messages.append(
-            ChatItem(role="user", content=UserContent(text=prompt, images=list(self.pending_images)))
+            ChatItem(role="user", content=UserContent(text=display_text, images=list(self.pending_images)))
         )
 
         # Notify UI to display user message (pass full image info before clearing)
         if self.observer:
-            self.observer.on_prompt_sent(self, display_as or prompt, list(self.pending_images))
+            self.observer.on_prompt_sent(self, display_text, list(self.pending_images))
 
         self._set_status("busy")
         self.response_had_tools = False
