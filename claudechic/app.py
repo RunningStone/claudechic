@@ -601,12 +601,7 @@ class ChatApp(App):
             self.exit()
             return
 
-        # Append user message via ChatView
-        images = [(name, media) for _path, name, media, _data in self.pending_images]
-        chat_view.append_user_message(prompt, images)
-
-        # Show thinking indicator via ChatView
-        chat_view.start_response()
+        # User message will be mounted by _on_agent_prompt_sent callback
         self._send_to_active_agent(prompt)
 
     def _send_to_active_agent(self, prompt: str) -> None:
@@ -1331,6 +1326,7 @@ class ChatApp(App):
         self.agent_mgr.on_agent_tool_result = self._on_agent_tool_result
         self.agent_mgr.on_agent_system_message = self._on_agent_system_message
         self.agent_mgr.on_agent_command_output = self._on_agent_command_output
+        self.agent_mgr.on_agent_prompt_sent = self._on_agent_prompt_sent
 
         # Permission UI callback
         self.agent_mgr.permission_ui_callback = self._handle_agent_permission_ui
@@ -1453,6 +1449,23 @@ class ChatApp(App):
     def _on_agent_command_output(self, agent: Agent, content: str) -> None:
         """Handle command output from agent (e.g., /context)."""
         self.post_message(CommandOutputMessage(content, agent_id=agent.id))
+
+    def _on_agent_prompt_sent(
+        self, agent: Agent, prompt: str, images: list[tuple[str, str, str, str]]
+    ) -> None:
+        """Handle prompt sent to agent - display user message in chat view."""
+        chat_view = agent.chat_view
+        if not chat_view:
+            return
+
+        # Skip UI for /clear command (it just forwards to SDK)
+        if prompt.strip() == "/clear":
+            return
+
+        # Use ChatView API - convert full image tuples to (name, media) format
+        image_info = [(name, media) for _path, name, media, _data in images]
+        chat_view.append_user_message(prompt, image_info)
+        chat_view.start_response()
 
     async def _handle_agent_permission_ui(
         self, agent: Agent, request: PermissionRequest

@@ -70,6 +70,8 @@ class AgentManager:
         self.on_agent_tool_result: Callable[[Agent, ToolUse], None] | None = None
         self.on_agent_system_message: Callable[[Agent, SystemMessage], None] | None = None
         self.on_agent_command_output: Callable[[Agent, str], None] | None = None
+        # args: agent, prompt, images [(path, filename, media_type, base64)]
+        self.on_agent_prompt_sent: Callable[[Agent, str, list[tuple[str, str, str, str]]], None] | None = None
 
     @property
     def active(self) -> Agent | None:
@@ -201,6 +203,8 @@ class AgentManager:
             agent.on_system_message = self.on_agent_system_message
         if self.on_agent_command_output:
             agent.on_command_output = self.on_agent_command_output
+        if self.on_agent_prompt_sent:
+            agent.on_prompt_sent = self.on_agent_prompt_sent
 
     def switch(self, agent_id: str) -> bool:
         """Switch to a different agent.
