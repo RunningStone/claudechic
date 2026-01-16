@@ -8,6 +8,7 @@ from textual.widget import Widget
 from rich.text import Text
 
 from claude_alamode.formatting import MAX_CONTEXT_TOKENS
+from claude_alamode.profiling import profile
 
 
 class CPUBar(Widget):
@@ -20,6 +21,7 @@ class CPUBar(Widget):
         self._process.cpu_percent()  # Prime the measurement
         self.set_interval(2.0, self._update_cpu)
 
+    @profile
     def _update_cpu(self) -> None:
         try:
             self.cpu_pct = self._process.cpu_percent()

@@ -82,10 +82,12 @@ from claude_alamode.widgets import (
 )
 from claude_alamode.widgets.footer import StatusFooter
 from claude_alamode.errors import setup_logging  # noqa: F401 - used at startup
+from claude_alamode.profiling import profile
 
 log = logging.getLogger(__name__)
 
 
+@profile
 def _scroll_if_at_bottom(scroll_view: VerticalScroll) -> None:
     """Scroll to end only if user hasn't scrolled up."""
     # Consider "at bottom" if within 50px of the end
@@ -760,6 +762,7 @@ class ChatApp(App):
         except Exception:
             pass  # OK to fail during shutdown
 
+    @profile
     def on_stream_chunk(self, event: StreamChunk) -> None:
         self._hide_thinking(event.agent_id)
         agent = self._get_agent(event.agent_id)
@@ -781,6 +784,7 @@ class ChatApp(App):
         agent.current_response.append_content(event.text)
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
 
+    @profile
     def on_tool_use_message(self, event: ToolUseMessage) -> None:
         self._hide_thinking()
         agent = self._get_agent(event.agent_id)
@@ -832,6 +836,7 @@ class ChatApp(App):
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
         self._hide_thinking(event.agent_id)  # Tool widget has its own spinner
 
+    @profile
     def on_tool_result_message(self, event: ToolResultMessage) -> None:
         agent = self._get_agent(event.agent_id)
         if not agent:

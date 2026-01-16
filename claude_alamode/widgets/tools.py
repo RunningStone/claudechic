@@ -19,6 +19,7 @@ from claude_alamode.formatting import (
 )
 from claude_alamode.widgets.diff import DiffWidget
 from claude_alamode.widgets.chat import ChatMessage
+from claude_alamode.profiling import profile
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class ToolUseWidget(Static):
         if self.result is None:  # Only start spinner for in-progress tools
             self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
 
+    @profile
     def _tick_spinner(self) -> None:
         if self.result is not None or self._spinner_timer is None:
             return
@@ -355,6 +357,7 @@ class AgentToolWidget(Static):
         if tool_short == "ask_agent" and self.result is None:
             self._spinner_timer = self.set_interval(1 / 10, self._tick_spinner)
 
+    @profile
     def _tick_spinner(self) -> None:
         if self.result is not None:
             if self._spinner_timer:

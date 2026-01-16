@@ -14,6 +14,7 @@ from textual.reactive import reactive
 from textual.widgets import Markdown, TextArea, Static, Button
 
 from claude_alamode.errors import log_exception
+from claude_alamode.profiling import profile
 
 
 class ThinkingIndicator(Static):
@@ -33,6 +34,7 @@ class ThinkingIndicator(Static):
     def on_unmount(self) -> None:
         self._timer.stop()
 
+    @profile
     def _tick(self) -> None:
         self.frame = (self.frame + 1) % len(self.FRAMES)
 
@@ -84,6 +86,7 @@ class ChatMessage(Static):
                 self.DEBOUNCE_MS / 1000, self._flush_content
             )
 
+    @profile
     def _flush_content(self) -> None:
         """Flush pending content to the Markdown widget."""
         self._debounce_timer = None
