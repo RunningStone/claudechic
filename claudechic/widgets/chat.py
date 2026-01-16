@@ -40,7 +40,6 @@ class ThinkingIndicator(Static):
 
     def watch_frame(self, frame: int) -> None:
         self.update(f"{self.FRAMES[frame]} Thinking...")
-        self.refresh()
 
 
 class ErrorMessage(Static):

@@ -65,6 +65,9 @@ class ToolUseWidget(Static):
     @profile
     def _tick_spinner(self) -> None:
         if self.result is not None or self._spinner_timer is None:
+            if self._spinner_timer:
+                self._spinner_timer.stop()
+                self._spinner_timer = None
             return
         self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
         try:
@@ -368,6 +371,7 @@ class AgentToolWidget(Static):
         if self.result is not None:
             if self._spinner_timer:
                 self._spinner_timer.stop()
+                self._spinner_timer = None
             return
         self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
         try:
