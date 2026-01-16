@@ -49,6 +49,10 @@ class AgentObserver(Protocol):
         """Called when an error occurs."""
         ...
 
+    def on_connection_lost(self, agent: Agent) -> None:
+        """Called when SDK connection is lost and needs reconnection."""
+        ...
+
     def on_complete(self, agent: Agent, result: ResultMessage | None) -> None:
         """Called when a response completes."""
         ...

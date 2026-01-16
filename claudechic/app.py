@@ -1259,6 +1259,24 @@ class ChatApp(App):
         if self.agent_mgr and agent.id == self.agent_mgr.active_id:
             self.show_error(message, exception)
 
+    def on_connection_lost(self, agent: Agent) -> None:
+        """Handle lost SDK connection - reconnect."""
+        log.info(f"Connection lost for agent {agent.name}, reconnecting...")
+        self._reconnect_after_interrupt(agent)
+
+    @work(group="reconnect_after_interrupt", exclusive=True, exit_on_error=False)
+    async def _reconnect_after_interrupt(self, agent: Agent) -> None:
+        """Reconnect agent after connection was lost due to interrupt."""
+        if not agent.session_id:
+            log.warning("Cannot reconnect agent without session_id")
+            return
+        try:
+            await self._reconnect_agent(agent, agent.session_id)
+            self.notify("Reconnected", timeout=2)
+        except Exception as e:
+            log.exception("Failed to reconnect after interrupt")
+            self.show_error("Reconnect failed", e)
+
     def on_complete(self, agent: Agent, result: ResultMessage | None) -> None:
         """Handle agent response completion."""
         log.info(f"Agent {agent.name} completed response")

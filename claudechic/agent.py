@@ -132,6 +132,7 @@ class Agent:
         # Status
         self.status: Literal["idle", "busy", "needs_input"] = "idle"
         self._thinking: bool = False  # Whether this agent is currently thinking
+        self._interrupted: bool = False  # Suppress errors after intentional interrupt
 
         # Chat history
         self.messages: list[ChatItem] = []
@@ -327,6 +328,7 @@ class Agent:
         self._current_text_buffer = ""
         self._needs_new_message = True
         self._thinking_hidden = False  # Reset for new response
+        self._interrupted = False  # Clear interrupt flag for new query
 
         # Start response processing
         self._response_task = asyncio.create_task(
@@ -336,6 +338,7 @@ class Agent:
 
     async def interrupt(self) -> None:
         """Interrupt current response."""
+        self._interrupted = True
         if self._response_task and not self._response_task.done():
             self._response_task.cancel()
             try:
@@ -386,9 +389,19 @@ class Agent:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            log.exception("Response processing failed")
-            if self.observer:
-                self.observer.on_error(self, "Response failed", e)
+            # Check if this is a connection error (SDK process died)
+            is_connection_error = "ConnectionError" in type(e).__name__ or "connection" in str(e).lower()
+
+            # Suppress errors after intentional interrupt (e.g., CLIConnectionError)
+            if self._interrupted:
+                log.info("Suppressed error after interrupt: %s", e)
+                # Request reconnection if connection was lost
+                if is_connection_error and self.observer:
+                    self.observer.on_connection_lost(self)
+            else:
+                log.exception("Response processing failed")
+                if self.observer:
+                    self.observer.on_error(self, "Response failed", e)
             if self.observer:
                 self.observer.on_complete(self, None)
         finally:
