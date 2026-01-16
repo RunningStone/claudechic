@@ -153,8 +153,9 @@ class AgentSidebar(Widget):
     AgentSidebar {
         width: 24;
         height: auto;
-        max-height: 50%;
+        max-height: 100%;
         padding: 0;
+        overflow-y: auto;
     }
     AgentSidebar .sidebar-title {
         color: $text-muted;
