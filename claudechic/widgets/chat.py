@@ -44,8 +44,9 @@ class Spinner(Static):
     def on_mount(self) -> None:
         Spinner._instances.add(self)
         # Start shared timer if this is the first spinner
+        # Use app.set_interval so timer survives widget unmount
         if Spinner._timer is None:
-            Spinner._timer = self.set_interval(1 / 10, Spinner._tick_all)  # 10 FPS
+            Spinner._timer = self.app.set_interval(1 / 10, Spinner._tick_all)  # 10 FPS
 
     def on_unmount(self) -> None:
         Spinner._instances.discard(self)
