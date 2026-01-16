@@ -46,11 +46,21 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
+class ImageAttachment:
+    """An image attached to a message."""
+
+    path: str
+    filename: str
+    media_type: str
+    base64_data: str
+
+
+@dataclass
 class UserContent:
     """A user message in chat history."""
 
     text: str
-    images: list[tuple[str, str]] = field(default_factory=list)  # (filename, media_type)
+    images: list[ImageAttachment] = field(default_factory=list)
 
 
 @dataclass
@@ -139,7 +149,7 @@ class Agent:
         self._thinking_hidden: bool = False  # Track if thinking indicator was hidden this response
 
         # Per-agent state
-        self.pending_images: list[tuple[str, str, str, str]] = []  # (path, filename, media_type, base64)
+        self.pending_images: list[ImageAttachment] = []
         self.file_index: FileIndex | None = None
         self.todos: list[dict] = []
         self.auto_approve_edits: bool = False
@@ -178,8 +188,8 @@ class Agent:
         ) = None
 
         # Callback when send() is called (for UI to display user message)
-        # args: agent, prompt, images [(path, filename, media_type, base64)]
-        self.on_prompt_sent: Callable[[Agent, str, list[tuple[str, str, str, str]]], None] | None = None
+        # args: agent, prompt, images
+        self.on_prompt_sent: Callable[[Agent, str, list[ImageAttachment]], None] | None = None
 
     # -----------------------------------------------------------------------
     # Lifecycle
@@ -229,16 +239,17 @@ class Agent:
     # Sending messages
     # -----------------------------------------------------------------------
 
-    def attach_image(self, path: Path) -> tuple[str, str] | None:
+    def attach_image(self, path: Path) -> ImageAttachment | None:
         """Attach an image to the next message.
 
-        Returns (filename, media_type) on success, None on failure.
+        Returns ImageAttachment on success, None on failure.
         """
         try:
             data = base64.b64encode(path.read_bytes()).decode()
             media_type = mimetypes.guess_type(str(path))[0] or "image/png"
-            self.pending_images.append((str(path), path.name, media_type, data))
-            return (path.name, media_type)
+            img = ImageAttachment(str(path), path.name, media_type, data)
+            self.pending_images.append(img)
+            return img
         except Exception:
             return None
 
@@ -255,9 +266,8 @@ class Agent:
             raise RuntimeError("Agent not connected")
 
         # Add user message to history
-        images = [(name, media) for _, name, media, _ in self.pending_images]
         self.messages.append(
-            ChatItem(role="user", content=UserContent(text=prompt, images=images))
+            ChatItem(role="user", content=UserContent(text=prompt, images=list(self.pending_images)))
         )
 
         # Notify UI to display user message (pass full image info before clearing)
@@ -611,11 +621,11 @@ class Agent:
     def _build_message_with_images(self, prompt: str) -> dict[str, Any]:
         """Build SDK message with text and images."""
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-        for _, _, media_type, data in self.pending_images:
+        for img in self.pending_images:
             content.append(
                 {
                     "type": "image",
-                    "source": {"type": "base64", "media_type": media_type, "data": data},
+                    "source": {"type": "base64", "media_type": img.media_type, "data": img.base64_data},
                 }
             )
         return {

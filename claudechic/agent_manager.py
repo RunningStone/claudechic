@@ -11,7 +11,8 @@ from claude_agent_sdk import ClaudeAgentOptions
 from claudechic.agent import Agent
 
 if TYPE_CHECKING:
-    from claude_agent_sdk import ResultMessage
+    from claude_agent_sdk import ResultMessage, SystemMessage
+    from claudechic.agent import ImageAttachment, ToolUse
     from claudechic.permissions import PermissionRequest
 
 log = logging.getLogger(__name__)
@@ -63,15 +64,12 @@ class AgentManager:
         self.on_agent_todos_updated: Callable[[Agent], None] | None = None
 
         # Fine-grained streaming callbacks
-        from claudechic.agent import ToolUse
-        from claude_agent_sdk import SystemMessage
         self.on_agent_text_chunk: Callable[[Agent, str, bool, str | None], None] | None = None
-        self.on_agent_tool_use: Callable[[Agent, ToolUse], None] | None = None
-        self.on_agent_tool_result: Callable[[Agent, ToolUse], None] | None = None
-        self.on_agent_system_message: Callable[[Agent, SystemMessage], None] | None = None
+        self.on_agent_tool_use: Callable[[Agent, "ToolUse"], None] | None = None
+        self.on_agent_tool_result: Callable[[Agent, "ToolUse"], None] | None = None
+        self.on_agent_system_message: Callable[[Agent, "SystemMessage"], None] | None = None
         self.on_agent_command_output: Callable[[Agent, str], None] | None = None
-        # args: agent, prompt, images [(path, filename, media_type, base64)]
-        self.on_agent_prompt_sent: Callable[[Agent, str, list[tuple[str, str, str, str]]], None] | None = None
+        self.on_agent_prompt_sent: Callable[[Agent, str, list["ImageAttachment"]], None] | None = None
 
     @property
     def active(self) -> Agent | None:

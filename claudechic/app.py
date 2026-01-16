@@ -48,7 +48,7 @@ from claudechic.features.worktree import (
 )
 from claudechic.features.worktree.commands import on_response_complete_finish
 from claudechic.permissions import PermissionRequest
-from claudechic.agent import Agent, ToolUse
+from claudechic.agent import Agent, ImageAttachment, ToolUse
 from claudechic.agent_manager import AgentManager
 from claudechic.mcp import set_app, create_chic_server
 from claudechic.file_index import FileIndex
@@ -124,7 +124,7 @@ class ChatApp(App):
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
         # Pending images to attach to next message
-        self.pending_images: list[tuple[str, str, str, str]] = []  # (path, filename, media_type, base64_data)
+        self.pending_images: list[ImageAttachment] = []
         # File index for fuzzy file search
         self.file_index: FileIndex | None = None
         # Cached widget references (initialized lazily)
@@ -288,7 +288,7 @@ class ChatApp(App):
         try:
             data = base64.b64encode(path.read_bytes()).decode()
             media_type = mimetypes.guess_type(str(path))[0] or "image/png"
-            self.pending_images.append((str(path), path.name, media_type, data))
+            self.pending_images.append(ImageAttachment(str(path), path.name, media_type, data))
             # Update visual indicator
             self.query_one("#image-attachments", ImageAttachments).add_image(path.name)
         except Exception as e:
@@ -296,18 +296,15 @@ class ChatApp(App):
 
     def on_image_attachments_removed(self, event: ImageAttachments.Removed) -> None:
         """Handle removal of an image attachment."""
-        self.pending_images = [
-            (path, name, media, data) for path, name, media, data in self.pending_images
-            if name != event.filename
-        ]
+        self.pending_images = [img for img in self.pending_images if img.filename != event.filename]
 
     def _build_message_with_images(self, prompt: str) -> dict[str, Any]:
         """Build a message dict with text and any pending images."""
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-        for _path, _filename, media_type, data in self.pending_images:
+        for img in self.pending_images:
             content.append({
                 "type": "image",
-                "source": {"type": "base64", "media_type": media_type, "data": data}
+                "source": {"type": "base64", "media_type": img.media_type, "data": img.base64_data}
             })
         self.pending_images.clear()
         # Clear visual indicator
@@ -1451,7 +1448,7 @@ class ChatApp(App):
         self.post_message(CommandOutputMessage(content, agent_id=agent.id))
 
     def _on_agent_prompt_sent(
-        self, agent: Agent, prompt: str, images: list[tuple[str, str, str, str]]
+        self, agent: Agent, prompt: str, images: list[ImageAttachment]
     ) -> None:
         """Handle prompt sent to agent - display user message in chat view."""
         chat_view = agent.chat_view
@@ -1462,9 +1459,7 @@ class ChatApp(App):
         if prompt.strip() == "/clear":
             return
 
-        # Use ChatView API - convert full image tuples to (name, media) format
-        image_info = [(name, media) for _path, name, media, _data in images]
-        chat_view.append_user_message(prompt, image_info)
+        chat_view.append_user_message(prompt, images)
         chat_view.start_response()
 
     async def _handle_agent_permission_ui(

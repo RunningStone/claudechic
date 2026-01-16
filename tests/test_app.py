@@ -3,15 +3,16 @@
 import base64
 
 from claudechic import ChatApp
+from claudechic.agent import ImageAttachment
 
 
 def test_image_attachment_message_building():
     """Test that images are correctly formatted in messages."""
     app = ChatApp()
 
-    # Add a test image (path, filename, media_type, base64_data)
+    # Add a test image
     test_data = base64.b64encode(b"fake image data").decode()
-    app.pending_images.append(("/tmp/test.png", "test.png", "image/png", test_data))
+    app.pending_images.append(ImageAttachment("/tmp/test.png", "test.png", "image/png", test_data))
 
     # Build message
     msg = app._build_message_with_images("What is this?")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from claudechic.agent import Agent, UserContent, AssistantContent, ToolUse
+from claudechic.agent import Agent, ImageAttachment, UserContent, AssistantContent, ToolUse
 from claudechic.widgets.chat import ChatMessage, ChatAttachment, ThinkingIndicator, SystemInfo
 from claudechic.widgets.scroll import AutoHideScroll
 from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
@@ -79,7 +79,7 @@ class ChatView(AutoHideScroll):
     # Streaming API - called by ChatApp during live response
     # -----------------------------------------------------------------------
 
-    def append_user_message(self, text: str, images: list[tuple[str, str]]) -> None:
+    def append_user_message(self, text: str, images: list[ImageAttachment]) -> None:
         """Append a user message to the view."""
         self._mount_user_message(text, images)
         self._scroll_if_tailing()
@@ -195,18 +195,18 @@ class ChatView(AutoHideScroll):
     # Helpers
     # -----------------------------------------------------------------------
 
-    def _mount_user_message(self, text: str, images: list[tuple[str, str]]) -> None:
+    def _mount_user_message(self, text: str, images: list[ImageAttachment]) -> None:
         """Mount a user message widget with optional image attachments."""
         msg = ChatMessage(text)
         msg.add_class("user-message")
         self.mount(msg)
 
-        for i, (filename, _) in enumerate(images):
-            if filename.lower().startswith("screenshot"):
+        for i, img in enumerate(images):
+            if img.filename.lower().startswith("screenshot"):
                 display_name = f"Screenshot #{i + 1}"
             else:
-                display_name = filename
-            self.mount(ChatAttachment(filename, display_name))
+                display_name = img.filename
+            self.mount(ChatAttachment(img.filename, display_name))
 
     def _mount_tool_widget(self, tool: ToolUse, completed: bool = False) -> None:
         """Mount a tool widget (for history rendering)."""
