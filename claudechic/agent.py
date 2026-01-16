@@ -177,6 +177,10 @@ class Agent:
             Callable[[Agent, PermissionRequest], Awaitable[str]] | None
         ) = None
 
+        # Callback when send() is called (for UI to display user message)
+        # args: agent, prompt, images [(path, filename, media_type, base64)]
+        self.on_prompt_sent: Callable[[Agent, str, list[tuple[str, str, str, str]]], None] | None = None
+
     # -----------------------------------------------------------------------
     # Lifecycle
     # -----------------------------------------------------------------------
@@ -255,6 +259,10 @@ class Agent:
         self.messages.append(
             ChatItem(role="user", content=UserContent(text=prompt, images=images))
         )
+
+        # Notify UI to display user message (pass full image info before clearing)
+        if self.on_prompt_sent:
+            self.on_prompt_sent(self, prompt, list(self.pending_images))
 
         self._set_status("busy")
         self.response_had_tools = False
