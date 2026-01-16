@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 
 import pyperclip
 
@@ -174,6 +175,8 @@ class ToolUseWidget(Static):
                     details += f"\n\n**Error:**\n```\n{preview}\n```"
                 elif self.block.name == "Read":
                     lang = get_lang_from_path(self.block.input.get("file_path", ""))
+                    # Replace arrow with space in line number gutter
+                    preview = re.sub(r"^(\s*\d+)→", r"\1  ", preview, flags=re.MULTILINE)
                     details += f"\n\n```{lang}\n{preview}\n```"
                 elif self.block.name in ("Bash", "Grep", "Glob"):
                     details += f"\n\n```text\n{preview}\n```"
