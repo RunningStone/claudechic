@@ -145,7 +145,6 @@ ThinkingIndicator {
     background: transparent;
     border: none;
     color: transparent;
-    offset: -1 0;
 }
 
 .hovered .copy-btn {
