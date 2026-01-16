@@ -51,20 +51,21 @@ class Agent:
 - `wait_for_completion()` - Wait for response to finish
 - `interrupt()` - Cancel current response
 
-**Callbacks for UI integration:**
+**Observer protocol for UI integration** (see `protocols.py`):
 ```python
-on_status_changed: Callable[[Agent], None]
-on_error: Callable[[Agent, str, Exception], None]
-on_complete: Callable[[Agent, ResultMessage], None]
-on_todos_updated: Callable[[Agent], None]
+class AgentObserver(Protocol):
+    def on_status_changed(self, agent: Agent) -> None: ...
+    def on_text_chunk(self, agent: Agent, text: str, new_message: bool, parent_id: str | None) -> None: ...
+    def on_tool_use(self, agent: Agent, tool: ToolUse) -> None: ...
+    def on_tool_result(self, agent: Agent, tool: ToolUse) -> None: ...
+    def on_complete(self, agent: Agent, result: ResultMessage | None) -> None: ...
+    def on_error(self, agent: Agent, message: str, exception: Exception | None) -> None: ...
+    def on_todos_updated(self, agent: Agent) -> None: ...
+    def on_prompt_added(self, agent: Agent, request: PermissionRequest) -> None: ...
+    def on_prompt_sent(self, agent: Agent, prompt: str, images: list[ImageAttachment]) -> None: ...
 
-# Fine-grained streaming (for real-time UI)
-on_text_chunk: Callable[[Agent, str, bool, str | None], None]
-on_tool_use: Callable[[Agent, ToolUse], None]
-on_tool_result: Callable[[Agent, ToolUse], None]
-
-# Permission UI
-permission_ui_callback: Callable[[Agent, PermissionRequest], Awaitable[str]]
+class PermissionHandler(Protocol):
+    async def __call__(self, agent: Agent, request: PermissionRequest) -> str: ...
 ```
 
 ### AgentManager (`agent_manager.py`)
@@ -76,10 +77,18 @@ class AgentManager:
     agents: dict[str, Agent]   # All agents by ID
     active_id: str | None      # Currently active agent
 
-    # Lifecycle callbacks
-    on_created: Callable[[Agent], None]
-    on_switched: Callable[[Agent, Agent | None], None]
-    on_closed: Callable[[str], None]
+    # Observer protocols (set by ChatApp)
+    manager_observer: AgentManagerObserver | None
+    agent_observer: AgentObserver | None
+    permission_handler: PermissionHandler | None
+```
+
+**Manager observer protocol:**
+```python
+class AgentManagerObserver(Protocol):
+    def on_agent_created(self, agent: Agent) -> None: ...
+    def on_agent_switched(self, new_agent: Agent, old_agent: Agent | None) -> None: ...
+    def on_agent_closed(self, agent_id: str) -> None: ...
 ```
 
 **Key methods:**
@@ -89,13 +98,12 @@ class AgentManager:
 - `close(agent_id)` - Disconnect and remove agent
 - `get(agent_id)` - Get agent by ID (or active if None)
 
-**Callback wiring:**
-When agents are created, AgentManager wires up callbacks from app to agent:
+**Observer wiring:**
+When agents are created, AgentManager assigns the shared observers:
 ```python
 def _wire_agent_callbacks(self, agent):
-    agent.on_status_changed = self.on_agent_status_changed
-    agent.on_text_chunk = self.on_agent_text_chunk
-    # etc.
+    agent.observer = self.agent_observer
+    agent.permission_handler = self.permission_handler
 ```
 
 ### ChatApp (`app.py`)
