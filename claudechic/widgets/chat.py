@@ -10,36 +10,56 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.message import Message
-from textual.reactive import reactive
 from textual.widgets import Markdown, TextArea, Static, Button
 
 from claudechic.errors import log_exception
 from claudechic.profiling import profile
 
 
-class ThinkingIndicator(Static):
-    """Animated spinner shown when Claude is thinking."""
+class Spinner(Static):
+    """Animated spinner with fixed size - updates don't trigger parent layout."""
 
-    can_focus = False
     FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    DEFAULT_CSS = """
+    Spinner {
+        width: 1;
+        height: 1;
+        color: $text-muted;
+    }
+    """
 
-    frame = reactive(0)
-
-    def __init__(self) -> None:
-        super().__init__("⠋ Thinking...")
+    def __init__(self, text: str = "") -> None:
+        self._text = f" {text}" if text else ""
+        super().__init__(f"{self.FRAMES[0]}{self._text}")
+        self._frame = 0
+        self._timer = None
 
     def on_mount(self) -> None:
         self._timer = self.set_interval(1 / 10, self._tick)
 
     def on_unmount(self) -> None:
-        self._timer.stop()
+        if self._timer:
+            self._timer.stop()
 
     @profile
     def _tick(self) -> None:
-        self.frame = (self.frame + 1) % len(self.FRAMES)
+        self._frame = (self._frame + 1) % len(self.FRAMES)
+        self.update(f"{self.FRAMES[self._frame]}{self._text}", layout=False)
 
-    def watch_frame(self, frame: int) -> None:
-        self.update(f"{self.FRAMES[frame]} Thinking...")
+
+class ThinkingIndicator(Spinner):
+    """Animated spinner shown when Claude is thinking."""
+
+    can_focus = False
+    DEFAULT_CSS = """
+    ThinkingIndicator {
+        width: auto;
+        height: 1;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__("Thinking...")
 
 
 class ErrorMessage(Static):

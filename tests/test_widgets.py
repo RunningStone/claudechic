@@ -317,11 +317,11 @@ async def test_thinking_indicator_animates():
     async with app.run_test() as pilot:
         indicator = app.query_one(ThinkingIndicator)
 
-        initial_frame = indicator.frame
-        # Wait for animation
-        await pilot.pause(0.2)
+        initial_frame = indicator._frame
+        # Wait for animation (now at 4Hz = 250ms interval)
+        await pilot.pause(0.5)
         # Frame should have changed
-        assert indicator.frame != initial_frame or indicator.frame == 0  # May wrap
+        assert indicator._frame != initial_frame or indicator._frame == 0  # May wrap
 
 
 @pytest.mark.asyncio

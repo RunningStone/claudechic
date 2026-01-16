@@ -341,6 +341,13 @@ ToolUseWidget MarkdownFence:last-of-type {
     margin-bottom: 0;
 }
 
+/* Tool use spinner - overlaid on collapsible expand arrow */
+ToolUseWidget > Spinner {
+    layer: above;
+    dock: top;
+    background: transparent;
+}
+
 /* Tool use collapsible internals */
 ToolUseWidget Collapsible {
     border: none;
