@@ -107,6 +107,13 @@ ChatMessage.summary {
     margin: 2 0 1 0;
 }
 
+/* System messages - compaction summaries, etc. */
+ChatMessage.system-message {
+    border-left: wide $warning;
+    margin: 2 0 2 0;
+    background: $surface;
+}
+
 /* Tool uses - subtle, highlight on hover */
 ToolUseWidget {
     border-left: wide $panel;

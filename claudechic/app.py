@@ -477,7 +477,7 @@ class ChatApp(App):
             pass  # Footer may not be mounted yet
 
     # Built-in slash commands (local to this app)
-    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell", "/theme"]
+    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell", "/theme", "/compactish"]
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="main"):
@@ -696,6 +696,10 @@ class ChatApp(App):
 
         if prompt.strip() == "/theme":
             self.search_themes()
+            return
+
+        if prompt.strip().startswith("/compactish"):
+            self._handle_compactish_command(prompt.strip())
             return
 
         if prompt.strip() == "/exit":
@@ -1151,6 +1155,58 @@ class ChatApp(App):
         self.refresh_context()
         self._position_right_sidebar()
         self.chat_input.focus()
+
+    def _handle_compactish_command(self, command: str) -> None:
+        """Handle /compactish command - compact the current session.
+
+        Flags:
+            -n, --dry: Show stats without modifying
+            -a, --aggressive: Use lower size thresholds
+            --no-reconnect: Don't reconnect after compaction
+        """
+        from claudechic.compact import compact_session, format_compact_summary
+
+        agent = self._agent
+        if not agent or not agent.session_id:
+            self.notify("No active session to compact", severity="warning")
+            return
+
+        session_id = agent.session_id
+        parts = command.split()
+
+        # Parse flags
+        dry_run = "--dry" in parts or "-n" in parts
+        aggressive = "--aggressive" in parts or "-a" in parts
+        reconnect = "--no-reconnect" not in parts
+
+        # Run compaction (dry_run just returns stats without modifying)
+        result = compact_session(session_id, cwd=agent.cwd, aggressive=aggressive, dry_run=dry_run)
+        if "error" in result:
+            self.notify(f"Error: {result['error']}", severity="error")
+            return
+
+        # Display summary table
+        summary_md = format_compact_summary(result, dry_run=dry_run)
+        chat_view = self._chat_view
+        if chat_view:
+            summary_msg = ChatMessage(summary_md)
+            summary_msg.add_class("system-message")
+            chat_view.mount(summary_msg)
+            chat_view.scroll_end(animate=False)
+
+        if dry_run:
+            self.notify("Dry run - no changes made", timeout=3)
+        elif reconnect:
+            self.run_worker(self._reconnect_agent(agent, session_id))
+            self.notify("Session compacted, reconnecting...", timeout=3)
+        else:
+            self.notify("Session compacted", timeout=3)
+
+    async def _reconnect_agent(self, agent: "Agent", session_id: str) -> None:
+        """Disconnect and reconnect an agent to reload its session."""
+        await agent.disconnect()
+        options = self._make_options(cwd=agent.cwd, resume=session_id)
+        await agent.connect(options, resume=session_id)
 
     def _handle_shell_command(self, command: str) -> None:
         """Handle /shell command - suspend TUI and run shell command."""
