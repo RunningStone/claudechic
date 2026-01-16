@@ -18,8 +18,6 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ClaudeSDKClient,
     ResultMessage,
-    SystemMessage,
-    TextBlock,
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
@@ -28,6 +26,7 @@ from claude_agent_sdk.types import (
     PermissionResult,
     PermissionResultAllow,
     PermissionResultDeny,
+    StreamEvent,
     ToolPermissionContext,
 )
 
@@ -334,11 +333,8 @@ class Agent:
         if isinstance(message, AssistantMessage):
             parent_id = message.parent_tool_use_id
             for block in message.content:
-                if isinstance(block, TextBlock):
-                    new_msg = had_tool_use.get(parent_id, False)
-                    self._handle_text_chunk(block.text, new_msg, parent_id)
-                    had_tool_use[parent_id] = False
-                elif isinstance(block, ToolUseBlock):
+                # Skip TextBlock - handled via StreamEvent for streaming
+                if isinstance(block, ToolUseBlock):
                     self._handle_tool_use(block, parent_id)
                     had_tool_use[parent_id] = True
                 elif isinstance(block, ToolResultBlock):
@@ -352,11 +348,8 @@ class Agent:
                     if isinstance(block, ToolResultBlock):
                         self._handle_tool_result(block)
 
-        elif isinstance(message, SystemMessage):
-            subtype = getattr(message, "subtype", "")
-            if subtype == "compact_boundary":
-                # Context compaction happened
-                pass
+        elif isinstance(message, StreamEvent):
+            self._handle_stream_event(message)
 
         elif isinstance(message, ResultMessage):
             self._flush_current_text()
@@ -390,6 +383,21 @@ class Agent:
         # Emit fine-grained callback for UI streaming
         if self.on_text_chunk:
             self.on_text_chunk(self, text, new_message, parent_tool_id)
+
+    def _handle_stream_event(self, event: StreamEvent) -> None:
+        """Handle streaming event from SDK."""
+        ev = event.event
+        ev_type = ev.get("type")
+        parent_id = event.parent_tool_use_id
+
+        if ev_type == "content_block_delta":
+            delta = ev.get("delta", {})
+            if delta.get("type") == "text_delta":
+                text = delta.get("text", "")
+                if text:
+                    # First delta after tool use or start of message
+                    new_msg = not self._current_assistant
+                    self._handle_text_chunk(text, new_msg, parent_id)
 
     def _flush_current_text(self) -> None:
         """Flush accumulated text to current assistant message."""

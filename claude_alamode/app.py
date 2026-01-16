@@ -503,6 +503,7 @@ class ChatApp(App):
             resume=resume,
             can_use_tool=self._handle_permission,
             mcp_servers={"alamode": create_alamode_server()},
+            include_partial_messages=True,
         )
 
     async def on_mount(self) -> None:
