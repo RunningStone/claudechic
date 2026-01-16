@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import base64
 from contextlib import asynccontextmanager
-import json
 import logging
 import mimetypes
 import os
@@ -26,12 +25,7 @@ from textual import work
 from claude_agent_sdk import (
     ClaudeSDKClient,
     ClaudeAgentOptions,
-    AssistantMessage,
-    SystemMessage,
-    UserMessage,
-    TextBlock,
     ToolUseBlock,
-    ToolResultBlock,
     ResultMessage,
 )
 from claude_agent_sdk.types import (
@@ -58,7 +52,8 @@ from claude_alamode.features.worktree import (
 )
 from claude_alamode.features.worktree.commands import on_response_complete_finish
 from claude_alamode.permissions import PermissionRequest
-from claude_alamode.agent import AgentSession, create_agent_session
+from claude_alamode.agent import Agent, ToolUse
+from claude_alamode.agent_manager import AgentManager
 from claude_alamode.mcp import set_app, create_alamode_server
 from claude_alamode.file_index import FileIndex
 from claude_alamode.widgets import (
@@ -84,7 +79,7 @@ from claude_alamode.widgets import (
     AutoHideScroll,
 )
 from claude_alamode.widgets.footer import StatusFooter
-from claude_alamode.errors import log_exception, setup_logging
+from claude_alamode.errors import setup_logging  # noqa: F401 - used at startup
 
 log = logging.getLogger(__name__)
 
@@ -128,9 +123,9 @@ class ChatApp(App):
 
     def __init__(self, resume_session_id: str | None = None, initial_prompt: str | None = None) -> None:
         super().__init__()
-        # Multi-agent state
-        self.agents: dict[str, AgentSession] = {}
-        self.active_agent_id: str | None = None
+        # AgentManager is the single source of truth for agents
+        self.agent_mgr: AgentManager | None = None
+
         self._resume_on_start = resume_session_id
         self._initial_prompt = initial_prompt
         self._session_picker_active = False
@@ -141,7 +136,7 @@ class ChatApp(App):
         self.pending_images: list[tuple[str, str, str, str]] = []  # (path, filename, media_type, base64_data)
         # File index for fuzzy file search
         self.file_index: FileIndex | None = None
-        # Cached widget references (initialized in on_mount)
+        # Cached widget references (initialized lazily)
         self._agent_sidebar: AgentSidebar | None = None
         self._todo_panel: TodoPanel | None = None
         self._context_bar: ContextBar | None = None
@@ -150,13 +145,27 @@ class ChatApp(App):
         self._chat_input: ChatInput | None = None
         self._status_footer: StatusFooter | None = None
 
-    # Properties to access active agent's state (backward compatibility)
+    # Properties to access active agent's state
     @property
-    def _agent(self) -> AgentSession | None:
-        """Get the active agent session."""
-        if self.active_agent_id and self.active_agent_id in self.agents:
-            return self.agents[self.active_agent_id]
-        return None
+    def _agent(self) -> Agent | None:
+        """Get the active agent."""
+        return self.agent_mgr.active if self.agent_mgr else None
+
+    @property
+    def agents(self) -> dict[str, Agent]:
+        """Get all agents dict (from AgentManager)."""
+        return self.agent_mgr.agents if self.agent_mgr else {}
+
+    @property
+    def active_agent_id(self) -> str | None:
+        """Get active agent ID (from AgentManager)."""
+        return self.agent_mgr.active_id if self.agent_mgr else None
+
+    @active_agent_id.setter
+    def active_agent_id(self, value: str | None) -> None:
+        """Set active agent ID (syncs to AgentManager)."""
+        if self.agent_mgr:
+            self.agent_mgr.active_id = value
 
     @property
     def client(self) -> ClaudeSDKClient | None:
@@ -196,11 +205,11 @@ class ChatApp(App):
 
     @property
     def pending_tools(self) -> dict[str, ToolUseWidget | TaskWidget | AgentToolWidget]:
-        return self._agent.pending_tools if self._agent else {}
+        return self._agent.pending_tool_widgets if self._agent else {}
 
     @property
     def active_tasks(self) -> dict[str, TaskWidget]:
-        return self._agent.active_tasks if self._agent else {}
+        return self._agent.active_task_widgets if self._agent else {}
 
     @property
     def recent_tools(self) -> list[ToolUseWidget | TaskWidget | AgentToolWidget]:
@@ -211,9 +220,11 @@ class ChatApp(App):
         """Get the active agent's chat view."""
         return self._agent.chat_view if self._agent else None
 
-    def _get_agent(self, agent_id: str | None) -> AgentSession | None:
+    def _get_agent(self, agent_id: str | None) -> Agent | None:
         """Get agent by ID, or active agent if None."""
-        return self.agents.get(agent_id) if agent_id else self._agent
+        if self.agent_mgr is None:
+            return None
+        return self.agent_mgr.get(agent_id)
 
     # Cached widget accessors (lazy init on first access)
     @property
@@ -260,12 +271,12 @@ class ChatApp(App):
 
     def _set_agent_status(self, status: Literal["idle", "busy", "needs_input"], agent_id: str | None = None) -> None:
         """Update an agent's status and sidebar display."""
-        aid = agent_id or self.active_agent_id
-        if not aid or aid not in self.agents:
+        agent = self._get_agent(agent_id)
+        if not agent:
             return
-        self.agents[aid].status = status
+        agent.status = status
         try:
-            self.agent_sidebar.update_status(aid, status)
+            self.agent_sidebar.update_status(agent.id, status)
         except Exception:
             pass  # Sidebar not mounted yet
 
@@ -488,16 +499,13 @@ class ChatApp(App):
         self.register_theme(ALAMODE_THEME)
         self.theme = "alamode"
 
-        # Create initial agent session
-        cwd = Path.cwd()
-        agent = create_agent_session(name=cwd.name, cwd=cwd)
-        agent.chat_view = self.query_one("#chat-view", AutoHideScroll)
-        self.agents[agent.id] = agent
-        self.active_agent_id = agent.id
+        # Initialize AgentManager (new architecture)
+        self.agent_mgr = AgentManager(self._make_options)
+        self._wire_agent_manager_callbacks()
 
-        # Add to sidebar
-        self.agent_sidebar.add_agent(agent.id, agent.name)
-        self.agent_sidebar.set_active(agent.id)
+        # Create initial agent synchronously (UI populated immediately)
+        cwd = Path.cwd()
+        self.agent_mgr.create_unconnected(name=cwd.name, cwd=cwd)
 
         # Populate ghost worktrees (feature branches only)
         self._populate_worktrees()
@@ -514,10 +522,11 @@ class ChatApp(App):
 
     @work(exclusive=True, group="connect")
     async def _connect_initial_client(self) -> None:
-        """Connect to SDK in background after UI renders."""
-        agent = self._agent
-        if not agent:
+        """Connect SDK for the initial agent."""
+        if self.agent_mgr is None or self.agent_mgr.active is None:
             return
+
+        agent = self.agent_mgr.active
 
         # Show connecting status
         self.status_footer.model = "connecting..."
@@ -528,13 +537,15 @@ class ChatApp(App):
             sessions = await get_recent_sessions(limit=1)
             resume = sessions[0][0] if sessions else None
 
-        # Create client with resume if provided
-        agent.client = ClaudeSDKClient(self._make_options(resume=resume))
-        await agent.client.connect()
+        # Connect the agent to SDK
+        options = self._make_options(cwd=agent.cwd, resume=resume)
+        await agent.connect(options, resume=resume)
+
+        # Load history if resuming
         if resume:
             await self._load_and_display_history(resume)
-            agent.session_id = resume
             self.notify(f"Resuming {resume[:8]}...")
+
         # Fetch SDK commands and update autocomplete
         await self._update_slash_commands()
 
@@ -632,7 +643,7 @@ class ChatApp(App):
         if prompt.strip() == "/clear":
             chat_view.remove_children()
             self.notify("Conversation cleared")
-            self.run_claude(prompt)
+            self._send_to_active_agent(prompt)
             return
 
         if prompt.strip().startswith("/resume"):
@@ -685,72 +696,25 @@ class ChatApp(App):
 
         self.current_response = None
         self._show_thinking()
-        self.run_claude(prompt)
+        self._send_to_active_agent(prompt)
 
-    @work(exit_on_error=False)
-    async def run_claude(self, prompt: str) -> None:
-        """Run a Claude query for the current agent (captured at call time)."""
-        # Capture agent at start - messages go to this agent regardless of later switches
-        agent = self._agent
-        if not agent or not agent.client:
-            log.warning(f"run_claude: no agent or client (agent={agent is not None})")
+    def _send_to_active_agent(self, prompt: str) -> None:
+        """Send prompt to active agent using Agent.send()."""
+        if self.agent_mgr is None or self.agent_mgr.active is None:
+            log.warning("_send_to_active_agent: no agent manager or active agent")
             self.notify("Agent not ready", severity="error")
             return
-        agent_id = agent.id
-        self._set_agent_status("busy", agent_id)
-        try:
-            # Send message with images if any are pending
-            if self.pending_images:
-                message = self._build_message_with_images(prompt)
-                if agent.client._transport:
-                    await agent.client._transport.write(json.dumps(message) + "\n")
-            else:
-                await agent.client.query(prompt)
-            had_tool_use: dict[str | None, bool] = {}
-            agent.response_had_tools = False
-            awaiting_compact_summary = False
 
-            async for message in agent.client.receive_response():
-                if isinstance(message, AssistantMessage):
-                    parent_id = message.parent_tool_use_id
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            new_msg = had_tool_use.get(parent_id, False)
-                            self.post_message(
-                                StreamChunk(block.text, new_message=new_msg, parent_tool_use_id=parent_id, agent_id=agent_id)
-                            )
-                            had_tool_use[parent_id] = False
-                        elif isinstance(block, ToolUseBlock):
-                            self.post_message(ToolUseMessage(block, parent_tool_use_id=parent_id, agent_id=agent_id))
-                            had_tool_use[parent_id] = True
-                            agent.response_had_tools = True
-                        elif isinstance(block, ToolResultBlock):
-                            self.post_message(ToolResultMessage(block, parent_tool_use_id=parent_id, agent_id=agent_id))
-                elif isinstance(message, UserMessage):
-                    content = getattr(message, "content", "")
-                    user_parent_id = getattr(message, "parent_tool_use_id", None)
-                    # After compact_boundary, first UserMessage with string content is the summary
-                    # (the second is <local-command-stdout>Compacted</local-command-stdout>)
-                    if awaiting_compact_summary and isinstance(content, str) and not content.startswith("<"):
-                        awaiting_compact_summary = False
-                        self.post_message(StreamChunk(content, agent_id=agent_id))
-                    elif isinstance(content, list):
-                        # UserMessage contains tool results as a list of ToolResultBlock
-                        for block in content:
-                            if isinstance(block, ToolResultBlock):
-                                self.post_message(ToolResultMessage(block, parent_tool_use_id=user_parent_id, agent_id=agent_id))
-                elif isinstance(message, SystemMessage):
-                    subtype = getattr(message, "subtype", "")
-                    if subtype == "compact_boundary":
-                        meta = message.data.get("compact_metadata", {})
-                        pre_tokens = meta.get("pre_tokens", "?")
-                        self.notify(f"Compacted from {pre_tokens} tokens")
-                        awaiting_compact_summary = True
-                elif isinstance(message, ResultMessage):
-                    self.post_message(ResponseComplete(message, agent_id=agent_id))
-        except Exception as e:
-            self.show_error("Claude response failed", e)
-            self.post_message(ResponseComplete(None, agent_id=agent_id))
+        agent = self.agent_mgr.active
+
+        # Transfer pending images to agent
+        if self.pending_images:
+            agent.pending_images = list(self.pending_images)
+            self.pending_images.clear()
+            self.query_one("#image-attachments", ImageAttachments).clear()
+
+        # Start async send (returns immediately, callbacks handle UI)
+        asyncio.create_task(agent.send(prompt), name=f"send-{agent.id}")
 
     def _show_thinking(self, agent_id: str | None = None) -> None:
         """Show the thinking indicator for a specific agent."""
@@ -778,8 +742,8 @@ class ChatApp(App):
         if not agent:
             return
 
-        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_tasks:
-            task = agent.active_tasks[event.parent_tool_use_id]
+        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_task_widgets:
+            task = agent.active_task_widgets[event.parent_tool_use_id]
             task.add_text(event.text, new_message=event.new_message)
             return
 
@@ -799,8 +763,8 @@ class ChatApp(App):
         if not agent:
             return
 
-        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_tasks:
-            task = agent.active_tasks[event.parent_tool_use_id]
+        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_task_widgets:
+            task = agent.active_task_widgets[event.parent_tool_use_id]
             task.add_tool_use(event.block)
             return
 
@@ -831,14 +795,14 @@ class ChatApp(App):
         collapsed = event.block.name in self.COLLAPSE_BY_DEFAULT
         if event.block.name == "Task":
             widget = TaskWidget(event.block, collapsed=collapsed)
-            agent.active_tasks[event.block.id] = widget
+            agent.active_task_widgets[event.block.id] = widget
         elif event.block.name.startswith("mcp__alamode__"):
             # Custom widget for alamode MCP tools
             widget = AgentToolWidget(event.block)
         else:
             widget = ToolUseWidget(event.block, collapsed=collapsed)
 
-        agent.pending_tools[event.block.id] = widget
+        agent.pending_tool_widgets[event.block.id] = widget
         agent.recent_tools.append(widget)
         chat_view.mount(widget)
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
@@ -849,17 +813,17 @@ class ChatApp(App):
         if not agent:
             return
 
-        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_tasks:
-            task = agent.active_tasks[event.parent_tool_use_id]
+        if event.parent_tool_use_id and event.parent_tool_use_id in agent.active_task_widgets:
+            task = agent.active_task_widgets[event.parent_tool_use_id]
             task.add_tool_result(event.block)
             return
 
-        widget = agent.pending_tools.get(event.block.tool_use_id)
+        widget = agent.pending_tool_widgets.get(event.block.tool_use_id)
         if widget:
             widget.set_result(event.block)
-            del agent.pending_tools[event.block.tool_use_id]
-            if event.block.tool_use_id in agent.active_tasks:
-                del agent.active_tasks[event.block.tool_use_id]
+            del agent.pending_tool_widgets[event.block.tool_use_id]
+            if event.block.tool_use_id in agent.active_task_widgets:
+                del agent.active_task_widgets[event.block.tool_use_id]
         self._show_thinking(event.agent_id)
 
     def on_resize(self, event) -> None:
@@ -869,7 +833,8 @@ class ChatApp(App):
     def _position_right_sidebar(self) -> None:
         """Show/hide right sidebar based on terminal width and content."""
         # Show sidebar when wide enough and we have multiple agents, worktrees, or todos
-        has_content = len(self.agents) > 1 or self.agent_sidebar._worktrees or self.todo_panel.todos
+        agent_count = len(self.agent_mgr) if self.agent_mgr else 0
+        has_content = agent_count > 1 or self.agent_sidebar._worktrees or self.todo_panel.todos
         if self.size.width >= self.SIDEBAR_MIN_WIDTH and has_content:
             self.right_sidebar.remove_class("hidden")
             # Show/hide todo panel based on whether it has content
@@ -1013,8 +978,8 @@ class ChatApp(App):
 
             # Clear internal state
             agent.current_response = None
-            agent.pending_tools.clear()
-            agent.active_tasks.clear()
+            agent.pending_tool_widgets.clear()
+            agent.active_task_widgets.clear()
             agent.recent_tools.clear()
             agent.cwd = new_cwd
 
@@ -1117,7 +1082,7 @@ class ChatApp(App):
                 old_agent.chat_view.add_class("hidden")
             if old_agent.active_prompt:
                 old_agent.active_prompt.add_class("hidden")
-        # Switch active agent
+        # Switch active agent (setter syncs to AgentManager)
         self.active_agent_id = agent_id
         agent = self._agent
         if agent and agent.chat_view:
@@ -1193,7 +1158,7 @@ class ChatApp(App):
     async def _create_new_agent(
         self, name: str, cwd: Path, worktree: str | None = None, auto_resume: bool = False, switch_to: bool = True
     ) -> None:
-        """Create a new agent session.
+        """Create a new agent via AgentManager.
 
         Args:
             name: Display name for the agent
@@ -1202,34 +1167,29 @@ class ChatApp(App):
             auto_resume: Try to resume most recent session in cwd
             switch_to: Whether to switch to the new agent (default True)
         """
-        agent = create_agent_session(name=name, cwd=cwd, worktree=worktree)
-
-        chat_view = AutoHideScroll(id=f"chat-view-{agent.id}", classes="chat-view hidden")
-        main = self.query_one("#main", Horizontal)
-        main.mount(chat_view, after=self.query_one("#session-picker"))
-        agent.chat_view = chat_view
+        if self.agent_mgr is None:
+            self.notify("Agent manager not initialized", severity="error")
+            return
 
         try:
+            # Resolve resume ID if auto_resume
             resume_id = None
             if auto_resume:
                 sessions = await get_recent_sessions(limit=1, cwd=cwd)
                 resume_id = sessions[0][0] if sessions else None
-            agent.client = ClaudeSDKClient(self._make_options(cwd=cwd, resume=resume_id))
-            await agent.client.connect()
+
+            # Create agent via AgentManager (handles SDK connection, UI callbacks)
+            agent = await self.agent_mgr.create(
+                name=name, cwd=cwd, worktree=worktree, resume=resume_id, switch_to=switch_to
+            )
         except Exception as e:
             self.show_error(f"Failed to create agent '{name}'", e)
-            chat_view.remove()
             return
 
-        self.agents[agent.id] = agent
-        self.agent_sidebar.add_agent(agent.id, agent.name)
-        if switch_to:
-            self._switch_to_agent(agent.id)
         self._position_right_sidebar()
 
         if resume_id:
             await self._load_and_display_history(resume_id, cwd=cwd)
-            agent.session_id = resume_id
             self.notify(f"Resumed session in '{name}'")
         else:
             label = f"Worktree '{name}'" if worktree else f"Agent '{name}'"
@@ -1242,7 +1202,7 @@ class ChatApp(App):
             return
 
         # Find agent to close
-        agent_to_close: AgentSession | None = None
+        agent_to_close: Agent | None = None
         if target is None:
             # Close current agent
             agent_to_close = self._agent
@@ -1268,37 +1228,31 @@ class ChatApp(App):
     @work(group="close_agent", exclusive=True, exit_on_error=False)
     async def _do_close_agent(self, agent_id: str) -> None:
         """Actually close an agent (async for client cleanup)."""
+        if self.agent_mgr is None:
+            return
         agent = self.agents.get(agent_id)
         if not agent:
             return
 
-        name = agent.name
+        agent_name = agent.name
         was_active = agent_id == self.active_agent_id
 
-        # Disconnect client
-        if agent.client:
-            try:
-                await agent.client.interrupt()
-            except Exception:
-                pass  # Best-effort cleanup
-            agent.client = None
-
-        # Remove chat view
+        # Remove chat view before closing (AgentManager.close removes from agents dict)
         if agent.chat_view:
             agent.chat_view.remove()
 
+        # Close via AgentManager (handles disconnect and removes from agents dict)
+        await self.agent_mgr.close(agent_id)
+
         # Remove from sidebar
         self.agent_sidebar.remove_agent(agent_id)
-
-        # Remove from agents dict
-        del self.agents[agent_id]
 
         # Switch to another agent if we closed the active one
         if was_active and self.agents:
             self._switch_to_agent(next(iter(self.agents)))
 
         self._position_right_sidebar()
-        self.notify(f"Agent '{name}' closed")
+        self.notify(f"Agent '{agent_name}' closed")
 
     def on_app_focus(self) -> None:
         if self._chat_input:
@@ -1339,3 +1293,196 @@ class ChatApp(App):
             self._chat_input.insert(event.character)
             event.prevent_default()
             event.stop()
+
+    # -----------------------------------------------------------------------
+    # AgentManager callbacks (new architecture)
+    # -----------------------------------------------------------------------
+
+    def _wire_agent_manager_callbacks(self) -> None:
+        """Wire AgentManager callbacks for UI integration.
+
+        This sets up the callbacks that translate Agent events into UI updates.
+        Called once during on_mount().
+        """
+        if self.agent_mgr is None:
+            return
+
+        # Manager-level callbacks
+        self.agent_mgr.on_created = self._on_new_agent_created
+        self.agent_mgr.on_switched = self._on_agent_switched
+        self.agent_mgr.on_closed = self._on_agent_closed
+
+        # Agent-level callbacks (applied to all agents via AgentManager)
+        self.agent_mgr.on_agent_status_changed = self._on_agent_status_changed
+        self.agent_mgr.on_agent_error = self._on_agent_error
+        self.agent_mgr.on_agent_complete = self._on_agent_complete
+        self.agent_mgr.on_agent_todos_updated = self._on_agent_todos_updated
+
+        # Fine-grained streaming callbacks (post Textual Messages for UI handlers)
+        self.agent_mgr.on_agent_text_chunk = self._on_agent_text_chunk
+        self.agent_mgr.on_agent_tool_use = self._on_agent_tool_use
+        self.agent_mgr.on_agent_tool_result = self._on_agent_tool_result
+
+        # Permission UI callback
+        self.agent_mgr.permission_ui_callback = self._handle_agent_permission_ui
+
+    def _on_new_agent_created(self, agent: Agent) -> None:
+        """Handle new agent creation from AgentManager."""
+        log.info(f"New agent created: {agent.name} (id={agent.id})")
+
+        try:
+            # Create chat view for the agent
+            is_first_agent = len(self.agent_mgr.agents) == 1 if self.agent_mgr else True
+            if is_first_agent:
+                # First agent uses the existing chat view from compose()
+                chat_view = self.query_one("#chat-view", AutoHideScroll)
+                chat_view.add_class("chat-view")  # Add class for consistent query behavior
+            else:
+                # Additional agents get new chat views
+                chat_view = AutoHideScroll(id=f"chat-view-{agent.id}", classes="chat-view hidden")
+                main = self.query_one("#main", Horizontal)
+                main.mount(chat_view, after=self.query_one("#session-picker"))
+
+            # Store chat view on agent
+            agent.chat_view = chat_view
+
+            # Add to sidebar
+            try:
+                self.agent_sidebar.add_agent(agent.id, agent.name)
+            except Exception:
+                pass  # Sidebar may not be mounted
+        except Exception as e:
+            log.exception(f"Failed to create agent UI: {e}")
+
+    def _on_agent_switched(self, new_agent: Agent, old_agent: Agent | None) -> None:
+        """Handle agent switch from AgentManager."""
+        log.info(f"Switched to agent: {new_agent.name}")
+
+        # Hide old agent's chat view
+        if old_agent and old_agent.chat_view:
+            old_agent.chat_view.add_class("hidden")
+
+        # Show new agent's chat view
+        if new_agent.chat_view:
+            new_agent.chat_view.remove_class("hidden")
+
+        # Update sidebar
+        try:
+            self.agent_sidebar.set_active(new_agent.id)
+        except Exception:
+            pass
+
+        # Update footer
+        self._update_footer_auto_edit()
+        self._update_footer_cwd(new_agent.cwd)
+
+        # Update todo panel
+        self.todo_panel.update_todos(new_agent.todos)
+        self.refresh_context()
+        self._position_right_sidebar()
+
+    def _on_agent_closed(self, agent_id: str) -> None:
+        """Handle agent closure from AgentManager."""
+        log.info(f"Agent closed: {agent_id}")
+        try:
+            self.agent_sidebar.remove_agent(agent_id)
+        except Exception:
+            pass
+
+    def _on_agent_status_changed(self, agent: Agent) -> None:
+        """Handle agent status change."""
+        try:
+            self.agent_sidebar.update_status(agent.id, agent.status)
+        except Exception:
+            pass
+
+    def _on_agent_error(self, agent: Agent, message: str, exception: Exception | None) -> None:
+        """Handle error from agent."""
+        # Show error in UI if this is active agent
+        if self.agent_mgr and agent.id == self.agent_mgr.active_id:
+            self.show_error(message, exception)
+
+    def _on_agent_complete(self, agent: Agent, result: ResultMessage | None) -> None:
+        """Handle agent response completion."""
+        log.info(f"Agent {agent.name} completed response")
+        # Post ResponseComplete message for existing UI handler
+        self.post_message(ResponseComplete(result, agent_id=agent.id))
+
+    def _on_agent_todos_updated(self, agent: Agent) -> None:
+        """Handle agent todos update."""
+        if self.agent_mgr and agent.id == self.agent_mgr.active_id:
+            try:
+                self.todo_panel.update_todos(agent.todos)
+            except Exception:
+                pass
+
+    def _on_agent_text_chunk(
+        self, agent: Agent, text: str, new_message: bool, parent_tool_id: str | None
+    ) -> None:
+        """Handle text chunk from agent - post Textual Message for UI."""
+        self.post_message(
+            StreamChunk(text, new_message=new_message, parent_tool_use_id=parent_tool_id, agent_id=agent.id)
+        )
+
+    def _on_agent_tool_use(self, agent: Agent, tool: ToolUse) -> None:
+        """Handle tool use from agent - post Textual Message for UI."""
+        from claude_agent_sdk import ToolUseBlock
+        block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
+        self.post_message(ToolUseMessage(block, parent_tool_use_id=None, agent_id=agent.id))
+
+    def _on_agent_tool_result(self, agent: Agent, tool: ToolUse) -> None:
+        """Handle tool result from agent - post Textual Message for UI."""
+        from claude_agent_sdk import ToolResultBlock
+        block = ToolResultBlock(tool_use_id=tool.id, content=tool.result or "", is_error=tool.is_error)
+        self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent.id))
+
+    async def _handle_agent_permission_ui(
+        self, agent: Agent, request: PermissionRequest
+    ) -> str:
+        """Handle permission UI for an agent.
+
+        This is called by Agent when it needs user input for a permission.
+        Returns "allow", "deny", or "allow_all".
+        """
+        # Put in interactions queue for testing
+        await self.interactions.put(request)
+
+        if request.tool_name == "AskUserQuestion":
+            # Handle question prompts
+            questions = request.tool_input.get("questions", [])
+            async with self._show_prompt(QuestionPrompt(questions)) as prompt:
+                answers = await prompt.wait()
+
+            if not answers:
+                return "deny"
+
+            # Store answers on request for Agent to retrieve
+            request._answers = answers  # type: ignore[attr-defined]
+            return "allow"
+
+        # Regular permission prompt
+        options = [("allow", "Yes, this time only"), ("deny", "No")]
+        if request.tool_name in self.AUTO_EDIT_TOOLS:
+            options.insert(0, ("allow_all", "Yes, all edits in this session"))
+
+        async with self._show_prompt(SelectionPrompt(request.title, options)) as prompt:
+            async def ui_response():
+                result = await prompt.wait()
+                if not request._event.is_set():
+                    request.respond(result)
+
+            asyncio.create_task(ui_response())
+            result = await request.wait()
+
+        if result == "allow_all":
+            self.notify("Auto-edit enabled (Shift+Tab to disable)")
+
+        return result
+
+    def _update_footer_cwd(self, cwd: Path) -> None:
+        """Update footer to show cwd/branch info."""
+        try:
+            # refresh_branch is async, schedule it
+            asyncio.create_task(self.status_footer.refresh_branch(str(cwd)))
+        except Exception:
+            pass

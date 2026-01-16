@@ -37,31 +37,22 @@ def _text_response(text: str) -> dict[str, Any]:
 
 def _find_agent_by_name(name: str):
     """Find an agent by name. Returns (agent, error_message)."""
-    if _app is None:
+    if _app is None or _app.agent_mgr is None:
         return None, "App not initialized"
-    for agent in _app.agents.values():
-        if agent.name == name:
-            return agent, None
+    agent = _app.agent_mgr.find_by_name(name)
+    if agent:
+        return agent, None
     return None, f"Agent '{name}' not found. Use list_agents to see available agents."
 
 
-async def _wait_for_agent_ready(name: str):
-    """Poll until agent is ready. Returns (agent, error_message)."""
-    for _ in range(50):  # 5 second timeout
-        await asyncio.sleep(0.1)
-        agent, _ = _find_agent_by_name(name)
-        if agent and agent.client:
-            return agent, None
-    return None, f"Agent '{name}' creation timed out"
+async def _send_prompt_to_agent(agent, prompt: str) -> None:
+    """Send prompt directly to agent without switching UI.
 
-
-def _send_prompt_without_switch(agent, prompt: str) -> None:
-    """Send prompt to agent, switching back to original agent after."""
-    original_agent_id = _app.active_agent_id
-    _app._switch_to_agent(agent.id)
-    _app._handle_prompt(prompt)
-    if original_agent_id:
-        _app._switch_to_agent(original_agent_id)
+    Uses Agent.send() for concurrent operation.
+    """
+    if agent.client is None:
+        raise RuntimeError(f"Agent '{agent.name}' not connected")
+    await agent.send(prompt)
 
 
 @tool(
@@ -71,7 +62,7 @@ def _send_prompt_without_switch(agent, prompt: str) -> None:
 )
 async def spawn_agent(args: dict[str, Any]) -> dict[str, Any]:
     """Spawn a new agent, optionally with an initial prompt."""
-    if _app is None:
+    if _app is None or _app.agent_mgr is None:
         return _text_response("Error: App not initialized")
 
     name = args["name"]
@@ -82,22 +73,23 @@ async def spawn_agent(args: dict[str, Any]) -> dict[str, Any]:
         return _text_response(f"Error: Path '{path}' does not exist")
 
     # Check if agent with this name already exists
-    for agent in _app.agents.values():
-        if agent.name == name:
-            return _text_response(f"Error: Agent '{name}' already exists")
+    if _app.agent_mgr.find_by_name(name):
+        return _text_response(f"Error: Agent '{name}' already exists")
 
-    # Create the agent (async worker) without switching to it
-    _app._create_new_agent(name, path, switch_to=False)
-
-    agent, error = await _wait_for_agent_ready(name)
-    if agent is None:
-        return _text_response(f"Error: {error}")
+    try:
+        # Create agent via AgentManager (handles SDK connection)
+        agent = await _app.agent_mgr.create(name=name, cwd=path, switch_to=False)
+    except Exception as e:
+        return _text_response(f"Error creating agent: {e}")
 
     result = f"Created agent '{name}' in {path}"
 
     if prompt:
-        _send_prompt_without_switch(agent, prompt)
-        result += f"\nSent initial prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+        try:
+            await _send_prompt_to_agent(agent, prompt)
+            result += f"\nSent initial prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+        except Exception as e:
+            result += f"\nWarning: Failed to send prompt: {e}"
 
     return _text_response(result)
 
@@ -109,7 +101,7 @@ async def spawn_agent(args: dict[str, Any]) -> dict[str, Any]:
 )
 async def spawn_worktree(args: dict[str, Any]) -> dict[str, Any]:
     """Create a git worktree and spawn an agent in it."""
-    if _app is None:
+    if _app is None or _app.agent_mgr is None:
         return _text_response("Error: App not initialized")
 
     name = args["name"]
@@ -120,18 +112,22 @@ async def spawn_worktree(args: dict[str, Any]) -> dict[str, Any]:
     if not success:
         return _text_response(f"Error creating worktree: {message}")
 
-    # Create agent in the worktree without switching to it
-    _app._create_new_agent(name, wt_path, worktree=name, switch_to=False)
-
-    agent, error = await _wait_for_agent_ready(name)
-    if agent is None:
-        return _text_response(f"Worktree created at {wt_path}, but {error}")
+    try:
+        # Create agent in the worktree via AgentManager
+        agent = await _app.agent_mgr.create(
+            name=name, cwd=wt_path, worktree=name, switch_to=False
+        )
+    except Exception as e:
+        return _text_response(f"Worktree created at {wt_path}, but agent failed: {e}")
 
     result = f"Created worktree '{name}' at {wt_path} with new agent"
 
     if prompt:
-        _send_prompt_without_switch(agent, prompt)
-        result += f"\nSent initial prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+        try:
+            await _send_prompt_to_agent(agent, prompt)
+            result += f"\nSent initial prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+        except Exception as e:
+            result += f"\nWarning: Failed to send prompt: {e}"
 
     return _text_response(result)
 
@@ -143,7 +139,7 @@ async def spawn_worktree(args: dict[str, Any]) -> dict[str, Any]:
 )
 async def ask_agent(args: dict[str, Any]) -> dict[str, Any]:
     """Send prompt to an agent and wait for response."""
-    if _app is None:
+    if _app is None or _app.agent_mgr is None:
         return _text_response("Error: App not initialized")
 
     name = args["name"]
@@ -153,19 +149,17 @@ async def ask_agent(args: dict[str, Any]) -> dict[str, Any]:
     if agent is None:
         return _text_response(f"Error: {error}")
 
-    # Clear the completion event before sending prompt
-    agent._completion_event.clear()
-
-    _send_prompt_without_switch(agent, prompt)
-
-    # Wait for THIS agent's response with timeout (5 minutes)
     try:
-        await asyncio.wait_for(agent._completion_event.wait(), timeout=300)
+        # Send prompt and wait for completion using Agent API
+        await _send_prompt_to_agent(agent, prompt)
+        response_text = await agent.wait_for_completion(timeout=300)
     except asyncio.TimeoutError:
         return _text_response(f"Error: Agent '{name}' response timed out after 5 minutes")
+    except Exception as e:
+        return _text_response(f"Error: {e}")
 
-    # Get the response text from the agent
-    response_text = agent._last_response or ""
+    if response_text is None:
+        return _text_response(f"Error: Agent '{name}' response timed out")
 
     # Truncate if too long
     max_len = 4000
@@ -182,16 +176,16 @@ async def ask_agent(args: dict[str, Any]) -> dict[str, Any]:
 )
 async def list_agents(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
     """List all agents and their status."""
-    if _app is None:
+    if _app is None or _app.agent_mgr is None:
         return _text_response("Error: App not initialized")
 
-    if not _app.agents:
+    if len(_app.agent_mgr) == 0:
         return _text_response("No agents running")
 
     lines = ["Agents:"]
-    for i, agent in enumerate(_app.agents.values(), 1):
-        active = "*" if agent.id == _app.active_agent_id else " "
-        wt = f" (worktree)" if agent.worktree else ""
+    for i, agent in enumerate(_app.agent_mgr, 1):
+        active = "*" if agent.id == _app.agent_mgr.active_id else " "
+        wt = " (worktree)" if agent.worktree else ""
         lines.append(f"{active}{i}. {agent.name} [{agent.status}] - {agent.cwd}{wt}")
 
     return _text_response("\n".join(lines))

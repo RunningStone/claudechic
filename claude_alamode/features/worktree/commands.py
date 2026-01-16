@@ -31,7 +31,7 @@ from claude_alamode.features.worktree.prompts import UncommittedChangesPrompt, W
 
 if TYPE_CHECKING:
     from claude_alamode.app import ChatApp
-    from claude_alamode.agent import AgentSession
+    from claude_alamode.agent import Agent
 
 # Max retries for worktree cleanup before giving up
 MAX_CLEANUP_ATTEMPTS = 3
@@ -123,7 +123,7 @@ def _show_finish_status(app: "ChatApp", status: WorktreeStatus) -> None:
 
 
 @work(group="finish", exclusive=True, exit_on_error=False)
-async def _run_resolution(app: "ChatApp", agent: "AgentSession") -> None:
+async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
     """Run Phase 2: Resolution. May invoke Claude or prompt user."""
     from claude_alamode.widgets import ChatInput
 
@@ -185,7 +185,7 @@ async def _run_resolution(app: "ChatApp", agent: "AgentSession") -> None:
             if choice == "commit":
                 # Ask Claude to commit
                 app._show_thinking()
-                app.run_claude("Commit all changes with a descriptive message.")
+                app._send_to_active_agent("Commit all changes with a descriptive message.")
                 # Resolution will continue in on_response_complete_finish
                 return
 
@@ -198,20 +198,20 @@ async def _run_resolution(app: "ChatApp", agent: "AgentSession") -> None:
             else:
                 # Unexpected - fall back to Claude
                 app._show_thinking()
-                app.run_claude(f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(state.info))
+                app._send_to_active_agent(f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(state.info))
             return
 
         if action == ResolutionAction.REBASE:
             # Claude handles rebase
             app._show_thinking()
-            app.run_claude(get_finish_prompt(state.info))
+            app._send_to_active_agent(get_finish_prompt(state.info))
             return
 
         # Unknown action - shouldn't happen
         return
 
 
-def _run_cleanup(app: "ChatApp", agent: "AgentSession") -> None:
+def _run_cleanup(app: "ChatApp", agent: "Agent") -> None:
     """Run Phase 3: Cleanup. Bash only, Claude if it fails."""
     state = agent.finish_state
     if not state:
@@ -233,10 +233,10 @@ def _run_cleanup(app: "ChatApp", agent: "AgentSession") -> None:
 
     _show_cleanup_failure(agent, message)
     app._show_thinking()
-    app.run_claude(get_cleanup_fix_prompt(message, state.info.worktree_dir))
+    app._send_to_active_agent(get_cleanup_fix_prompt(message, state.info.worktree_dir))
 
 
-def _show_cleanup_failure(agent: "AgentSession", error: str) -> None:
+def _show_cleanup_failure(agent: "Agent", error: str) -> None:
     """Display cleanup failure in chat."""
     from claude_alamode.widgets import ChatMessage
 
@@ -251,7 +251,7 @@ def _show_cleanup_failure(agent: "AgentSession", error: str) -> None:
         chat_view.mount(msg)
 
 
-def _finish_complete(app: "ChatApp", agent: "AgentSession", warning: str = "") -> None:
+def _finish_complete(app: "ChatApp", agent: "Agent", warning: str = "") -> None:
     """Handle successful finish completion."""
     state = agent.finish_state
     if not state:
@@ -282,7 +282,7 @@ def _finish_complete(app: "ChatApp", agent: "AgentSession", warning: str = "") -
         app._do_close_agent(worktree_agent.id)
 
 
-def on_response_complete_finish(app: "ChatApp", agent: "AgentSession") -> None:
+def on_response_complete_finish(app: "ChatApp", agent: "Agent") -> None:
     """Called from on_response_complete when finish_state is set.
 
     Continues the finish process after Claude completes a task.

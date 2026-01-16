@@ -9,6 +9,7 @@ from claude_alamode.widgets.prompts import BasePrompt, SelectionPrompt, Question
 from claude_alamode.widgets.autocomplete import TextAreaAutoComplete
 from claude_alamode.widgets.agents import AgentItem, AgentSidebar, WorktreeItem
 from claude_alamode.widgets.scroll import AutoHideScroll
+from claude_alamode.widgets.chat_view import ChatView
 
 __all__ = [
     "CPUBar",
@@ -34,4 +35,5 @@ __all__ = [
     "AgentSidebar",
     "WorktreeItem",
     "AutoHideScroll",
+    "ChatView",
 ]
