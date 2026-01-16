@@ -78,13 +78,26 @@ def _handle_resume(app: "ChatApp", command: str) -> bool:
 
 def _handle_agent(app: "ChatApp", command: str) -> bool:
     """Handle /agent commands: list, create, close."""
+    from claudechic.widgets import ChatMessage
+    from claudechic.app import _scroll_if_at_bottom
+
     parts = command.split(maxsplit=2)
 
     if len(parts) == 1:
-        # List agents
+        # List agents as markdown table
+        lines = ["| # | Agent | Status | Directory |", "|---|-------|--------|-----------|"]
         for i, (aid, agent) in enumerate(app.agents.items(), 1):
-            marker = "*" if aid == app.active_agent_id else " "
-            app.notify(f"{marker}{i}. {agent.name} ({agent.status})")
+            marker = "▸" if aid == app.active_agent_id else " "
+            # Shorten home directory
+            path = str(agent.cwd).replace(str(Path.home()), "~")
+            lines.append(f"| {marker}{i} | {agent.name} | {agent.status} | {path} |")
+
+        chat_view = app._chat_view
+        if chat_view:
+            msg = ChatMessage("\n".join(lines))
+            msg.add_class("system-message")
+            chat_view.mount(msg)
+            _scroll_if_at_bottom(chat_view)
         return True
 
     subcommand = parts[1]
