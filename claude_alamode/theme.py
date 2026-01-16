@@ -17,5 +17,3 @@ ALAMODE_THEME = Theme(
     dark=True,
 )
 
-# Export individual colors for use in Python code (e.g., Rich Text styling)
-PRIMARY = ALAMODE_THEME.primary

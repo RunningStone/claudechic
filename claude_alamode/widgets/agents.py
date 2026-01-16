@@ -10,9 +10,6 @@ from textual.widget import Widget
 from textual.widgets import Static
 from rich.text import Text
 
-from claude_alamode.theme import PRIMARY
-
-
 class WorktreeItem(Widget):
     """A ghost worktree in the sidebar (not yet an agent)."""
 
@@ -50,7 +47,7 @@ class WorktreeItem(Widget):
         name = self.branch
         if len(name) > 16:
             name = name[:15] + "…"
-        label = Text.assemble(("◌", "#444444"), " ", (name, "#555555"))
+        label = Text.assemble(("◌", ""), " ", (name, "dim"))
         yield Static(label, classes="worktree-label")
 
     def on_click(self) -> None:
@@ -72,26 +69,26 @@ class AgentItem(Widget):
             self.agent_id = agent_id
             super().__init__()
 
-    DEFAULT_CSS = f"""
-    AgentItem {{
+    DEFAULT_CSS = """
+    AgentItem {
         height: 3;
         padding: 1 1;
         border-left: tall transparent;
         layout: horizontal;
-    }}
-    AgentItem:hover {{
+    }
+    AgentItem:hover {
         background: $surface-lighten-1;
-    }}
-    AgentItem.active {{
-        border-left: tall {PRIMARY};
+    }
+    AgentItem.active {
+        border-left: tall $primary;
         background: $surface;
-    }}
-    AgentItem .agent-label {{
+    }
+    AgentItem .agent-label {
         width: 1fr;
         overflow: hidden;
         text-overflow: ellipsis;
-    }}
-    AgentItem .agent-close {{
+    }
+    AgentItem .agent-close {
         width: 3;
         min-width: 3;
         height: 1;
@@ -99,11 +96,11 @@ class AgentItem(Widget):
         background: $panel;
         color: $text-muted;
         text-align: center;
-    }}
-    AgentItem .agent-close:hover {{
+    }
+    AgentItem .agent-close:hover {
         color: $error;
         background: $panel-lighten-1;
-    }}
+    }
     """
 
     status = reactive("idle")
@@ -121,17 +118,17 @@ class AgentItem(Widget):
     def _render_label(self) -> Text:
         if self.status == "busy":
             indicator = "\u25cf"
-            color = "#888888"
+            style = ""  # default text color
         elif self.status == "needs_input":
             indicator = "\u25cf"
-            color = PRIMARY
+            style = self.app.current_theme.primary if self.app else "bold"
         else:
             indicator = "\u25cb"
-            color = "#555555"
+            style = "dim"
         name = self.display_name
         if len(name) > 14:
             name = name[:13] + "…"
-        return Text.assemble((indicator, color), " ", (name, ""))
+        return Text.assemble((indicator, style), " ", (name, ""))
 
     def watch_status(self, _status: str) -> None:
         """Update label when status changes."""

@@ -63,8 +63,8 @@ class TextAreaAutoComplete(Widget):
         width: auto;
         max-height: 16;
         display: none;
-        background: #111111;
-        border-left: tall #333333;
+        background: $surface;
+        border-left: tall $panel;
         overlay: screen;
         padding: 0 1;
 
@@ -82,13 +82,13 @@ class TextAreaAutoComplete(Widget):
         }
 
         & OptionList > .option-list--option-highlighted {
-            background: #222222;
+            background: $surface-lighten-1;
             color: $text;
         }
 
         & .autocomplete--highlight-match {
             text-style: bold;
-            color: #cc7700;
+            color: $primary;
         }
     }
     """
