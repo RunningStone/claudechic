@@ -13,7 +13,7 @@ from textual.message import Message
 from textual.widgets import Markdown, TextArea, Static, Button
 
 from claudechic.errors import log_exception
-from claudechic.profiling import profile
+from claudechic.profiling import profile, timed
 
 
 class Spinner(Static):
@@ -110,8 +110,10 @@ class ChatMessage(Static):
         """Flush pending content to the Markdown widget."""
         self._debounce_timer = None
         try:
-            md = self.query_one("#content", Markdown)
-            md.update(self._content.rstrip())
+            with timed("ChatMessage._flush.query"):
+                md = self.query_one("#content", Markdown)
+            with timed("ChatMessage._flush.update"):
+                md.update(self._content.rstrip())
         except Exception:
             pass  # Widget not mounted yet
 

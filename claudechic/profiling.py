@@ -5,8 +5,20 @@ import functools
 import inspect
 import time
 from collections import defaultdict
+from contextlib import contextmanager
 
 _stats: dict[str, dict] = defaultdict(lambda: {"count": 0, "total": 0.0, "max": 0.0})
+
+
+@contextmanager
+def timed(label: str):
+    """Context manager to time a block of code."""
+    start = time.perf_counter()
+    yield
+    elapsed = time.perf_counter() - start
+    _stats[label]["count"] += 1
+    _stats[label]["total"] += elapsed
+    _stats[label]["max"] = max(_stats[label]["max"], elapsed)
 
 
 def profile(fn):

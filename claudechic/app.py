@@ -82,7 +82,7 @@ from claudechic.widgets import (
 )
 from claudechic.widgets.footer import StatusFooter
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
-from claudechic.profiling import profile
+from claudechic.profiling import profile, timed
 
 log = logging.getLogger(__name__)
 
@@ -768,7 +768,8 @@ class ChatApp(App):
 
     @profile
     def on_stream_chunk(self, event: StreamChunk) -> None:
-        self._hide_thinking(event.agent_id)
+        with timed("on_stream_chunk.hide_thinking"):
+            self._hide_thinking(event.agent_id)
         agent = self._get_agent(event.agent_id)
         if not agent:
             return
@@ -782,10 +783,12 @@ class ChatApp(App):
         if not chat_view:
             return
         if event.new_message or not agent.current_response:
-            agent.current_response = ChatMessage("")
-            agent.current_response.add_class("assistant-message")
-            chat_view.mount(agent.current_response)
-        agent.current_response.append_content(event.text)
+            with timed("on_stream_chunk.create_message"):
+                agent.current_response = ChatMessage("")
+                agent.current_response.add_class("assistant-message")
+                chat_view.mount(agent.current_response)
+        with timed("on_stream_chunk.append"):
+            agent.current_response.append_content(event.text)
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
 
     @profile
@@ -820,23 +823,26 @@ class ChatApp(App):
             self._show_thinking(event.agent_id)
             return
 
-        while len(agent.recent_tools) >= self.RECENT_TOOLS_EXPANDED:
-            old = agent.recent_tools.pop(0)
-            old.collapse()
+        with timed("on_tool_use.collapse_old"):
+            while len(agent.recent_tools) >= self.RECENT_TOOLS_EXPANDED:
+                old = agent.recent_tools.pop(0)
+                old.collapse()
 
         collapsed = event.block.name in self.COLLAPSE_BY_DEFAULT
-        if event.block.name == "Task":
-            widget = TaskWidget(event.block, collapsed=collapsed)
-            agent.active_task_widgets[event.block.id] = widget
-        elif event.block.name.startswith("mcp__chic__"):
-            # Custom widget for chic MCP tools
-            widget = AgentToolWidget(event.block)
-        else:
-            widget = ToolUseWidget(event.block, collapsed=collapsed)
+        with timed("on_tool_use.create_widget"):
+            if event.block.name == "Task":
+                widget = TaskWidget(event.block, collapsed=collapsed)
+                agent.active_task_widgets[event.block.id] = widget
+            elif event.block.name.startswith("mcp__chic__"):
+                # Custom widget for chic MCP tools
+                widget = AgentToolWidget(event.block)
+            else:
+                widget = ToolUseWidget(event.block, collapsed=collapsed)
 
         agent.pending_tool_widgets[event.block.id] = widget
         agent.recent_tools.append(widget)
-        chat_view.mount(widget)
+        with timed("on_tool_use.mount"):
+            chat_view.mount(widget)
         self.call_after_refresh(_scroll_if_at_bottom, chat_view)
         self._hide_thinking(event.agent_id)  # Tool widget has its own spinner
 
