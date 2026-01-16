@@ -18,9 +18,11 @@ Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login
 claudechic/
 ├── __init__.py        # Package entry, exports ChatApp
 ├── __main__.py        # CLI entry point
-├── agent.py           # AgentSession dataclass for multi-agent state
+├── agent.py           # Agent class - SDK connection, history, permissions, state
+├── agent_manager.py   # AgentManager - coordinates multiple concurrent agents
 ├── app.py             # ChatApp - main application, event handlers
 ├── commands.py        # Slash command routing (/agent, /shell, /clear, etc.)
+├── compact.py         # Session compaction - shrink old tool uses to save context
 ├── errors.py          # Logging infrastructure, error handling
 ├── file_index.py      # Fuzzy file search using git ls-files
 ├── formatting.py      # Tool formatting, diff rendering (pure functions)
@@ -28,9 +30,12 @@ claudechic/
 ├── mcp.py             # In-process MCP server for agent control tools
 ├── messages.py        # Custom Textual Message types for SDK events
 ├── permissions.py     # PermissionRequest dataclass for tool approval
+├── profiling.py       # Lightweight profiling utilities (@profile decorator)
+├── protocols.py       # Observer protocols (AgentObserver, AgentManagerObserver)
 ├── sessions.py        # Session file loading and listing (pure functions)
 ├── styles.tcss        # Textual CSS - visual styling
 ├── theme.py           # Textual theme definition
+├── usage.py           # OAuth usage API fetching (rate limits)
 ├── features/
 │   ├── __init__.py    # Feature module exports
 │   └── worktree/
@@ -43,6 +48,8 @@ claudechic/
     ├── agents.py      # AgentSidebar, AgentItem for multi-agent UI
     ├── autocomplete.py # Autocomplete for slash commands and file paths
     ├── chat.py        # ChatMessage, ChatInput, ThinkingIndicator
+    ├── chat_view.py   # ChatView - renders agent messages, handles streaming
+    ├── context_report.py # ContextReport - visual 2D grid for /context
     ├── diff.py        # Syntax-highlighted diff widget
     ├── footer.py      # Custom footer with git branch, CPU/context bars
     ├── history_search.py # Reverse history search widget (Ctrl+R)
@@ -50,7 +57,8 @@ claudechic/
     ├── prompts.py     # SelectionPrompt, QuestionPrompt, SessionItem
     ├── scroll.py      # AutoHideScroll - auto-hiding scrollbar container
     ├── todo.py        # TodoPanel for TodoWrite tool display
-    └── tools.py       # ToolUseWidget, TaskWidget
+    ├── tools.py       # ToolUseWidget, TaskWidget, AgentToolWidget
+    └── usage.py       # UsageReport, UsageBar for /usage command
 
 tests/
 ├── __init__.py        # Package marker
@@ -70,6 +78,13 @@ tests/
 - `formatting.py` - Tool header formatting, diff rendering, language detection
 - `sessions.py` - Session file I/O, listing, filtering
 - `file_index.py` - Fuzzy file search, git ls-files integration
+- `compact.py` - Session compaction to reduce context window usage
+- `usage.py` - OAuth API for rate limit info
+
+**Agent layer (no UI dependencies):**
+- `agent.py` - `Agent` class owns SDK client, message history, permissions, state
+- `agent_manager.py` - Coordinates multiple agents, switching, lifecycle
+- `protocols.py` - Observer protocols (`AgentObserver`, `AgentManagerObserver`, `PermissionHandler`)
 
 **Internal protocol:**
 - `messages.py` - Custom `Message` subclasses for async event communication
@@ -81,7 +96,8 @@ tests/
 
 **UI components:**
 - `widgets/` - Textual widgets with associated styles
-- `app.py` - Main app orchestrating widgets and SDK
+- `widgets/chat_view.py` - `ChatView` renders agent messages, handles streaming
+- `app.py` - Main app orchestrating widgets and agents via observer pattern
 
 ### Widget Hierarchy
 
@@ -89,10 +105,11 @@ tests/
 ChatApp
 ├── Horizontal #main
 │   ├── ListView #session-picker (hidden by default)
-│   ├── AutoHideScroll #chat-view (one per agent, only active visible)
+│   ├── ChatView (one per agent, only active visible)
 │   │   ├── ChatMessage (user/assistant)
 │   │   ├── ToolUseWidget (collapsible tool display)
 │   │   ├── TaskWidget (for Task tool - nested content)
+│   │   ├── AgentToolWidget (for MCP chic tools)
 │   │   └── ThinkingIndicator (animated spinner)
 │   └── Vertical #right-sidebar (hidden when narrow or single agent)
 │       ├── AgentSidebar (list of agents with status)
@@ -105,18 +122,28 @@ ChatApp
 └── StatusFooter (git branch, CPU/context bars)
 ```
 
-### Message Flow (Async Communication)
+### Observer Pattern
 
-The SDK runs in async workers (same event loop, not separate threads). Custom `Message` types route events:
+Agent and AgentManager emit events via protocol-based observers:
 
 ```
-SDK Worker (async)                   Message Handlers
-──────────────                       ────────────────
-receive AssistantMessage  ──post──>  on_stream_chunk() -> update ChatMessage
-receive ToolUseBlock      ──post──>  on_tool_use_message() -> mount ToolUseWidget
-receive ToolResultBlock   ──post──>  on_tool_result_message() -> update widget
-receive ResultMessage     ──post──>  on_response_complete() -> cleanup
+Agent events (AgentObserver)         ChatApp handlers
+────────────────────────────         ────────────────
+on_text_chunk()                  ->  ChatView.append_text()
+on_tool_use()                    ->  ChatView.append_tool_use()
+on_tool_result()                 ->  ChatView.update_tool_result()
+on_complete()                    ->  end response, update UI
+on_status_changed()              ->  update AgentSidebar indicator
+on_prompt_added()                ->  show SelectionPrompt/QuestionPrompt
+
+AgentManager events                  ChatApp handlers
+───────────────────                  ────────────────
+on_agent_created()               ->  create ChatView, update sidebar
+on_agent_switched()              ->  show/hide ChatViews
+on_agent_closed()                ->  remove ChatView, update sidebar
 ```
+
+This decouples Agent (pure async) from UI (Textual widgets).
 
 ### Permission Flow
 
@@ -168,19 +195,25 @@ async for message in client.receive_response():
 - Ctrl+N: New agent (hint)
 - Ctrl+1-9: Switch to agent by position
 
-## Multi-Agent Commands
+## Commands
 
+### Multi-Agent
 - `/agent` - List all agents
 - `/agent <name>` - Create new agent in current directory
 - `/agent <name> <path>` - Create new agent in specified directory
 - `/agent close` - Close current agent
 - `/agent close <name>` - Close agent by name
-- `/agent close <n>` - Close agent by position
 
-Agent status indicators:
-- ○ (dim) - idle
-- ● (gray) - busy/working
-- ● (orange) - needs input
+Agent status indicators: ○ (idle), ● gray (busy), ● orange (needs input)
+
+### Session Management
+- `/resume` - Show session picker
+- `/resume <id>` - Resume specific session
+- `/compactish` - Compact session to reduce context (dry run with `-n`)
+- `/usage` - Show API rate limit usage
+- `/clear` - Clear chat UI
+- `/shell <cmd>` - Suspend TUI and run shell command
+- `/exit` - Quit
 
 ## Testing
 
