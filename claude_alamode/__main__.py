@@ -1,7 +1,6 @@
 """Entry point for claude-alamode CLI."""
 
 import argparse
-import sys
 
 from claude_alamode.app import ChatApp
 from claude_alamode.errors import setup_logging
@@ -24,10 +23,11 @@ def main():
     # Pass resume flag or specific session ID - actual lookup happens in app
     resume_id = args.session if args.session else ("__most_recent__" if args.resume else None)
 
-    # Set terminal window title
+    # Set terminal window title (before Textual takes over stdout)
     from pathlib import Path
-    sys.stdout.write(f"\033]0;Claude à la Mode · {Path.cwd().name}\007")
-    sys.stdout.flush()
+    from rich.console import Console
+    from rich.control import Control
+    Console().control(Control.title(f"Claude à la Mode · {Path.cwd().name}"))
 
     try:
         app = ChatApp(resume_session_id=resume_id, initial_prompt=initial_prompt)
