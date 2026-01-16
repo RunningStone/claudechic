@@ -66,7 +66,9 @@ async def spawn_agent(args: dict[str, Any]) -> dict[str, Any]:
         return _text_response("Error: App not initialized")
 
     name = args["name"]
-    path = Path(args.get("path", ".")).resolve()
+    # Default to active agent's cwd (so agents inherit creator's directory)
+    default_cwd = _app.agent_mgr.active.cwd if _app.agent_mgr.active else Path.cwd()
+    path = Path(args.get("path", str(default_cwd))).resolve()
     prompt = args.get("prompt")
 
     if not path.exists():
@@ -109,7 +111,7 @@ async def spawn_worktree(args: dict[str, Any]) -> dict[str, Any]:
 
     # Create the worktree
     success, message, wt_path = start_worktree(name)
-    if not success:
+    if not success or wt_path is None:
         return _text_response(f"Error creating worktree: {message}")
 
     try:
