@@ -1049,8 +1049,6 @@ class ChatApp(App):
             self.show_error(f"Failed to create agent '{name}'", e)
             return
 
-        self._position_right_sidebar()
-
         if resume_id:
             await self._load_and_display_history(resume_id, cwd=cwd)
             self.notify(f"Resumed session in '{name}'")
@@ -1104,17 +1102,14 @@ class ChatApp(App):
         if agent.chat_view:
             agent.chat_view.remove()
 
-        # Close via AgentManager (handles disconnect and removes from agents dict)
+        # Close via AgentManager (handles disconnect, removes from agents dict,
+        # triggers on_agent_closed which updates sidebar visibility)
         await self.agent_mgr.close(agent_id)
-
-        # Remove from sidebar
-        self.agent_sidebar.remove_agent(agent_id)
 
         # Switch to another agent if we closed the active one
         if was_active and self.agents:
             self._switch_to_agent(next(iter(self.agents)))
 
-        self._position_right_sidebar()
         self.notify(f"Agent '{agent_name}' closed")
 
     def on_app_focus(self) -> None:
@@ -1200,6 +1195,9 @@ class ChatApp(App):
                 self.agent_sidebar.add_agent(agent.id, agent.name)
             except Exception:
                 log.debug(f"Sidebar not mounted for agent {agent.id}")
+
+            # Show sidebar if now needed
+            self._position_right_sidebar()
         except Exception as e:
             log.exception(f"Failed to create agent UI: {e}")
 
@@ -1237,6 +1235,7 @@ class ChatApp(App):
             self.agent_sidebar.remove_agent(agent_id)
         except Exception:
             pass
+        self._position_right_sidebar()
 
     def on_status_changed(self, agent: Agent) -> None:
         """Handle agent status change."""
