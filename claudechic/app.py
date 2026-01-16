@@ -92,12 +92,10 @@ log = logging.getLogger(__name__)
 
 
 @profile
-def _scroll_if_at_bottom(scroll_view: VerticalScroll) -> None:
-    """Scroll to end only if user hasn't scrolled up."""
-    # Consider "at bottom" if within 50px of the end
-    at_bottom = scroll_view.scroll_y >= scroll_view.max_scroll_y - 50
-    if at_bottom:
-        scroll_view.scroll_end(animate=False)
+def _scroll_if_at_bottom(chat_view: Any) -> None:
+    """Scroll to end only if in tailing mode."""
+    if getattr(chat_view, "_tailing", True):
+        chat_view.scroll_end(animate=False)
 
 
 class ChatApp(App):
@@ -992,7 +990,7 @@ class ChatApp(App):
             widget.add_class("system-message")
 
         chat_view.mount(widget)
-        chat_view.scroll_end(animate=False)
+        _scroll_if_at_bottom(chat_view)
 
     @work(group="resume", exclusive=True, exit_on_error=False)
     async def resume_session(self, session_id: str) -> None:
@@ -1282,7 +1280,7 @@ class ChatApp(App):
             summary_msg = ChatMessage(summary_md)
             summary_msg.add_class("system-message")
             chat_view.mount(summary_msg)
-            chat_view.scroll_end(animate=False)
+            _scroll_if_at_bottom(chat_view)
 
         if dry_run:
             self.notify("Dry run - no changes made", timeout=3)

@@ -34,6 +34,7 @@ class ChatView(VerticalScroll):
         self._rendered_count = 0  # Number of messages rendered
         self._current_assistant_widget: ChatMessage | None = None
         self._tool_widgets: dict[str, ToolUseWidget | TaskWidget | AgentToolWidget] = {}
+        self._tailing = True  # Whether to auto-scroll on new content
 
     def set_agent(self, agent: Agent | None) -> None:
         """Set the agent to render. Triggers full re-render."""
@@ -142,11 +143,6 @@ class ChatView(VerticalScroll):
 
     def _update_current_assistant(self, content: AssistantContent) -> None:
         """Update the current assistant message widget."""
-        # Update text
-        if content.text and self._current_assistant_widget:
-            # The widget handles its own content - just ensure it exists
-            pass
-
         # Handle new tool uses not yet rendered
         for tool in content.tool_uses:
             if tool.id not in self._tool_widgets:
@@ -175,11 +171,14 @@ class ChatView(VerticalScroll):
         for ind in self.query(ThinkingIndicator):
             ind.remove()
 
+    def on_scroll(self, _event) -> None:
+        """Track whether user is at bottom (tailing mode)."""
+        # Small buffer to account for rendering timing
+        self._tailing = self.scroll_y >= self.max_scroll_y - 50
+
     def _scroll_to_end(self) -> None:
-        """Scroll to end if user hasn't scrolled up."""
-        self.refresh(layout=True)
-        at_bottom = self.scroll_y >= self.max_scroll_y - 50
-        if at_bottom:
+        """Scroll to end if in tailing mode."""
+        if self._tailing:
             self.scroll_end(animate=False)
 
 
