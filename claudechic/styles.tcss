@@ -378,6 +378,10 @@ ToolUseWidget Collapsible {
 }
 
 ToolUseWidget Collapsible.error {
+    background: $error 10%;
+}
+
+ToolUseWidget Collapsible.error.-collapsed {
     background: $error 25%;
 }
 
