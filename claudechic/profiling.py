@@ -1,18 +1,22 @@
 """Lightweight profiling utilities for performance analysis."""
 
-import atexit
 import functools
 import inspect
+import os
 import time
 from collections import defaultdict
 from contextlib import contextmanager
 
+_enabled = os.environ.get("CHIC_PROFILE", "").lower() == "true"
 _stats: dict[str, dict] = defaultdict(lambda: {"count": 0, "total": 0.0, "max": 0.0})
 
 
 @contextmanager
 def timed(label: str):
     """Context manager to time a block of code."""
+    if not _enabled:
+        yield
+        return
     start = time.perf_counter()
     yield
     elapsed = time.perf_counter() - start
@@ -23,6 +27,8 @@ def timed(label: str):
 
 def profile(fn):
     """Decorator to track function call count and timing."""
+    if not _enabled:
+        return fn
     label = fn.__qualname__
 
     @functools.wraps(fn)
@@ -52,7 +58,7 @@ def profile(fn):
 
 def print_stats():
     """Print collected statistics."""
-    if not _stats:
+    if not _enabled or not _stats:
         return
     print("\n" + "=" * 80)
     print("PROFILING STATISTICS")
@@ -65,4 +71,6 @@ def print_stats():
     print("=" * 80 + "\n")
 
 
-atexit.register(print_stats)
+if _enabled:
+    import atexit
+    atexit.register(print_stats)
