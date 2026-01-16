@@ -90,7 +90,6 @@ class ChatMessage(Static):
         try:
             md = self.query_one("#content", Markdown)
             md.update(self._content.rstrip())
-            self.refresh(layout=True)
         except Exception:
             pass  # Widget not mounted yet
 

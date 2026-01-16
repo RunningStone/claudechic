@@ -4,24 +4,13 @@ from textual.containers import VerticalScroll
 
 
 class AutoHideScroll(VerticalScroll):
-    """VerticalScroll that hides scrollbar after inactivity."""
+    """VerticalScroll with always-visible scrollbar.
 
-    HIDE_DELAY = 2.0  # seconds
+    Previously auto-hid after inactivity, but layout shifts caused rendering issues.
+    """
 
     DEFAULT_CSS = """
     AutoHideScroll {
-        scrollbar-size-vertical: 0;
-    }
-    AutoHideScroll.scrollbar-visible {
         scrollbar-size-vertical: 1;
     }
     """
-
-    def _on_scroll(self) -> None:
-        """Show scrollbar briefly on scroll."""
-        self.add_class("scrollbar-visible")
-        if hasattr(self, "_hide_timer"):
-            self._hide_timer.stop()
-        self._hide_timer = self.set_timer(self.HIDE_DELAY, lambda: self.remove_class("scrollbar-visible"))
-
-    on_mouse_scroll_down = on_mouse_scroll_up = lambda self, event: self._on_scroll()
