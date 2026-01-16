@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 from contextlib import asynccontextmanager
 import logging
-import mimetypes
 import os
 import sys
 import time
@@ -123,8 +121,6 @@ class ChatApp(App):
         # Event queues for testing
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
-        # Pending images to attach to next message
-        self.pending_images: list[ImageAttachment] = []
         # File index for fuzzy file search
         self.file_index: FileIndex | None = None
         # Cached widget references (initialized lazily)
@@ -284,39 +280,22 @@ class ChatApp(App):
         self.client = new_client
 
     def _attach_image(self, path: Path) -> None:
-        """Read and queue image for next message."""
-        try:
-            data = base64.b64encode(path.read_bytes()).decode()
-            media_type = mimetypes.guess_type(str(path))[0] or "image/png"
-            self.pending_images.append(ImageAttachment(str(path), path.name, media_type, data))
-            # Update visual indicator
+        """Read and queue image for next message on active agent."""
+        agent = self._agent
+        if not agent:
+            self.notify("No active agent", severity="error")
+            return
+        img = agent.attach_image(path)
+        if img:
             self.query_one("#image-attachments", ImageAttachments).add_image(path.name)
-        except Exception as e:
-            self.notify(f"Failed to attach {path.name}: {e}", severity="error")
+        else:
+            self.notify(f"Failed to attach {path.name}", severity="error")
 
     def on_image_attachments_removed(self, event: ImageAttachments.Removed) -> None:
-        """Handle removal of an image attachment."""
-        self.pending_images = [img for img in self.pending_images if img.filename != event.filename]
-
-    def _build_message_with_images(self, prompt: str) -> dict[str, Any]:
-        """Build a message dict with text and any pending images."""
-        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-        for img in self.pending_images:
-            content.append({
-                "type": "image",
-                "source": {"type": "base64", "media_type": img.media_type, "data": img.base64_data}
-            })
-        self.pending_images.clear()
-        # Clear visual indicator
-        try:
-            self.query_one("#image-attachments", ImageAttachments).clear()
-        except Exception:
-            pass  # Widget may not exist yet
-        return {
-            "type": "user",
-            "message": {"role": "user", "content": content},
-            "parent_tool_use_id": None,
-        }
+        """Handle removal of an image attachment from active agent."""
+        agent = self._agent
+        if agent:
+            agent.pending_images = [img for img in agent.pending_images if img.filename != event.filename]
 
     @asynccontextmanager
     async def _show_prompt(self, prompt, agent: Agent | None = None):
@@ -575,11 +554,11 @@ class ChatApp(App):
 
         agent = self.agent_mgr.active
 
-        # Transfer pending images to agent
-        if self.pending_images:
-            agent.pending_images = list(self.pending_images)
-            self.pending_images.clear()
+        # Clear visual indicator (images already on agent.pending_images)
+        try:
             self.query_one("#image-attachments", ImageAttachments).clear()
+        except Exception:
+            pass
 
         # Start async send (returns immediately, callbacks handle UI)
         asyncio.create_task(agent.send(prompt, display_as=display_as), name=f"send-{agent.id}")

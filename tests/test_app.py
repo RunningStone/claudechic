@@ -1,21 +1,21 @@
 """Unit tests for ChatApp methods."""
 
 import base64
+from pathlib import Path
 
-from claudechic import ChatApp
-from claudechic.agent import ImageAttachment
+from claudechic.agent import Agent, ImageAttachment
 
 
 def test_image_attachment_message_building():
     """Test that images are correctly formatted in messages."""
-    app = ChatApp()
+    agent = Agent(name="test", cwd=Path.cwd())
 
     # Add a test image
     test_data = base64.b64encode(b"fake image data").decode()
-    app.pending_images.append(ImageAttachment("/tmp/test.png", "test.png", "image/png", test_data))
+    agent.pending_images.append(ImageAttachment("/tmp/test.png", "test.png", "image/png", test_data))
 
     # Build message
-    msg = app._build_message_with_images("What is this?")
+    msg = agent._build_message_with_images("What is this?")
 
     # Verify structure
     assert msg["type"] == "user"
@@ -26,6 +26,3 @@ def test_image_attachment_message_building():
     assert content[1]["source"]["type"] == "base64"
     assert content[1]["source"]["media_type"] == "image/png"
     assert content[1]["source"]["data"] == test_data
-
-    # Should clear pending images
-    assert len(app.pending_images) == 0
