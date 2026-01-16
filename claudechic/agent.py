@@ -150,6 +150,7 @@ class Agent:
         # UI state - ChatView reference and active prompt
         self.chat_view: Any = None  # ChatView widget (set by ChatApp)
         self.active_prompt: Any = None  # Active SelectionPrompt/QuestionPrompt
+        self.pending_input: str = ""  # Saved input text when switching away
 
         # MCP ask_agent support
         self._completion_event = asyncio.Event()

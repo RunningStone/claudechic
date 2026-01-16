@@ -1024,8 +1024,9 @@ class ChatApp(App):
         if agent_id not in self.agents:
             return
         old_agent = self._agent
-        # Hide current agent's chat view and prompt
+        # Save current input and hide old agent's UI
         if old_agent:
+            old_agent.pending_input = self.chat_input.text
             if old_agent.chat_view:
                 old_agent.chat_view.add_class("hidden")
             if old_agent.active_prompt:
@@ -1035,6 +1036,9 @@ class ChatApp(App):
         agent = self._agent
         if agent and agent.chat_view:
             agent.chat_view.remove_class("hidden")
+        # Restore new agent's input
+        if agent:
+            self.chat_input.text = agent.pending_input
         # Show new agent's prompt if it has one, otherwise show input
         if agent and agent.active_prompt:
             agent.active_prompt.remove_class("hidden")
