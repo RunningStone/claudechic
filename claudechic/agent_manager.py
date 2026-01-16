@@ -4,16 +4,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Awaitable, Callable, Iterator
+from typing import Callable, Iterator
 
 from claude_agent_sdk import ClaudeAgentOptions
 
 from claudechic.agent import Agent
-
-if TYPE_CHECKING:
-    from claude_agent_sdk import ResultMessage, SystemMessage
-    from claudechic.agent import ImageAttachment, ToolUse
-    from claudechic.permissions import PermissionRequest
+from claudechic.protocols import AgentManagerObserver, AgentObserver, PermissionHandler
 
 log = logging.getLogger(__name__)
 
@@ -46,30 +42,10 @@ class AgentManager:
         self.active_id: str | None = None
         self._options_factory = options_factory
 
-        # Callbacks for UI integration (set by ChatApp)
-        self.on_created: Callable[[Agent], None] | None = None
-        self.on_switched: Callable[[Agent, Agent | None], None] | None = None
-        self.on_closed: Callable[[str], None] | None = None
-
-        # Callback factory for permission UI (set by ChatApp)
-        # Returns the callback to set on each agent
-        self.permission_ui_callback: (
-            Callable[[Agent, PermissionRequest], Awaitable[str]] | None
-        ) = None
-
-        # Agent event callbacks (set by ChatApp, applied to all agents)
-        self.on_agent_status_changed: Callable[[Agent], None] | None = None
-        self.on_agent_error: Callable[[Agent, str, Exception | None], None] | None = None
-        self.on_agent_complete: Callable[[Agent, ResultMessage | None], None] | None = None
-        self.on_agent_todos_updated: Callable[[Agent], None] | None = None
-
-        # Fine-grained streaming callbacks
-        self.on_agent_text_chunk: Callable[[Agent, str, bool, str | None], None] | None = None
-        self.on_agent_tool_use: Callable[[Agent, "ToolUse"], None] | None = None
-        self.on_agent_tool_result: Callable[[Agent, "ToolUse"], None] | None = None
-        self.on_agent_system_message: Callable[[Agent, "SystemMessage"], None] | None = None
-        self.on_agent_command_output: Callable[[Agent, str], None] | None = None
-        self.on_agent_prompt_sent: Callable[[Agent, str, list["ImageAttachment"]], None] | None = None
+        # Protocol-based observers (set by ChatApp)
+        self.manager_observer: AgentManagerObserver | None = None
+        self.agent_observer: AgentObserver | None = None
+        self.permission_handler: PermissionHandler | None = None
 
     @property
     def active(self) -> Agent | None:
@@ -122,8 +98,8 @@ class AgentManager:
         self.agents[agent.id] = agent
         log.info(f"Created agent '{name}' (id={agent.id}, cwd={cwd})")
 
-        if self.on_created:
-            self.on_created(agent)
+        if self.manager_observer:
+            self.manager_observer.on_agent_created(agent)
 
         # Switch to new agent if requested or if it's the first agent
         if switch_to or self.active_id is None:
@@ -165,8 +141,8 @@ class AgentManager:
         self.agents[agent.id] = agent
         log.info(f"Created agent '{name}' (id={agent.id}, cwd={cwd})")
 
-        if self.on_created:
-            self.on_created(agent)
+        if self.manager_observer:
+            self.manager_observer.on_agent_created(agent)
 
         # Switch to new agent if requested or if it's the first agent
         if switch_to or self.active_id is None:
@@ -175,34 +151,9 @@ class AgentManager:
         return agent
 
     def _wire_agent_callbacks(self, agent: Agent) -> None:
-        """Wire up agent callbacks to manager callbacks."""
-        # Permission UI
-        if self.permission_ui_callback:
-            agent.permission_ui_callback = self.permission_ui_callback
-
-        # Event callbacks
-        if self.on_agent_status_changed:
-            agent.on_status_changed = self.on_agent_status_changed
-        if self.on_agent_error:
-            agent.on_error = self.on_agent_error
-        if self.on_agent_complete:
-            agent.on_complete = self.on_agent_complete
-        if self.on_agent_todos_updated:
-            agent.on_todos_updated = self.on_agent_todos_updated
-
-        # Fine-grained streaming callbacks
-        if self.on_agent_text_chunk:
-            agent.on_text_chunk = self.on_agent_text_chunk
-        if self.on_agent_tool_use:
-            agent.on_tool_use = self.on_agent_tool_use
-        if self.on_agent_tool_result:
-            agent.on_tool_result = self.on_agent_tool_result
-        if self.on_agent_system_message:
-            agent.on_system_message = self.on_agent_system_message
-        if self.on_agent_command_output:
-            agent.on_command_output = self.on_agent_command_output
-        if self.on_agent_prompt_sent:
-            agent.on_prompt_sent = self.on_agent_prompt_sent
+        """Wire up agent observer and permission handler."""
+        agent.observer = self.agent_observer
+        agent.permission_handler = self.permission_handler
 
     def switch(self, agent_id: str) -> bool:
         """Switch to a different agent.
@@ -223,8 +174,8 @@ class AgentManager:
 
         log.info(f"Switched to agent '{new_agent.name}' (id={agent_id})")
 
-        if self.on_switched:
-            self.on_switched(new_agent, old_agent)
+        if self.manager_observer:
+            self.manager_observer.on_agent_switched(new_agent, old_agent)
 
         return True
 
@@ -246,8 +197,8 @@ class AgentManager:
         await agent.disconnect()
         log.info(f"Closed agent '{name}' (id={agent_id})")
 
-        if self.on_closed:
-            self.on_closed(agent_id)
+        if self.manager_observer:
+            self.manager_observer.on_agent_closed(agent_id)
 
         # Switch to another agent if we closed the active one
         if was_active and self.agents:

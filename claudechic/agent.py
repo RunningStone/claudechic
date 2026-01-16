@@ -11,7 +11,7 @@ import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -35,7 +35,7 @@ from claudechic.file_index import FileIndex
 from claudechic.permissions import PermissionRequest
 
 if TYPE_CHECKING:
-    pass
+    from claudechic.protocols import AgentObserver, PermissionHandler
 
 log = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ class Agent:
     - Permission request queue
     - Per-agent state (images, todos, file index, etc.)
 
-    Events are emitted via callbacks for UI integration.
+    Events are emitted via the observer protocol for UI integration.
     """
 
     # Tools to auto-approve when auto_approve_edits is True
@@ -166,30 +166,9 @@ class Agent:
         self._completion_event = asyncio.Event()
         self._last_response: str | None = None
 
-        # Callbacks for UI integration (set by ChatApp/AgentManager)
-        self.on_status_changed: Callable[[Agent], None] | None = None
-        self.on_message_updated: Callable[[Agent], None] | None = None
-        self.on_prompt_added: Callable[[Agent, PermissionRequest], None] | None = None
-        self.on_error: Callable[[Agent, str, Exception | None], None] | None = None
-        self.on_complete: Callable[[Agent, ResultMessage | None], None] | None = None
-        self.on_todos_updated: Callable[[Agent], None] | None = None
-
-        # Fine-grained callbacks for streaming UI updates
-        # These are called in addition to on_message_updated
-        self.on_text_chunk: Callable[[Agent, str, bool, str | None], None] | None = None  # agent, text, new_message, parent_tool_id
-        self.on_tool_use: Callable[[Agent, ToolUse], None] | None = None
-        self.on_tool_result: Callable[[Agent, ToolUse], None] | None = None
-        self.on_system_message: Callable[[Agent, SystemMessage], None] | None = None
-        self.on_command_output: Callable[[Agent, str], None] | None = None  # agent, markdown_content
-
-        # Permission UI callback (ChatApp provides this to show prompts)
-        self.permission_ui_callback: (
-            Callable[[Agent, PermissionRequest], Awaitable[str]] | None
-        ) = None
-
-        # Callback when send() is called (for UI to display user message)
-        # args: agent, prompt, images
-        self.on_prompt_sent: Callable[[Agent, str, list[ImageAttachment]], None] | None = None
+        # Observer for UI integration (set by AgentManager)
+        self.observer: AgentObserver | None = None
+        self.permission_handler: PermissionHandler | None = None
 
     # -----------------------------------------------------------------------
     # Lifecycle
@@ -319,14 +298,10 @@ class Agent:
         """Clear pending images."""
         self.pending_images.clear()
 
-    async def send(self, prompt: str, *, display_as: str | None = None) -> None:
+    async def send(self, prompt: str) -> None:
         """Send a message and start processing response.
 
         The response is processed concurrently - this method returns immediately.
-
-        Args:
-            prompt: The full prompt to send to Claude
-            display_as: Optional shorter text to show in UI (prompt still sent to Claude)
         """
         if not self.client:
             raise RuntimeError("Agent not connected")
@@ -337,8 +312,8 @@ class Agent:
         )
 
         # Notify UI to display user message (pass full image info before clearing)
-        if self.on_prompt_sent:
-            self.on_prompt_sent(self, display_as if display_as is not None else prompt, list(self.pending_images))
+        if self.observer:
+            self.observer.on_prompt_sent(self, prompt, list(self.pending_images))
 
         self._set_status("busy")
         self.response_had_tools = False
@@ -407,8 +382,10 @@ class Agent:
             raise
         except Exception as e:
             log.exception("Response processing failed")
-            self._emit_error("Response failed", e)
-            self._emit_complete(None)
+            if self.observer:
+                self.observer.on_error(self, "Response failed", e)
+            if self.observer:
+                self.observer.on_complete(self, None)
         finally:
             self._flush_current_text()
             self._set_status("idle")
@@ -444,26 +421,23 @@ class Agent:
             self._handle_stream_event(message)
 
         elif isinstance(message, SystemMessage):
-            self._handle_system_message(message)
+            if self.observer:
+                self.observer.on_system_message(self, message)
 
         elif isinstance(message, ResultMessage):
             self._flush_current_text()
             self.session_id = message.session_id
             self._last_response = message.result or ""
-            self._emit_complete(message)
-
-    def _handle_system_message(self, message: SystemMessage) -> None:
-        """Handle system message from SDK - emit callback for UI."""
-        if self.on_system_message:
-            self.on_system_message(self, message)
+            if self.observer:
+                self.observer.on_complete(self, message)
 
     def _handle_text_chunk(
-        self, text: str, new_message: bool, parent_tool_id: str | None
+        self, text: str, new_message: bool, parent_tool_use_id: str | None
     ) -> None:
         """Handle incoming text chunk."""
         # If this belongs to a Task, accumulate there
-        if parent_tool_id and parent_tool_id in self.active_tasks:
-            self.active_tasks[parent_tool_id] += text
+        if parent_tool_use_id and parent_tool_use_id in self.active_tasks:
+            self.active_tasks[parent_tool_use_id] += text
             return
 
         if new_message:
@@ -478,11 +452,9 @@ class Agent:
 
         self._current_text_buffer += text
         self._current_assistant.text = self._current_text_buffer
-        self._emit_message_updated()
-
-        # Emit fine-grained callback for UI streaming
-        if self.on_text_chunk:
-            self.on_text_chunk(self, text, new_message, parent_tool_id)
+        if self.observer:
+            self.observer.on_message_updated(self)
+            self.observer.on_text_chunk(self, text, new_message, parent_tool_use_id)
 
     def _handle_stream_event(self, event: StreamEvent) -> None:
         """Handle streaming event from SDK."""
@@ -505,17 +477,18 @@ class Agent:
         if self._current_assistant and self._current_text_buffer:
             self._current_assistant.text = self._current_text_buffer
             self._current_text_buffer = ""
-            self._emit_message_updated()
+            if self.observer:
+                self.observer.on_message_updated(self)
 
     def _handle_command_output(self, content: str) -> None:
         """Handle command output from UserMessage (e.g., /context)."""
         import re
         # Extract content from <local-command-stdout>...</local-command-stdout>
         match = re.search(r"<local-command-stdout>(.*?)</local-command-stdout>", content, re.DOTALL)
-        if match and self.on_command_output:
-            self.on_command_output(self, match.group(1).strip())
+        if match and self.observer:
+            self.observer.on_command_output(self, match.group(1).strip())
 
-    def _handle_tool_use(self, block: ToolUseBlock, parent_tool_id: str | None) -> None:  # noqa: ARG002
+    def _handle_tool_use(self, block: ToolUseBlock, parent_tool_use_id: str | None) -> None:  # noqa: ARG002
         """Handle tool use start."""
         self._flush_current_text()
         self.response_had_tools = True
@@ -524,8 +497,8 @@ class Agent:
         # TodoWrite updates todos
         if block.name == "TodoWrite":
             self.todos = block.input.get("todos", [])
-            if self.on_todos_updated:
-                self.on_todos_updated(self)
+            if self.observer:
+                self.observer.on_todos_updated(self)
             return
 
         tool = ToolUse(id=block.id, name=block.name, input=block.input)
@@ -543,11 +516,9 @@ class Agent:
                 ChatItem(role="assistant", content=self._current_assistant)
             )
         self._current_assistant.tool_uses.append(tool)
-        self._emit_message_updated()
-
-        # Emit fine-grained callback for UI
-        if self.on_tool_use:
-            self.on_tool_use(self, tool)
+        if self.observer:
+            self.observer.on_message_updated(self)
+            self.observer.on_tool_use(self, tool)
 
     def _handle_tool_result(self, block: ToolResultBlock) -> None:
         """Handle tool result."""
@@ -555,11 +526,9 @@ class Agent:
         if tool:
             tool.result = block.content if isinstance(block.content, str) else str(block.content)
             tool.is_error = block.is_error or False
-            self._emit_message_updated()
-
-            # Emit fine-grained callback for UI
-            if self.on_tool_result:
-                self.on_tool_result(self, tool)
+            if self.observer:
+                self.observer.on_message_updated(self)
+                self.observer.on_tool_result(self, tool)
 
         # Clean up active tasks
         self.active_tasks.pop(block.tool_use_id, None)
@@ -595,14 +564,14 @@ class Agent:
         # Create permission request and queue it
         request = PermissionRequest(tool_name, tool_input)
         self.pending_prompts.append(request)
-        if self.on_prompt_added:
-            self.on_prompt_added(self, request)
+        if self.observer:
+            self.observer.on_prompt_added(self, request)
 
         self._set_status("needs_input")
 
         # Wait for UI to respond
-        if self.permission_ui_callback:
-            result = await self.permission_ui_callback(self, request)
+        if self.permission_handler:
+            result = await self.permission_handler(self, request)
         else:
             # No UI callback - wait for programmatic response
             result = await request.wait()
@@ -633,14 +602,14 @@ class Agent:
         # Create a special request for question prompts
         request = PermissionRequest("AskUserQuestion", tool_input)
         self.pending_prompts.append(request)
-        if self.on_prompt_added:
-            self.on_prompt_added(self, request)
+        if self.observer:
+            self.observer.on_prompt_added(self, request)
 
         self._set_status("needs_input")
 
         # The UI callback should handle question collection
-        if self.permission_ui_callback:
-            result = await self.permission_ui_callback(self, request)
+        if self.permission_handler:
+            result = await self.permission_handler(self, request)
         else:
             result = await request.wait()
 
@@ -666,23 +635,8 @@ class Agent:
         """Update status and emit event."""
         if self.status != status:
             self.status = status
-            if self.on_status_changed:
-                self.on_status_changed(self)
-
-    def _emit_message_updated(self) -> None:
-        """Emit message update event."""
-        if self.on_message_updated:
-            self.on_message_updated(self)
-
-    def _emit_error(self, message: str, exception: Exception | None) -> None:
-        """Emit error event."""
-        if self.on_error:
-            self.on_error(self, message, exception)
-
-    def _emit_complete(self, result: ResultMessage | None) -> None:
-        """Emit completion event."""
-        if self.on_complete:
-            self.on_complete(self, result)
+            if self.observer:
+                self.observer.on_status_changed(self)
 
     def _build_message_with_images(self, prompt: str) -> dict[str, Any]:
         """Build SDK message with text and images."""
@@ -699,4 +653,3 @@ class Agent:
             "message": {"role": "user", "content": content},
             "parent_tool_use_id": None,
         }
-

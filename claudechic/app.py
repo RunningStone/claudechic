@@ -84,7 +84,11 @@ def _scroll_if_at_bottom(chat_view: Any) -> None:
 
 
 class ChatApp(App):
-    """Main chat application."""
+    """Main chat application.
+
+    Implements AgentManagerObserver and AgentObserver protocols for
+    UI integration with AgentManager.
+    """
 
     TITLE = "Claude Chic"
     CSS_PATH = Path(__file__).parent / "styles.tcss"
@@ -1166,35 +1170,17 @@ class ChatApp(App):
     def _wire_agent_manager_callbacks(self) -> None:
         """Wire AgentManager callbacks for UI integration.
 
-        This sets up the callbacks that translate Agent events into UI updates.
-        Called once during on_mount().
+        ChatApp implements AgentManagerObserver and AgentObserver protocols,
+        so we just set self as the observer.
         """
         if self.agent_mgr is None:
             return
 
-        # Manager-level callbacks
-        self.agent_mgr.on_created = self._on_new_agent_created
-        self.agent_mgr.on_switched = self._on_agent_switched
-        self.agent_mgr.on_closed = self._on_agent_closed
+        self.agent_mgr.manager_observer = self
+        self.agent_mgr.agent_observer = self
+        self.agent_mgr.permission_handler = self._handle_agent_permission_ui
 
-        # Agent-level callbacks (applied to all agents via AgentManager)
-        self.agent_mgr.on_agent_status_changed = self._on_agent_status_changed
-        self.agent_mgr.on_agent_error = self._on_agent_error
-        self.agent_mgr.on_agent_complete = self._on_agent_complete
-        self.agent_mgr.on_agent_todos_updated = self._on_agent_todos_updated
-
-        # Fine-grained streaming callbacks (post Textual Messages for UI handlers)
-        self.agent_mgr.on_agent_text_chunk = self._on_agent_text_chunk
-        self.agent_mgr.on_agent_tool_use = self._on_agent_tool_use
-        self.agent_mgr.on_agent_tool_result = self._on_agent_tool_result
-        self.agent_mgr.on_agent_system_message = self._on_agent_system_message
-        self.agent_mgr.on_agent_command_output = self._on_agent_command_output
-        self.agent_mgr.on_agent_prompt_sent = self._on_agent_prompt_sent
-
-        # Permission UI callback
-        self.agent_mgr.permission_ui_callback = self._handle_agent_permission_ui
-
-    def _on_new_agent_created(self, agent: Agent) -> None:
+    def on_agent_created(self, agent: Agent) -> None:
         """Handle new agent creation from AgentManager."""
         log.info(f"New agent created: {agent.name} (id={agent.id})")
 
@@ -1219,11 +1205,11 @@ class ChatApp(App):
             try:
                 self.agent_sidebar.add_agent(agent.id, agent.name)
             except Exception:
-                pass  # Sidebar may not be mounted
+                log.debug(f"Sidebar not mounted for agent {agent.id}")
         except Exception as e:
             log.exception(f"Failed to create agent UI: {e}")
 
-    def _on_agent_switched(self, new_agent: Agent, old_agent: Agent | None) -> None:
+    def on_agent_switched(self, new_agent: Agent, old_agent: Agent | None) -> None:
         """Handle agent switch from AgentManager."""
         log.info(f"Switched to agent: {new_agent.name}")
 
@@ -1250,7 +1236,7 @@ class ChatApp(App):
         self.refresh_context()
         self._position_right_sidebar()
 
-    def _on_agent_closed(self, agent_id: str) -> None:
+    def on_agent_closed(self, agent_id: str) -> None:
         """Handle agent closure from AgentManager."""
         log.info(f"Agent closed: {agent_id}")
         try:
@@ -1258,26 +1244,34 @@ class ChatApp(App):
         except Exception:
             pass
 
-    def _on_agent_status_changed(self, agent: Agent) -> None:
+    def on_status_changed(self, agent: Agent) -> None:
         """Handle agent status change."""
         try:
             self.agent_sidebar.update_status(agent.id, agent.status)
         except Exception:
-            pass
+            log.debug(f"Failed to update sidebar status for agent {agent.id}")
 
-    def _on_agent_error(self, agent: Agent, message: str, exception: Exception | None) -> None:
+    def on_message_updated(self, agent: Agent) -> None:  # noqa: ARG002
+        """Handle agent message content update (unused - fine-grained callbacks used instead)."""
+        pass
+
+    def on_prompt_added(self, agent: Agent, request: PermissionRequest) -> None:  # noqa: ARG002
+        """Handle permission prompt queued (handled via permission_handler instead)."""
+        pass
+
+    def on_error(self, agent: Agent, message: str, exception: Exception | None) -> None:
         """Handle error from agent."""
         # Show error in UI if this is active agent
         if self.agent_mgr and agent.id == self.agent_mgr.active_id:
             self.show_error(message, exception)
 
-    def _on_agent_complete(self, agent: Agent, result: ResultMessage | None) -> None:
+    def on_complete(self, agent: Agent, result: ResultMessage | None) -> None:
         """Handle agent response completion."""
         log.info(f"Agent {agent.name} completed response")
         # Post ResponseComplete message for existing UI handler
         self.post_message(ResponseComplete(result, agent_id=agent.id))
 
-    def _on_agent_todos_updated(self, agent: Agent) -> None:
+    def on_todos_updated(self, agent: Agent) -> None:
         """Handle agent todos update."""
         if self.agent_mgr and agent.id == self.agent_mgr.active_id:
             try:
@@ -1285,35 +1279,35 @@ class ChatApp(App):
             except Exception:
                 pass
 
-    def _on_agent_text_chunk(
-        self, agent: Agent, text: str, new_message: bool, parent_tool_id: str | None
+    def on_text_chunk(
+        self, agent: Agent, text: str, new_message: bool, parent_tool_use_id: str | None
     ) -> None:
         """Handle text chunk from agent - post Textual Message for UI."""
         self.post_message(
-            StreamChunk(text, new_message=new_message, parent_tool_use_id=parent_tool_id, agent_id=agent.id)
+            StreamChunk(text, new_message=new_message, parent_tool_use_id=parent_tool_use_id, agent_id=agent.id)
         )
 
-    def _on_agent_tool_use(self, agent: Agent, tool: ToolUse) -> None:
+    def on_tool_use(self, agent: Agent, tool: ToolUse) -> None:
         """Handle tool use from agent - post Textual Message for UI."""
         from claude_agent_sdk import ToolUseBlock
         block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
         self.post_message(ToolUseMessage(block, parent_tool_use_id=None, agent_id=agent.id))
 
-    def _on_agent_tool_result(self, agent: Agent, tool: ToolUse) -> None:
+    def on_tool_result(self, agent: Agent, tool: ToolUse) -> None:
         """Handle tool result from agent - post Textual Message for UI."""
         from claude_agent_sdk import ToolResultBlock
         block = ToolResultBlock(tool_use_id=tool.id, content=tool.result or "", is_error=tool.is_error)
         self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent.id))
 
-    def _on_agent_system_message(self, agent: Agent, message: SystemMessage) -> None:
+    def on_system_message(self, agent: Agent, message: SystemMessage) -> None:
         """Handle system message from agent - post Textual Message for UI."""
         self.post_message(SystemNotification(message, agent_id=agent.id))
 
-    def _on_agent_command_output(self, agent: Agent, content: str) -> None:
+    def on_command_output(self, agent: Agent, content: str) -> None:
         """Handle command output from agent (e.g., /context)."""
         self.post_message(CommandOutputMessage(content, agent_id=agent.id))
 
-    def _on_agent_prompt_sent(
+    def on_prompt_sent(
         self, agent: Agent, prompt: str, images: list[ImageAttachment]
     ) -> None:
         """Handle prompt sent to agent - display user message in chat view."""
