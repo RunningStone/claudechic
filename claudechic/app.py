@@ -1168,7 +1168,7 @@ class ChatApp(App):
             name: Display name for the agent
             cwd: Working directory
             worktree: Git worktree branch name if applicable
-            auto_resume: Try to resume most recent session in cwd
+            auto_resume: Try to resume session with most messages in cwd
             switch_to: Whether to switch to the new agent (default True)
         """
         if self.agent_mgr is None:
@@ -1179,8 +1179,11 @@ class ChatApp(App):
             # Resolve resume ID if auto_resume
             resume_id = None
             if auto_resume:
-                sessions = await get_recent_sessions(limit=1, cwd=cwd)
-                resume_id = sessions[0][0] if sessions else None
+                sessions = await get_recent_sessions(limit=100, cwd=cwd)
+                if sessions:
+                    # Pick session with most messages (index 3)
+                    best = max(sessions, key=lambda s: s[3])
+                    resume_id = best[0]
 
             # Create agent via AgentManager (handles SDK connection, UI callbacks)
             agent = await self.agent_mgr.create(
