@@ -2,7 +2,7 @@
 
 from textual.message import Message
 
-from claude_agent_sdk import ToolUseBlock, ToolResultBlock, ResultMessage
+from claude_agent_sdk import ToolUseBlock, ToolResultBlock, ResultMessage, SystemMessage as SDKSystemMessage
 
 
 class StreamChunk(Message):
@@ -50,6 +50,19 @@ class ToolResultMessage(Message):
     ) -> None:
         self.block = block
         self.parent_tool_use_id = parent_tool_use_id
+        self.agent_id = agent_id
+        super().__init__()
+
+
+class SystemNotification(Message):
+    """Message sent when a system notification arrives from SDK."""
+
+    def __init__(
+        self, sdk_message: SDKSystemMessage, agent_id: str | None = None
+    ) -> None:
+        self.sdk_message = sdk_message
+        self.subtype = sdk_message.subtype
+        self.data = sdk_message.data
         self.agent_id = agent_id
         super().__init__()
 

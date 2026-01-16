@@ -18,6 +18,7 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ClaudeSDKClient,
     ResultMessage,
+    SystemMessage,
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
@@ -171,6 +172,7 @@ class Agent:
         self.on_text_chunk: Callable[[Agent, str, bool, str | None], None] | None = None  # agent, text, new_message, parent_tool_id
         self.on_tool_use: Callable[[Agent, ToolUse], None] | None = None
         self.on_tool_result: Callable[[Agent, ToolUse], None] | None = None
+        self.on_system_message: Callable[[Agent, SystemMessage], None] | None = None
         self.on_command_output: Callable[[Agent, str], None] | None = None  # agent, markdown_content
 
         # Permission UI callback (ChatApp provides this to show prompts)
@@ -360,11 +362,19 @@ class Agent:
         elif isinstance(message, StreamEvent):
             self._handle_stream_event(message)
 
+        elif isinstance(message, SystemMessage):
+            self._handle_system_message(message)
+
         elif isinstance(message, ResultMessage):
             self._flush_current_text()
             self.session_id = message.session_id
             self._last_response = message.result or ""
             self._emit_complete(message)
+
+    def _handle_system_message(self, message: SystemMessage) -> None:
+        """Handle system message from SDK - emit callback for UI."""
+        if self.on_system_message:
+            self.on_system_message(self, message)
 
     def _handle_text_chunk(
         self, text: str, new_message: bool, parent_tool_id: str | None

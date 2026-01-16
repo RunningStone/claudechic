@@ -75,7 +75,7 @@ StatusFooter {
 }
 
 /* Shared block styling - all content blocks */
-ChatMessage, ToolUseWidget, ThinkingIndicator, ErrorMessage {
+ChatMessage, ToolUseWidget, ThinkingIndicator, ErrorMessage, SystemInfo {
     background: transparent;
     margin: 0 2 1 0;  /* 1 line between blocks, 2 from scrollbar */
     padding: 0 2 0 2;
@@ -86,6 +86,22 @@ ErrorMessage {
     border-left: thick $error;
     background: $error 10%;
     margin: 1 0 1 0;
+}
+
+/* System info messages - muted, informational */
+SystemInfo {
+    border-left: thick $panel;
+    color: $panel;
+    margin: 1 0 1 0;
+}
+
+SystemInfo.system-warning {
+    border-left: thick $warning;
+    color: $warning;
+}
+
+SystemInfo.system-error {
+    border-left: thick $error;
 }
 
 /* User messages - vibrant orange, extra spacing */

@@ -83,6 +83,19 @@ class ErrorMessage(Static):
         yield Markdown(display, id="content")
 
 
+class SystemInfo(Static):
+    """System info message displayed in chat (not stored in history)."""
+
+    can_focus = False
+
+    def __init__(self, message: str, severity: str = "info") -> None:
+        super().__init__(classes=f"system-{severity}")
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        yield Markdown(self._message, id="content")
+
+
 class ChatMessage(Static):
     """A single chat message with copy button."""
 

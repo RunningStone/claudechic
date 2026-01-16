@@ -415,3 +415,111 @@ async def test_context_report_displays(mock_sdk):
         # Verify data was parsed
         assert reports[0].data["model"] == "claude-opus-4-5-20251101"
         assert reports[0].data["tokens_used"] == 81000
+
+
+@pytest.mark.asyncio
+async def test_system_notification_shows_in_chat(mock_sdk):
+    """SystemNotification creates SystemInfo widget in chat."""
+    from claudechic.messages import SystemNotification
+    from claudechic.widgets import SystemInfo
+    from claude_agent_sdk import SystemMessage
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+
+        # Create a system message (simulating SDK)
+        sdk_msg = SystemMessage(
+            subtype="test_notification",
+            data={"content": "Test system message", "level": "info"}
+        )
+
+        # Post the notification
+        app.post_message(SystemNotification(sdk_msg, agent_id=app.active_agent_id))
+        await pilot.pause()
+
+        # Should have a SystemInfo widget in chat
+        info_widgets = list(chat_view.query(SystemInfo))
+        assert len(info_widgets) == 1
+        assert info_widgets[0]._message == "Test system message"
+
+
+@pytest.mark.asyncio
+async def test_system_notification_api_error(mock_sdk):
+    """API error notification displays correctly."""
+    from claudechic.messages import SystemNotification
+    from claudechic.widgets import SystemInfo
+    from claude_agent_sdk import SystemMessage
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+
+        # Create an api_error system message
+        sdk_msg = SystemMessage(
+            subtype="api_error",
+            data={
+                "level": "error",
+                "error": {"error": {"message": "Rate limited"}},
+                "retryAttempt": 2,
+                "maxRetries": 10
+            }
+        )
+
+        app.post_message(SystemNotification(sdk_msg, agent_id=app.active_agent_id))
+        await pilot.pause()
+
+        info_widgets = list(chat_view.query(SystemInfo))
+        assert len(info_widgets) == 1
+        assert "retry 2/10" in info_widgets[0]._message
+        assert "Rate limited" in info_widgets[0]._message
+
+
+@pytest.mark.asyncio
+async def test_system_notification_compact_boundary(mock_sdk):
+    """Compact boundary notification displays."""
+    from claudechic.messages import SystemNotification
+    from claudechic.widgets import SystemInfo
+    from claude_agent_sdk import SystemMessage
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+
+        sdk_msg = SystemMessage(
+            subtype="compact_boundary",
+            data={"content": "Conversation compacted", "level": "info"}
+        )
+
+        app.post_message(SystemNotification(sdk_msg, agent_id=app.active_agent_id))
+        await pilot.pause()
+
+        info_widgets = list(chat_view.query(SystemInfo))
+        assert len(info_widgets) == 1
+        assert "compacted" in info_widgets[0]._message.lower()
+
+
+@pytest.mark.asyncio
+async def test_system_notification_ignored_subtypes(mock_sdk):
+    """Certain subtypes are silently ignored."""
+    from claudechic.messages import SystemNotification
+    from claudechic.widgets import SystemInfo
+    from claude_agent_sdk import SystemMessage
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+
+        # These subtypes should not create widgets
+        for subtype in ["stop_hook_summary", "turn_duration", "local_command"]:
+            sdk_msg = SystemMessage(
+                subtype=subtype,
+                data={"level": "info"}
+            )
+            app.post_message(SystemNotification(sdk_msg, agent_id=app.active_agent_id))
+
+        await pilot.pause()
+
+        # No SystemInfo widgets should be created
+        info_widgets = list(chat_view.query(SystemInfo))
+        assert len(info_widgets) == 0

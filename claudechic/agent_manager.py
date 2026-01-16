@@ -64,9 +64,11 @@ class AgentManager:
 
         # Fine-grained streaming callbacks
         from claudechic.agent import ToolUse
+        from claude_agent_sdk import SystemMessage
         self.on_agent_text_chunk: Callable[[Agent, str, bool, str | None], None] | None = None
         self.on_agent_tool_use: Callable[[Agent, ToolUse], None] | None = None
         self.on_agent_tool_result: Callable[[Agent, ToolUse], None] | None = None
+        self.on_agent_system_message: Callable[[Agent, SystemMessage], None] | None = None
         self.on_agent_command_output: Callable[[Agent, str], None] | None = None
 
     @property
@@ -195,6 +197,8 @@ class AgentManager:
             agent.on_tool_use = self.on_agent_tool_use
         if self.on_agent_tool_result:
             agent.on_tool_result = self.on_agent_tool_result
+        if self.on_agent_system_message:
+            agent.on_system_message = self.on_agent_system_message
         if self.on_agent_command_output:
             agent.on_command_output = self.on_agent_command_output
 

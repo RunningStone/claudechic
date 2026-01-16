@@ -25,6 +25,7 @@ from textual import work
 from claude_agent_sdk import (
     ClaudeSDKClient,
     ClaudeAgentOptions,
+    SystemMessage,
     ToolUseBlock,
     ResultMessage,
 )
@@ -38,6 +39,7 @@ from claude_agent_sdk.types import (
 from claudechic.messages import (
     StreamChunk,
     ResponseComplete,
+    SystemNotification,
     ToolUseMessage,
     ToolResultMessage,
     CommandOutputMessage,
@@ -66,6 +68,7 @@ from claudechic.widgets import (
     ThinkingIndicator,
     ImageAttachments,
     ErrorMessage,
+    SystemInfo,
     ToolUseWidget,
     TaskWidget,
     AgentToolWidget,
@@ -869,6 +872,63 @@ class ChatApp(App):
                 del agent.active_task_widgets[event.block.tool_use_id]
         self._show_thinking(event.agent_id)
 
+    def on_system_notification(self, event: SystemNotification) -> None:
+        """Handle system notification from SDK.
+
+        Known subtypes:
+        - api_error: API errors with retry info
+        - compact_boundary: Conversation compaction markers
+        - local_command: Slash command records
+        - stop_hook_summary: Hook execution results
+        - turn_duration: Timing info (no display needed)
+        """
+        subtype = event.subtype
+        data = event.data
+        level = data.get("level", "info")
+
+        # Display important notifications in chat (not stored in history)
+        if subtype == "api_error":
+            error = data.get("error", {})
+            error_msg = error.get("error", {}).get("message", "API error")
+            retry = data.get("retryAttempt", 0)
+            max_retries = data.get("maxRetries", 0)
+            if retry > 0:
+                self._show_system_info(f"API error (retry {retry}/{max_retries}): {error_msg}", "warning", event.agent_id)
+            else:
+                self._show_system_info(f"API error: {error_msg}", "error", event.agent_id)
+
+        elif subtype == "compact_boundary":
+            content = data.get("content", "Conversation compacted")
+            self._show_system_info(content, "info", event.agent_id)
+
+        elif level == "error":
+            # Generic error handling for any error-level message
+            msg = data.get("content", data.get("error", f"System error: {subtype}"))
+            self._show_system_info(str(msg)[:200], "error", event.agent_id)
+
+        elif subtype not in ("stop_hook_summary", "turn_duration", "local_command"):
+            # Unknown subtype with content - might be important (like terms notification)
+            content = data.get("content") or data.get("message")
+            if content:
+                log.info("Unknown system message [%s]: %s", subtype, content)
+                self._show_system_info(str(content), "info", event.agent_id)
+
+        # Log all notifications for debugging
+        log.debug("System notification: subtype=%s level=%s data=%s", subtype, level, list(data.keys()))
+
+    def _show_system_info(self, message: str, severity: str, agent_id: str | None) -> None:
+        """Show system info message in chat view (not stored in history)."""
+        agent = self._get_agent(agent_id)
+        if not agent or not hasattr(agent, "chat_view") or not agent.chat_view:
+            # Fallback to notify if no chat view
+            notify_map = {"warning": "warning", "error": "error"}
+            self.notify(message[:100], severity=notify_map.get(severity, "information"))  # type: ignore[arg-type]
+            return
+
+        widget = SystemInfo(message, severity)
+        agent.chat_view.mount(widget)
+        widget.scroll_visible()
+
     def on_resize(self, event) -> None:
         """Reposition right sidebar on resize."""
         self.call_after_refresh(self._position_right_sidebar)
@@ -1455,6 +1515,7 @@ class ChatApp(App):
         self.agent_mgr.on_agent_text_chunk = self._on_agent_text_chunk
         self.agent_mgr.on_agent_tool_use = self._on_agent_tool_use
         self.agent_mgr.on_agent_tool_result = self._on_agent_tool_result
+        self.agent_mgr.on_agent_system_message = self._on_agent_system_message
         self.agent_mgr.on_agent_command_output = self._on_agent_command_output
 
         # Permission UI callback
@@ -1569,6 +1630,10 @@ class ChatApp(App):
         from claude_agent_sdk import ToolResultBlock
         block = ToolResultBlock(tool_use_id=tool.id, content=tool.result or "", is_error=tool.is_error)
         self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent.id))
+
+    def _on_agent_system_message(self, agent: Agent, message: SystemMessage) -> None:
+        """Handle system message from agent - post Textual Message for UI."""
+        self.post_message(SystemNotification(message, agent_id=agent.id))
 
     def _on_agent_command_output(self, agent: Agent, content: str) -> None:
         """Handle command output from agent (e.g., /context)."""
