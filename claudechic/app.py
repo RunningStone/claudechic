@@ -29,13 +29,6 @@ from claude_agent_sdk import (
     ToolUseBlock,
     ResultMessage,
 )
-from claude_agent_sdk.types import (
-    ToolPermissionContext,
-    PermissionResult,
-    PermissionResultAllow,
-    PermissionResultDeny,
-)
-
 from claudechic.messages import (
     StreamChunk,
     ResponseComplete,
@@ -361,79 +354,6 @@ class ChatApp(App):
             if agent is None or agent.id == self.active_agent_id:
                 self.input_container.remove_class("hidden")
 
-    async def _handle_permission(
-        self, tool_name: str, tool_input: dict[str, Any], context: ToolPermissionContext
-    ) -> PermissionResult:
-        """Handle permission request from SDK."""
-        log.info(f"Permission requested for {tool_name}: {str(tool_input)[:100]}")
-
-        if tool_name == "AskUserQuestion":
-            return await self._handle_ask_user_question(tool_input)
-
-        # ExitPlanMode has no side effects - always allow
-        if tool_name == "ExitPlanMode":
-            return PermissionResultAllow()
-
-        # Chic MCP tools are always allowed (they're our own tools)
-        if tool_name.startswith("mcp__chic__"):
-            return PermissionResultAllow()
-
-        if self._agent and self._agent.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
-            log.info(f"Auto-approved {tool_name}")
-            return PermissionResultAllow()
-
-        request = PermissionRequest(tool_name, tool_input)
-        await self.interactions.put(request)
-
-        options = [("allow", "Yes, this time only"), ("deny", "No")]
-        if tool_name in self.AUTO_EDIT_TOOLS:
-            options.insert(0, ("allow_all", "Yes, all edits in this session"))
-
-        self._set_agent_status("needs_input")
-        async with self._show_prompt(SelectionPrompt(request.title, options)) as prompt:
-            async def ui_response():
-                result = await prompt.wait()
-                if not request._event.is_set():
-                    request.respond(result)
-
-            # Run UI response handler concurrently - allows both UI and programmatic responses
-            asyncio.create_task(ui_response())
-            result = await request.wait()
-
-        self._set_agent_status("busy")
-        log.info(f"Permission result: {result}")
-        if result == "allow_all":
-            if self._agent:
-                self._agent.auto_approve_edits = True
-                self._update_footer_auto_edit()
-            self.notify("Auto-edit enabled (Shift+Tab to disable)")
-            return PermissionResultAllow()
-        elif result == "allow":
-            return PermissionResultAllow()
-        else:
-            return PermissionResultDeny(message="User denied permission")
-
-    async def _handle_ask_user_question(
-        self, tool_input: dict[str, Any]
-    ) -> PermissionResult:
-        """Handle AskUserQuestion tool."""
-        questions = tool_input.get("questions", [])
-        if not questions:
-            return PermissionResultAllow(updated_input=tool_input)
-
-        log.info(f"AskUserQuestion with {len(questions)} questions")
-
-        async with self._show_prompt(QuestionPrompt(questions)) as prompt:
-            answers = await prompt.wait()
-
-        if not answers:
-            return PermissionResultDeny(message="User cancelled questions")
-
-        log.info(f"AskUserQuestion answers: {answers}")
-        return PermissionResultAllow(
-            updated_input={"questions": questions, "answers": answers}
-        )
-
     def action_cycle_permission_mode(self) -> None:
         """Toggle auto-approve for Edit/Write tools for current agent."""
         if self._agent:
@@ -472,14 +392,17 @@ class ChatApp(App):
     def _make_options(
         self, cwd: Path | None = None, resume: str | None = None
     ) -> ClaudeAgentOptions:
-        """Create SDK options with common settings."""
+        """Create SDK options with common settings.
+
+        Note: can_use_tool is set by Agent.connect() to its own handler,
+        which routes to permission_ui_callback set by AgentManager.
+        """
         return ClaudeAgentOptions(
             permission_mode="default",
             env={"ANTHROPIC_API_KEY": ""},
             setting_sources=["user", "project", "local"],
             cwd=cwd,
             resume=resume,
-            can_use_tool=self._handle_permission,
             mcp_servers={"chic": create_chic_server()},
             include_partial_messages=True,
         )
@@ -883,11 +806,16 @@ class ChatApp(App):
 
     @work(group="resume", exclusive=True, exit_on_error=False)
     async def resume_session(self, session_id: str) -> None:
-        """Resume a session by creating a new client."""
+        """Resume a session by reconnecting the active agent."""
         log.info(f"resume_session started: {session_id}")
+        agent = self._agent
+        if not agent:
+            self.show_error("No active agent to resume")
+            self.post_message(ResponseComplete(None))
+            return
         try:
-            await self._replace_client(self._make_options(resume=session_id))
-            self.session_id = session_id
+            await self._reconnect_agent(agent, session_id)
+            agent.session_id = session_id
             self.post_message(ResponseComplete(None))
             self.refresh_context()
             log.info(f"Resume complete for {session_id}")
@@ -1529,6 +1457,11 @@ class ChatApp(App):
         """
         # Put in interactions queue for testing
         await self.interactions.put(request)
+
+        # Wait until this agent is active before showing prompt (multi-agent only)
+        if len(self.agents) > 1:
+            while agent.id != self.active_agent_id:
+                await asyncio.sleep(0.1)
 
         if request.tool_name == "AskUserQuestion":
             # Handle question prompts
