@@ -12,8 +12,8 @@ CHIC_THEME = Theme(
     surface="#111111",
     panel="#555555",  # Used for borders and subtle UI elements
     success="#5599dd",  # Same as secondary - strings in code
-    warning="#ffaa33",  # Bright orange - numbers in code
-    error="#ff6666",  # Red - errors
+    warning="#aaaa00",  # Yellow - moderate usage/caution
+    error="#cc3333",  # Red - high usage/errors
     dark=True,
 )
 

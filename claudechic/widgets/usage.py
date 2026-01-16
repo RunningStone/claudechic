@@ -42,11 +42,11 @@ class UsageBar(Widget):
 
         # Color based on utilization
         if self.utilization < 50:
-            fill_color = "#5588cc"  # Blue
+            fill_color = "$secondary"  # Blue - plenty of headroom
         elif self.utilization < 80:
-            fill_color = "#ccaa00"  # Yellow
+            fill_color = "$warning"  # Yellow - moderate
         else:
-            fill_color = "#cc4444"  # Red
+            fill_color = "$error"  # Red - high
 
         bar = f"[{fill_color}]{'█' * filled}[/][$panel]{'░' * empty}[/]"
         pct = f"{self.utilization:.0f}% used"
