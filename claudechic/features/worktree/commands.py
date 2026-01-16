@@ -68,8 +68,6 @@ def _handle_finish(app: "ChatApp") -> None:
     2. Resolution: handle uncommitted, merge/rebase
     3. Cleanup: remove worktree and branch
     """
-    from claudechic.widgets import ChatMessage
-
     agent = app._agent
     if not agent:
         app.notify("No active agent", severity="error")
@@ -89,12 +87,6 @@ def _handle_finish(app: "ChatApp") -> None:
         phase=FinishPhase.RESOLUTION,
         status=status,
     )
-
-    chat_view = app._chat_view
-    if chat_view:
-        user_msg = ChatMessage("/worktree finish")
-        user_msg.add_class("user-message")
-        chat_view.mount(user_msg)
 
     # Show status summary
     _show_finish_status(app, status)
@@ -198,13 +190,16 @@ async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
             else:
                 # Unexpected - fall back to Claude
                 app._show_thinking()
-                app._send_to_active_agent(f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(state.info))
+                app._send_to_active_agent(
+                    f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(state.info),
+                    display_as="/worktree finish"
+                )
             return
 
         if action == ResolutionAction.REBASE:
             # Claude handles rebase
             app._show_thinking()
-            app._send_to_active_agent(get_finish_prompt(state.info))
+            app._send_to_active_agent(get_finish_prompt(state.info), display_as="/worktree finish")
             return
 
         # Unknown action - shouldn't happen
@@ -231,24 +226,11 @@ def _run_cleanup(app: "ChatApp", agent: "Agent") -> None:
         agent.finish_state = None
         return
 
-    _show_cleanup_failure(agent, message)
     app._show_thinking()
-    app._send_to_active_agent(get_cleanup_fix_prompt(message, state.info.worktree_dir))
-
-
-def _show_cleanup_failure(agent: "Agent", error: str) -> None:
-    """Display cleanup failure in chat."""
-    from claudechic.widgets import ChatMessage
-
-    state = agent.finish_state
-    if not state:
-        return
-
-    chat_view = agent.chat_view
-    if chat_view:
-        msg = ChatMessage(f"[Cleanup attempt {state.cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]\n\n{error}")
-        msg.add_class("user-message")
-        chat_view.mount(msg)
+    app._send_to_active_agent(
+        get_cleanup_fix_prompt(message, state.info.worktree_dir),
+        display_as=f"[Cleanup attempt {state.cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]"
+    )
 
 
 def _finish_complete(app: "ChatApp", agent: "Agent", warning: str = "") -> None:

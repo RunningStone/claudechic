@@ -557,8 +557,13 @@ class ChatApp(App):
         # User message will be mounted by _on_agent_prompt_sent callback
         self._send_to_active_agent(prompt)
 
-    def _send_to_active_agent(self, prompt: str) -> None:
-        """Send prompt to active agent using Agent.send()."""
+    def _send_to_active_agent(self, prompt: str, *, display_as: str | None = None) -> None:
+        """Send prompt to active agent using Agent.send().
+
+        Args:
+            prompt: Full prompt to send to Claude
+            display_as: Optional shorter text to show in UI
+        """
         if self.agent_mgr is None or self.agent_mgr.active is None:
             log.warning("_send_to_active_agent: no agent manager or active agent")
             self.notify("Agent not ready", severity="error")
@@ -573,7 +578,7 @@ class ChatApp(App):
             self.query_one("#image-attachments", ImageAttachments).clear()
 
         # Start async send (returns immediately, callbacks handle UI)
-        asyncio.create_task(agent.send(prompt), name=f"send-{agent.id}")
+        asyncio.create_task(agent.send(prompt, display_as=display_as), name=f"send-{agent.id}")
 
     def _show_thinking(self, agent_id: str | None = None) -> None:
         """Show the thinking indicator for a specific agent."""

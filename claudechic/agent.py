@@ -319,10 +319,14 @@ class Agent:
         """Clear pending images."""
         self.pending_images.clear()
 
-    async def send(self, prompt: str) -> None:
+    async def send(self, prompt: str, *, display_as: str | None = None) -> None:
         """Send a message and start processing response.
 
         The response is processed concurrently - this method returns immediately.
+
+        Args:
+            prompt: The full prompt to send to Claude
+            display_as: Optional shorter text to show in UI (prompt still sent to Claude)
         """
         if not self.client:
             raise RuntimeError("Agent not connected")
@@ -334,7 +338,7 @@ class Agent:
 
         # Notify UI to display user message (pass full image info before clearing)
         if self.on_prompt_sent:
-            self.on_prompt_sent(self, prompt, list(self.pending_images))
+            self.on_prompt_sent(self, display_as if display_as is not None else prompt, list(self.pending_images))
 
         self._set_status("busy")
         self.response_had_tools = False
