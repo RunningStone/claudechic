@@ -5,6 +5,7 @@ Exposes tools for Claude to manage agents within claudechic:
 - spawn_worktree: Create git worktree + agent
 - ask_agent: Send prompt to existing agent, wait for response
 - list_agents: List current agents and their status
+- close_agent: Close an agent by name
 """
 
 from __future__ import annotations
@@ -193,10 +194,39 @@ async def list_agents(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
     return _text_response("\n".join(lines))
 
 
+@tool(
+    "close_agent",
+    "Close an agent by name. Cannot close the last remaining agent.",
+    {"name": str},
+)
+async def close_agent(args: dict[str, Any]) -> dict[str, Any]:
+    """Close an agent."""
+    if _app is None or _app.agent_mgr is None:
+        return _text_response("Error: App not initialized")
+
+    name = args["name"]
+
+    # Can't close the last agent
+    if len(_app.agent_mgr) <= 1:
+        return _text_response("Error: Cannot close the last agent")
+
+    agent, error = _find_agent_by_name(name)
+    if agent is None:
+        return _text_response(f"Error: {error}")
+
+    agent_id = agent.id
+    agent_name = agent.name
+
+    # Use app's close method which handles UI cleanup
+    _app._do_close_agent(agent_id)
+
+    return _text_response(f"Closed agent '{agent_name}'")
+
+
 def create_chic_server():
     """Create the chic MCP server with all tools."""
     return create_sdk_mcp_server(
         name="chic",
         version="1.0.0",
-        tools=[spawn_agent, spawn_worktree, ask_agent, list_agents],
+        tools=[spawn_agent, spawn_worktree, ask_agent, list_agents, close_agent],
     )
