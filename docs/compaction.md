@@ -146,13 +146,20 @@ Note: The `toolUseResult` field duplicates the content - this means ~60% of sess
 ### What `/compactish` Does
 
 1. **Loads** all messages from the session JSONL
-2. **Identifies** tool_use/tool_result pairs that are both old AND large
-3. **Removes** those blocks from their parent messages
-4. **Drops** any messages that become empty after removal
-5. **Writes** the compacted messages back to the file
-6. **Reconnects** the agent so Claude loads the new file
+2. **Identifies** old, large tool_use inputs and tool_result outputs
+3. **Shrinks** inputs to a minimal placeholder: `{"_compacted": true}`
+4. **Shrinks** outputs to tool-specific minimal strings (e.g., "No matches found" for Grep)
+5. **Preserves** all message envelopes to maintain the UUID chain
+6. **Writes** the compacted messages back to the file
+7. **Reconnects** the agent so Claude loads the new file
 
-The tool_use and tool_result are matched by ID (`id` ↔ `tool_use_id`), so removing one without the other would create an orphan. We remove both.
+!!! info "Tool-Specific Output Formats"
+    Claude Code's renderer expects specific output formats for each tool. We replace large outputs with minimal strings that won't crash the renderer:
+
+    - **Grep**: "No matches found" (avoids the `filenames.map()` crash)
+    - **Read**: "[file content compacted]"
+    - **Bash**: "[output compacted]"
+    - Other tools: "[compacted]"
 
 ### Token Estimation
 

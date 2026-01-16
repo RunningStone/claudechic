@@ -1,8 +1,8 @@
-"""Session compaction - reduce context by removing old tool uses.
+"""Session compaction - reduce context by shrinking old tool uses.
 
-This module modifies session JSONL files in-place. Unlike Claude's built-in
-microcompact (which truncates content), we remove entire tool_use/tool_result
-pairs that are both old AND large.
+This module modifies session JSONL files in-place. We shrink old, large
+tool_use inputs and tool_result outputs while preserving the message structure
+needed for Claude Code's renderer.
 
 The SDK reads the JSONL file on resume, so modifying it directly affects
 what Claude sees.
@@ -16,18 +16,37 @@ from pathlib import Path
 from claudechic.sessions import get_project_sessions_dir
 
 
+# Compacted output strings for each tool type.
+# These are minimal strings that won't crash Claude Code's renderer.
+COMPACTED_RESULTS = {
+    # Most tools just use plain text - a simple message works
+    "Bash": "[output compacted]",
+    "Read": "[file content compacted]",
+    "Write": "[compacted]",
+    "Edit": "[compacted]",
+    "Glob": "[compacted]",
+    "Task": "[compacted]",
+    "Skill": "[compacted]",
+    "TodoWrite": "[compacted]",
+    "WebFetch": "[compacted]",
+    "WebSearch": "[compacted]",
+    # Grep needs special handling - empty result that parses correctly
+    "Grep": "No matches found",
+}
+
+
 def compact_session(
     session_id: str,
     cwd: Path | None = None,
     keep_last_n: int = 5,  # Keep last N tool results regardless of size
-    min_result_size: int = 1000,  # Only truncate results larger than this (bytes)
-    min_input_size: int = 2000,  # Only truncate inputs larger than this (bytes)
+    min_result_size: int = 1000,  # Only shrink results larger than this (bytes)
+    min_input_size: int = 2000,  # Only shrink inputs larger than this (bytes)
     aggressive: bool = False,  # If True, use lower thresholds (500/1000)
     dry_run: bool = False,
 ) -> dict:
-    """Compact a session by removing old, large tool_use/tool_result pairs.
+    """Compact a session by shrinking old, large tool_use/tool_result pairs.
 
-    Strategy: Only remove things that are BOTH old AND large.
+    Strategy: Only shrink things that are BOTH old AND large.
     - Small tool results (<1KB) kept regardless of age
     - Small tool inputs (<2KB) kept regardless of age
     - Recent items (last N per tool type) kept regardless of size
@@ -98,73 +117,99 @@ def compact_session(
             recent_tools.add(tool_id)
             tool_counts[name] += 1
 
-    # Truncate results: old AND large
-    truncate_result_ids = set()
-    for tool_id, result_size in tool_results.items():
-        if tool_id in recent_tools:
-            continue  # Keep recent
-        if result_size < min_result_size:
-            continue  # Keep small
-        truncate_result_ids.add(tool_id)
-
-    # Truncate inputs: old AND large
-    truncate_input_ids = set()
+    # Identify tool_uses with large inputs to compact
+    compact_input_ids = set()
     for tool_id, info in tool_uses.items():
         if tool_id in recent_tools:
             continue  # Keep recent
         if info["input_size"] < min_input_size:
             continue  # Keep small
-        truncate_input_ids.add(tool_id)
+        compact_input_ids.add(tool_id)
 
-    # IDs to remove entirely (both tool_use and tool_result)
-    remove_ids = truncate_result_ids | truncate_input_ids
+    # Identify tool_results with large outputs to compact
+    compact_result_ids = set()
+    for tool_id, result_size in tool_results.items():
+        if tool_id in recent_tools:
+            continue  # Keep recent
+        if result_size < min_result_size:
+            continue  # Keep small
+        compact_result_ids.add(tool_id)
 
-    # Create compacted messages by removing tool_use/tool_result blocks
+    # Create compacted messages
     compacted_messages = []
 
     for m in messages:
         msg_type = m.get("type")
 
-        # Handle assistant messages (remove tool_use blocks)
+        # Handle assistant messages - shrink tool_use inputs
         if msg_type == "assistant":
             content = m.get("message", {}).get("content", [])
             if not isinstance(content, list):
                 compacted_messages.append(m)
                 continue
 
-            new_content = [
-                block for block in content
-                if not (isinstance(block, dict) and block.get("type") == "tool_use" and block.get("id") in remove_ids)
-            ]
+            new_content = []
+            modified = False
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    tool_id = block.get("id")
+                    if tool_id in compact_input_ids:
+                        # Shrink the input but keep the tool_use block
+                        info = tool_uses[tool_id]
+                        new_block = {
+                            **block,
+                            "input": {"_compacted": True, "_original_size": info["input_size"]},
+                        }
+                        new_content.append(new_block)
+                        modified = True
+                    else:
+                        new_content.append(block)
+                else:
+                    new_content.append(block)
 
-            if len(new_content) != len(content):
-                if new_content:  # Only keep message if there's content left
-                    new_msg = {**m, "message": {**m["message"], "content": new_content}}
-                    compacted_messages.append(new_msg)
-                # else: drop the entire message
+            if modified:
+                new_msg = {**m, "message": {**m["message"], "content": new_content}}
+                compacted_messages.append(new_msg)
             else:
                 compacted_messages.append(m)
 
-        # Handle user messages (remove tool_result blocks)
+        # Handle user messages - shrink tool_result outputs
         elif msg_type == "user":
             content = m.get("message", {}).get("content", [])
             if not isinstance(content, list):
                 compacted_messages.append(m)
                 continue
 
-            new_content = [
-                block for block in content
-                if not (isinstance(block, dict) and block.get("type") == "tool_result" and block.get("tool_use_id") in remove_ids)
-            ]
+            new_content = []
+            modified = False
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    tool_id = block.get("tool_use_id")
+                    if tool_id in compact_result_ids:
+                        # Get the tool name to use the right compacted output
+                        tool_name = tool_uses.get(tool_id, {}).get("name", "unknown")
+                        compacted_output = COMPACTED_RESULTS.get(tool_name, "[compacted]")
+                        new_block = {
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": compacted_output,
+                        }
+                        new_content.append(new_block)
+                        modified = True
+                    else:
+                        new_content.append(block)
+                else:
+                    new_content.append(block)
 
-            if len(new_content) != len(content):
-                if new_content:  # Only keep message if there's content left
-                    new_msg = {**m, "message": {**m["message"], "content": new_content}}
-                    # Remove toolUseResult if we removed the tool_result
-                    if "toolUseResult" in new_msg:
-                        del new_msg["toolUseResult"]
-                    compacted_messages.append(new_msg)
-                # else: drop the entire message
+            if modified:
+                new_msg = {**m, "message": {**m["message"], "content": new_content}}
+                # Also update toolUseResult if present
+                if "toolUseResult" in new_msg and len(new_content) == 1:
+                    tool_id = new_content[0].get("tool_use_id")
+                    if tool_id in compact_result_ids:
+                        tool_name = tool_uses.get(tool_id, {}).get("name", "unknown")
+                        new_msg["toolUseResult"] = COMPACTED_RESULTS.get(tool_name, "[compacted]")
+                compacted_messages.append(new_msg)
             else:
                 compacted_messages.append(m)
 
@@ -205,8 +250,8 @@ def compact_session(
     tokens_saved = before_total - after_total
 
     stats = {
-        "truncated_results": len(truncate_result_ids),
-        "truncated_inputs": len(truncate_input_ids),
+        "compacted_inputs": len(compact_input_ids),
+        "compacted_results": len(compact_result_ids),
         "tokens_saved": tokens_saved,
         "before_total": before_total,
         "after_total": after_total,
