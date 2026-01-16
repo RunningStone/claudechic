@@ -173,3 +173,9 @@ class HistorySearch(Widget):
             self._filtered = [h for h in self._history if query in h.lower()]
         self._match_index = 0
         self._update_display()
+
+    def on_input_blurred(self, _event: Input.Blurred) -> None:
+        """Hide when input loses focus."""
+        if self.styles.display != "none":
+            self.hide()
+            self.post_message(self.Cancelled())
