@@ -13,6 +13,19 @@ MAX_CONTEXT_TOKENS = 200_000  # Claude's context window
 MAX_HEADER_WIDTH = 70  # Max width for tool headers
 
 
+def make_relative(path: str, cwd: Path | None) -> str:
+    """Make path relative to cwd if possible, otherwise return as-is."""
+    if not cwd or not path:
+        return path
+    try:
+        p = Path(path)
+        if p.is_absolute() and p.is_relative_to(cwd):
+            return str(p.relative_to(cwd))
+    except (ValueError, OSError):
+        pass
+    return path
+
+
 def truncate_path(path: str, max_len: int) -> str:
     """Truncate path from the front, preserving the end which is more informative.
 
@@ -54,7 +67,7 @@ def count_diff_changes(old: str, new: str) -> tuple[int, int]:
     return additions, deletions
 
 
-def format_tool_header(name: str, input: dict) -> str:
+def format_tool_header(name: str, input: dict, cwd: Path | None = None) -> str:
     """Format a one-line header for a tool use."""
     if name == "Edit":
         old = input.get("old_string", "")
@@ -62,13 +75,16 @@ def format_tool_header(name: str, input: dict) -> str:
         additions, deletions = count_diff_changes(old, new)
         # Leave room for path + change counts
         stats = f" (+{additions}, -{deletions})"
-        path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 6 - len(stats))
+        path = make_relative(input.get("file_path", "?"), cwd)
+        path = truncate_path(path, MAX_HEADER_WIDTH - 6 - len(stats))
         return f"Edit: {path}{stats}"
     elif name == "Write":
-        path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 7)
+        path = make_relative(input.get("file_path", "?"), cwd)
+        path = truncate_path(path, MAX_HEADER_WIDTH - 7)
         return f"Write: {path}"
     elif name == "Read":
-        path = truncate_path(input.get("file_path", "?"), MAX_HEADER_WIDTH - 6)
+        path = make_relative(input.get("file_path", "?"), cwd)
+        path = truncate_path(path, MAX_HEADER_WIDTH - 6)
         return f"Read: {path}"
     elif name == "Bash":
         cmd = input.get("command", "?")
@@ -199,16 +215,16 @@ def format_diff_text(old: str, new: str, max_len: int = 300) -> Text:
     return result
 
 
-def format_tool_details(name: str, input: dict) -> str:
+def format_tool_details(name: str, input: dict, cwd: Path | None = None) -> str:
     """Format expanded details for a tool use (non-Edit tools)."""
     if name == "Write":
-        path = input.get("file_path", "?")
+        path = make_relative(input.get("file_path", "?"), cwd)
         content = input.get("content", "")
         lang = get_lang_from_path(path)
         preview = content[:400] + ("..." if len(content) > 400 else "")
         return f"```{lang}\n{preview}\n```"
     elif name == "Read":
-        path = input.get("file_path", "?")
+        path = make_relative(input.get("file_path", "?"), cwd)
         offset = input.get("offset")
         limit = input.get("limit")
         details = f"**File:** `{path}`"

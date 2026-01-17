@@ -143,13 +143,14 @@ class ChatView(AutoHideScroll):
 
         # Create widget based on tool type
         collapsed = tool.name in COLLAPSE_BY_DEFAULT
+        cwd = self._agent.cwd if self._agent else None
         if tool.name == "Task":
-            widget = TaskWidget(block, collapsed=collapsed)
+            widget = TaskWidget(block, collapsed=collapsed, cwd=cwd)
             self._active_task_widgets[tool.id] = widget
         elif tool.name.startswith("mcp__chic__"):
             widget = AgentToolWidget(block)
         else:
-            widget = ToolUseWidget(block, collapsed=collapsed)
+            widget = ToolUseWidget(block, collapsed=collapsed, cwd=cwd)
 
         self._pending_tool_widgets[tool.id] = widget
         self._recent_tools.append(widget)
@@ -213,13 +214,14 @@ class ChatView(AutoHideScroll):
         from claude_agent_sdk import ToolUseBlock
         block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
         collapsed = tool.name in COLLAPSE_BY_DEFAULT
+        cwd = self._agent.cwd if self._agent else None
 
         if tool.name == "Task":
-            widget = TaskWidget(block, collapsed=collapsed)
+            widget = TaskWidget(block, collapsed=collapsed, cwd=cwd)
         elif tool.name.startswith("mcp__chic__"):
             widget = AgentToolWidget(block)
         else:
-            widget = ToolUseWidget(block, collapsed=collapsed, completed=completed)
+            widget = ToolUseWidget(block, collapsed=collapsed, completed=completed, cwd=cwd)
 
         self.mount(widget)
 
