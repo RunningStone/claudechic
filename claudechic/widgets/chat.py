@@ -376,6 +376,10 @@ class ChatInput(TextArea):
         # Normal paste - let parent handle it
 
     def action_submit(self) -> None:
+        # If autocomplete is showing, complete instead of submit
+        if self._autocomplete and self._autocomplete.display:
+            self._autocomplete.handle_key("enter")
+            return
         text = self.text.strip()
         if text:
             # Add to history (avoid duplicates of last entry)
