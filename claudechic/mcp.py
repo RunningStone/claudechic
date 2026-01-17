@@ -135,41 +135,50 @@ async def spawn_worktree(args: dict[str, Any]) -> dict[str, Any]:
     return _text_response(result)
 
 
-@tool(
-    "ask_agent",
-    "Send a prompt to an existing agent and wait for its response. Returns the agent's full response text.",
-    {"name": str, "prompt": str},
-)
-async def ask_agent(args: dict[str, Any]) -> dict[str, Any]:
-    """Send prompt to an agent and wait for response."""
-    if _app is None or _app.agent_mgr is None:
-        return _text_response("Error: App not initialized")
+def _make_ask_agent(caller_name: str | None = None):
+    """Create ask_agent tool with optional caller name bound."""
 
-    name = args["name"]
-    prompt = args["prompt"]
+    @tool(
+        "ask_agent",
+        "Send a prompt to an existing agent and wait for its response. Returns the agent's full response text.",
+        {"name": str, "prompt": str},
+    )
+    async def ask_agent(args: dict[str, Any]) -> dict[str, Any]:
+        """Send prompt to an agent and wait for response."""
+        if _app is None or _app.agent_mgr is None:
+            return _text_response("Error: App not initialized")
 
-    agent, error = _find_agent_by_name(name)
-    if agent is None:
-        return _text_response(f"Error: {error}")
+        name = args["name"]
+        prompt = args["prompt"]
 
-    try:
-        # Send prompt and wait for completion using Agent API
-        await _send_prompt_to_agent(agent, prompt)
-        response_text = await agent.wait_for_completion(timeout=300)
-    except asyncio.TimeoutError:
-        return _text_response(f"Error: Agent '{name}' response timed out after 5 minutes")
-    except Exception as e:
-        return _text_response(f"Error: {e}")
+        # Prefix with caller info if provided
+        if caller_name:
+            prompt = f"[Question from agent '{caller_name}']\n\n{prompt}"
 
-    if response_text is None:
-        return _text_response(f"Error: Agent '{name}' response timed out")
+        agent, error = _find_agent_by_name(name)
+        if agent is None:
+            return _text_response(f"Error: {error}")
 
-    # Truncate if too long
-    max_len = 4000
-    if len(response_text) > max_len:
-        response_text = response_text[:max_len] + f"\n\n[Truncated - full response was {len(response_text)} chars]"
+        try:
+            # Send prompt and wait for completion using Agent API
+            await _send_prompt_to_agent(agent, prompt)
+            response_text = await agent.wait_for_completion(timeout=300)
+        except asyncio.TimeoutError:
+            return _text_response(f"Error: Agent '{name}' response timed out after 5 minutes")
+        except Exception as e:
+            return _text_response(f"Error: {e}")
 
-    return _text_response(f"Response from '{name}':\n\n{response_text}")
+        if response_text is None:
+            return _text_response(f"Error: Agent '{name}' response timed out")
+
+        # Truncate if too long
+        max_len = 4000
+        if len(response_text) > max_len:
+            response_text = response_text[:max_len] + f"\n\n[Truncated - full response was {len(response_text)} chars]"
+
+        return _text_response(f"Response from '{name}':\n\n{response_text}")
+
+    return ask_agent
 
 
 @tool(
@@ -223,10 +232,15 @@ async def close_agent(args: dict[str, Any]) -> dict[str, Any]:
     return _text_response(f"Closed agent '{agent_name}'")
 
 
-def create_chic_server():
-    """Create the chic MCP server with all tools."""
+def create_chic_server(caller_name: str | None = None):
+    """Create the chic MCP server with all tools.
+
+    Args:
+        caller_name: Name of the agent that will use this server.
+            Used to identify the sender in ask_agent calls.
+    """
     return create_sdk_mcp_server(
         name="chic",
         version="1.0.0",
-        tools=[spawn_agent, spawn_worktree, ask_agent, list_agents, close_agent],
+        tools=[spawn_agent, spawn_worktree, _make_ask_agent(caller_name), list_agents, close_agent],
     )
