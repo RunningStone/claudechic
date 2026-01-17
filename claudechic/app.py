@@ -373,7 +373,7 @@ class ChatApp(App):
         self._show_system_info(message, "warning", None)
 
     def _make_options(
-        self, cwd: Path | None = None, resume: str | None = None
+        self, cwd: Path | None = None, resume: str | None = None, agent_name: str | None = None
     ) -> ClaudeAgentOptions:
         """Create SDK options with common settings.
 
@@ -386,7 +386,7 @@ class ChatApp(App):
             setting_sources=["user", "project", "local"],
             cwd=cwd,
             resume=resume,
-            mcp_servers={"chic": create_chic_server()},
+            mcp_servers={"chic": create_chic_server(caller_name=agent_name)},
             include_partial_messages=True,
             stderr=self._handle_sdk_stderr,
         )
@@ -438,7 +438,7 @@ class ChatApp(App):
             resume = sessions[0][0] if sessions else None
 
         # Connect the agent to SDK
-        options = self._make_options(cwd=agent.cwd, resume=resume)
+        options = self._make_options(cwd=agent.cwd, resume=resume, agent_name=agent.name)
         await agent.connect(options, resume=resume)
 
         # Load history if resuming
@@ -882,7 +882,7 @@ class ChatApp(App):
             sessions = await get_recent_sessions(limit=1, cwd=new_cwd)
             resume_id = sessions[0][0] if sessions else None
 
-            await self._replace_client(self._make_options(cwd=new_cwd, resume=resume_id))
+            await self._replace_client(self._make_options(cwd=new_cwd, resume=resume_id, agent_name=agent.name))
 
             # Clear ChatView state
             if agent.chat_view:
@@ -1012,7 +1012,7 @@ class ChatApp(App):
     async def _reconnect_agent(self, agent: "Agent", session_id: str) -> None:
         """Disconnect and reconnect an agent to reload its session."""
         await agent.disconnect()
-        options = self._make_options(cwd=agent.cwd, resume=session_id)
+        options = self._make_options(cwd=agent.cwd, resume=session_id, agent_name=agent.name)
         await agent.connect(options, resume=session_id)
 
     @work(group="usage", exclusive=True, exit_on_error=False)

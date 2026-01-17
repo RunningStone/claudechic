@@ -134,7 +134,7 @@ class AgentManager:
         self._wire_agent_callbacks(agent)
 
         # Create options and connect
-        options = self._options_factory(cwd=cwd, resume=resume)
+        options = self._options_factory(cwd=cwd, resume=resume, agent_name=agent.name)
         await agent.connect(options, resume=resume)
 
         # Register agent
