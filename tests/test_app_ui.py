@@ -534,3 +534,44 @@ async def test_system_notification_ignored_subtypes(mock_sdk):
         # No SystemInfo widgets should be created
         info_widgets = list(chat_view.query(SystemInfo))
         assert len(info_widgets) == 0
+
+
+@pytest.mark.asyncio
+async def test_sdk_stderr_shows_in_chat(mock_sdk):
+    """SDK stderr callback routes messages to chat view."""
+    from claudechic.widgets import SystemInfo
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+        assert chat_view is not None
+
+        # Simulate SDK stderr output
+        app._handle_sdk_stderr("An update to our Terms of Service")
+        await pilot.pause()
+
+        # Should create a SystemInfo widget
+        info_widgets = list(chat_view.query(SystemInfo))
+        assert len(info_widgets) == 1
+        assert "Terms of Service" in info_widgets[0]._message
+
+
+@pytest.mark.asyncio
+async def test_sdk_stderr_ignores_empty(mock_sdk):
+    """SDK stderr callback ignores empty/whitespace messages."""
+    from claudechic.widgets import SystemInfo
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+        assert chat_view is not None
+
+        # Simulate empty stderr output
+        app._handle_sdk_stderr("")
+        app._handle_sdk_stderr("   ")
+        app._handle_sdk_stderr("\n")
+        await pilot.pause()
+
+        # No widgets should be created
+        info_widgets = list(chat_view.query(SystemInfo))
+        assert len(info_widgets) == 0

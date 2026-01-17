@@ -365,6 +365,13 @@ class ChatApp(App):
                 )
         yield StatusFooter()
 
+    def _handle_sdk_stderr(self, message: str) -> None:
+        """Handle SDK stderr output by showing in chat."""
+        message = message.strip()
+        if not message:
+            return
+        self._show_system_info(message, "warning", None)
+
     def _make_options(
         self, cwd: Path | None = None, resume: str | None = None
     ) -> ClaudeAgentOptions:
@@ -381,6 +388,7 @@ class ChatApp(App):
             resume=resume,
             mcp_servers={"chic": create_chic_server()},
             include_partial_messages=True,
+            stderr=self._handle_sdk_stderr,
         )
 
     async def on_mount(self) -> None:
