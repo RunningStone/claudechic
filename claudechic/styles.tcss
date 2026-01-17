@@ -307,8 +307,6 @@ TaskWidget #task-content {
     dock: bottom;
     width: 100%;
     height: auto;
-    min-height: 5;
-    max-height: 14;
     align: center top;
 }
 
@@ -423,7 +421,7 @@ ContextBar {
     max-width: 90;
     background: $surface;
     border-left: tall $primary;
-    padding: 0 2 0 1;
+    padding: 0 2 1 1;
 }
 
 WorktreePrompt {
@@ -446,6 +444,14 @@ WorktreePrompt {
     color: $text;
     background: $surface-lighten-1;
     border-left: tall $primary;
+}
+
+.prompt-option.prompt-placeholder {
+    color: $text-disabled;
+}
+
+.prompt-option.prompt-placeholder.selected {
+    color: $text-muted;
 }
 
 /* Right sidebar - agents + todos stacked */

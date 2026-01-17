@@ -607,6 +607,10 @@ class Agent:
             return PermissionResultAllow()
         elif result == "allow":
             return PermissionResultAllow()
+        elif result.startswith("instead:"):
+            # User provided alternative instructions - interrupt and pass message
+            message = result[8:]  # Strip "instead:" prefix
+            return PermissionResultDeny(message=message, interrupt=True)
         else:
             return PermissionResultDeny(message="User denied permission")
 

@@ -155,6 +155,30 @@ async def test_selection_prompt_escape_cancels():
 
 
 @pytest.mark.asyncio
+async def test_selection_prompt_text_option():
+    """Text option allows freeform input."""
+    options = [("a", "Option A"), ("b", "Option B")]
+    text_option = ("custom", "Type something...")
+
+    class TestApp(App):
+        def compose(self):
+            yield SelectionPrompt("Choose:", options, text_option)
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        prompt = app.query_one(SelectionPrompt)
+
+        # Navigate to text option (3rd option, index 2)
+        await pilot.press("3")
+        # Type some text
+        await pilot.press("h", "e", "l", "l", "o")
+        await pilot.press("enter")
+        result = await prompt.wait()
+
+    assert result == "custom:hello"
+
+
+@pytest.mark.asyncio
 async def test_question_prompt_multi_question():
     """Handles multiple questions."""
     questions = [

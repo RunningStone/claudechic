@@ -1383,8 +1383,10 @@ class ChatApp(App):
         options = [("allow", "Yes, this time only"), ("deny", "No")]
         if request.tool_name in self.AUTO_EDIT_TOOLS:
             options.insert(0, ("allow_all", "Yes, all edits in this session"))
+        # Add text option to provide alternative instructions
+        text_option = ("instead", "Do something else...")
 
-        async with self._show_prompt(SelectionPrompt(request.title, options), agent) as prompt:
+        async with self._show_prompt(SelectionPrompt(request.title, options, text_option), agent) as prompt:
             async def ui_response():
                 result = await prompt.wait()
                 if not request._event.is_set():

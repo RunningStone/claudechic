@@ -197,31 +197,68 @@ class BasePrompt(Static):
 
 
 class SelectionPrompt(BasePrompt):
-    """Simple selection prompt with arrow/number navigation."""
+    """Simple selection prompt with arrow/number navigation and optional text input."""
 
-    def __init__(self, title: str, options: list[tuple[str, str]]) -> None:
+    def __init__(
+        self,
+        title: str,
+        options: list[tuple[str, str]],
+        text_option: tuple[str, str] | None = None,
+    ) -> None:
         """Create selection prompt.
 
         Args:
             title: Prompt title/question
             options: List of (value, label) tuples
+            text_option: Optional (value_prefix, placeholder) for text input option.
+                         Result will be f"{value_prefix}:{user_text}"
         """
         super().__init__()
         self.title = title
         self.options = options
+        self.text_option = text_option
         self._result_value = options[0][0] if options else ""
 
     def compose(self) -> ComposeResult:
+        # Set min-height based on content: title (2 lines w/ padding) + options (1 each) + bottom padding
+        min_h = 2 + self._total_options() + 2
+        self.styles.min_height = min_h
+
         yield Static(self.title, classes="prompt-title")
         for i, (value, label) in enumerate(self.options):
             classes = "prompt-option selected" if i == 0 else "prompt-option"
             yield Static(f"{i + 1}. {label}", classes=classes, id=f"opt-{i}")
+        # Text input option (if enabled)
+        if self.text_option:
+            text_idx = len(self.options)
+            classes = "prompt-option prompt-placeholder"
+            yield Static(
+                f"{text_idx + 1}. {self.text_option[1]}",
+                classes=classes,
+                id=f"opt-{text_idx}",
+            )
 
     def _total_options(self) -> int:
-        return len(self.options)
+        return len(self.options) + (1 if self.text_option else 0)
+
+    def _text_option_idx(self) -> int | None:
+        return len(self.options) if self.text_option else None
+
+    def _text_option_placeholder(self) -> str:
+        return self.text_option[1] if self.text_option else ""
 
     def _select_option(self, idx: int) -> None:
-        self._resolve(self.options[idx][0])
+        if idx < len(self.options):
+            self._resolve(self.options[idx][0])
+        elif self.text_option:
+            # Enter text mode for the text option
+            self._text_buffer = ""
+            self._enter_text_mode()
+            self._update_text_display()
+
+    def _submit_text(self, text: str) -> None:
+        if self.text_option:
+            self._resolve(f"{self.text_option[0]}:{text}")
 
     def cancel(self) -> None:
         self._resolve("")
