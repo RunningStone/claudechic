@@ -560,8 +560,16 @@ class ChatApp(App):
             self.notify("Agent not ready", severity="error")
             return
 
-        agent = self.agent_mgr.active
+        self._send_to_agent(self.agent_mgr.active, prompt, display_as=display_as)
 
+    def _send_to_agent(self, agent: "Agent", prompt: str, *, display_as: str | None = None) -> None:
+        """Send prompt to a specific agent.
+
+        Args:
+            agent: The agent to send to
+            prompt: Full prompt to send to Claude
+            display_as: Optional shorter text to show in UI
+        """
         # Clear visual indicator (images already on agent.pending_images)
         try:
             self.query_one("#image-attachments", ImageAttachments).clear()

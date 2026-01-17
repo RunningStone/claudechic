@@ -176,8 +176,8 @@ async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
 
             if choice == "commit":
                 # Ask Claude to commit
-                app._show_thinking()
-                app._send_to_active_agent("Commit all changes with a descriptive message.")
+                app._show_thinking(agent.id)
+                app._send_to_agent(agent, "Commit all changes with a descriptive message.")
                 # Resolution will continue in on_response_complete_finish
                 return
 
@@ -189,8 +189,9 @@ async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
                 _run_cleanup(app, agent)
             else:
                 # Unexpected - fall back to Claude
-                app._show_thinking()
-                app._send_to_active_agent(
+                app._show_thinking(agent.id)
+                app._send_to_agent(
+                    agent,
                     f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(state.info),
                     display_as="/worktree finish"
                 )
@@ -198,8 +199,8 @@ async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
 
         if action == ResolutionAction.REBASE:
             # Claude handles rebase
-            app._show_thinking()
-            app._send_to_active_agent(get_finish_prompt(state.info), display_as="/worktree finish")
+            app._show_thinking(agent.id)
+            app._send_to_agent(agent, get_finish_prompt(state.info), display_as="/worktree finish")
             return
 
         # Unknown action - shouldn't happen
@@ -226,8 +227,9 @@ def _run_cleanup(app: "ChatApp", agent: "Agent") -> None:
         agent.finish_state = None
         return
 
-    app._show_thinking()
-    app._send_to_active_agent(
+    app._show_thinking(agent.id)
+    app._send_to_agent(
+        agent,
         get_cleanup_fix_prompt(message, state.info.worktree_dir),
         display_as=f"[Cleanup attempt {state.cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]"
     )
