@@ -314,7 +314,7 @@ TaskWidget #task-content {
 
 #input-container {
     width: 100%;
-    max-width: 100;
+    max-width: 90;
     height: auto;
     padding: 1 0;
     margin: 1 0;
@@ -420,7 +420,7 @@ ContextBar {
 .base-prompt {
     height: auto;
     width: 100%;
-    max-width: 100;
+    max-width: 90;
     background: $surface;
     border-left: tall $primary;
     padding: 0 2 0 1;
