@@ -140,37 +140,4 @@ will be ready for you.
 *Just for fun, you can ask Claude to play Chess against itself.  This doesn't
 use worktrees, but does use multiple agents:*
 
-!!! user ""
-    Create two agents, white and black, and give them prompts such that they play chess against each other, using the ask agent command.  Have them describe their thought process as they play.
-
-!!! claude ""
-    Spawning agent: white
-
-    > "You are playing chess as White. You will receive moves from Black in standard al..."
-
-    Spawning agent: black
-
-    > "You are playing chess as Black. You will receive moves from White in standard al..."
-
-    ...
-
-    White played: Bb5 (Ruy Lopez). Your move.
-
-    **Move:** Nf6
-
-    **Thinking:** Playing the Berlin Defense, attacking e4 immediately and leading to solid but dynamic positions. This is an aggressive choice that puts pressure on White's center right away rather than the passive ...a6.
-
-    **Board:**
-    ```
-      a b c d e f g h
-    8 ♜ · ♝ ♛ ♚ ♝ · ♜
-    7 ♟ ♟ ♟ ♟ · ♟ ♟ ♟
-    6 · · ♞ · · ♞ · ·
-    5 · ♗ · · ♟ · · ·
-    4 · · · · ♙ · · ·
-    3 · · · · · ♘ · ·
-    2 ♙ ♙ ♙ ♙ · ♙ ♙ ♙
-    1 ♖ ♘ ♗ ♕ ♔ · · ♖
-    ```
-
-    Your move!
+<script src="https://asciinema.org/a/LqXYSEsLQIHmIEYQ.js" id="asciicast-LqXYSEsLQIHmIEYQ" async="true"></script>
