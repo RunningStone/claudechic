@@ -392,16 +392,17 @@ class Agent:
             # Check if this is a connection error (SDK process died)
             is_connection_error = "ConnectionError" in type(e).__name__ or "connection" in str(e).lower()
 
-            # Suppress errors after intentional interrupt (e.g., CLIConnectionError)
             if self._interrupted:
                 log.info("Suppressed error after interrupt: %s", e)
-                # Request reconnection if connection was lost
-                if is_connection_error and self.observer:
-                    self.observer.on_connection_lost(self)
             else:
                 log.exception("Response processing failed")
-                if self.observer:
+                if self.observer and not is_connection_error:
                     self.observer.on_error(self, "Response failed", e)
+
+            # Auto-reconnect on connection errors
+            if is_connection_error and self.observer:
+                self.observer.on_connection_lost(self)
+
             if self.observer:
                 self.observer.on_complete(self, None)
         finally:

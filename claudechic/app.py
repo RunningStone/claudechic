@@ -1269,6 +1269,7 @@ class ChatApp(App):
     def on_connection_lost(self, agent: Agent) -> None:
         """Handle lost SDK connection - reconnect."""
         log.info(f"Connection lost for agent {agent.name}, reconnecting...")
+        self.notify("Reconnecting...", timeout=2)
         self._reconnect_after_interrupt(agent)
 
     @work(group="reconnect_after_interrupt", exclusive=True, exit_on_error=False)
