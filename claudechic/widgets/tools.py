@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+from pathlib import Path
 
 import pyperclip
 
@@ -16,6 +17,7 @@ from claudechic.formatting import (
     format_tool_header,
     format_tool_details,
     get_lang_from_path,
+    make_relative,
 )
 from claudechic.widgets.diff import DiffWidget
 from claudechic.widgets.chat import ChatMessage, Spinner
@@ -31,12 +33,13 @@ class ToolUseWidget(Static):
 
     can_focus = False
 
-    def __init__(self, block: ToolUseBlock, collapsed: bool = False, completed: bool = False) -> None:
+    def __init__(self, block: ToolUseBlock, collapsed: bool = False, completed: bool = False, cwd: Path | None = None) -> None:
         super().__init__()
         self.block = block
         self.result: ToolResultBlock | bool | None = True if completed else None
         self._initial_collapsed = collapsed
-        self._header = format_tool_header(self.block.name, self.block.input)
+        self._cwd = cwd
+        self._header = format_tool_header(self.block.name, self.block.input, cwd)
 
     def compose(self) -> ComposeResult:
         yield Button("⧉", classes="copy-btn")
@@ -44,15 +47,16 @@ class ToolUseWidget(Static):
             yield Spinner()
         with Collapsible(title=self._header, collapsed=self._initial_collapsed):
             if self.block.name == "Edit":
+                path = make_relative(self.block.input.get("file_path", ""), self._cwd)
                 yield DiffWidget(
                     self.block.input.get("old_string", ""),
                     self.block.input.get("new_string", ""),
-                    path=self.block.input.get("file_path", ""),
+                    path=path,
                     replace_all=self.block.input.get("replace_all", False),
                     id="diff-content",
                 )
             else:
-                details = format_tool_details(self.block.name, self.block.input)
+                details = format_tool_details(self.block.name, self.block.input, self._cwd)
                 yield Markdown(details.rstrip(), id="md-content")
 
     def stop_spinner(self) -> None:
@@ -136,7 +140,7 @@ class ToolUseWidget(Static):
             if self.block.name == "Edit":
                 return
             md = collapsible.query_one("#md-content", Markdown)
-            details = format_tool_details(self.block.name, self.block.input)
+            details = format_tool_details(self.block.name, self.block.input, self._cwd)
             if result.content:
                 content = (
                     result.content
@@ -168,11 +172,12 @@ class TaskWidget(Static):
     can_focus = False
     RECENT_EXPANDED = 2  # Keep last N tool uses expanded within task
 
-    def __init__(self, block: ToolUseBlock, collapsed: bool = False) -> None:
+    def __init__(self, block: ToolUseBlock, collapsed: bool = False, cwd: Path | None = None) -> None:
         super().__init__()
         self.block = block
         self.result: ToolResultBlock | None = None
         self._initial_collapsed = collapsed
+        self._cwd = cwd
         self._current_message: ChatMessage | None = None
         self._recent_tools: list[ToolUseWidget] = []
         self._pending_tools: dict[str, ToolUseWidget] = {}
@@ -216,7 +221,7 @@ class TaskWidget(Static):
             while len(self._recent_tools) >= self.RECENT_EXPANDED:
                 old = self._recent_tools.pop(0)
                 old.collapse()
-            widget = ToolUseWidget(block, collapsed=False)
+            widget = ToolUseWidget(block, collapsed=False, cwd=self._cwd)
             self._pending_tools[block.id] = widget
             self._recent_tools.append(widget)
             content.mount(widget)
