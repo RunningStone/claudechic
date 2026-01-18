@@ -67,6 +67,49 @@ def count_diff_changes(old: str, new: str) -> tuple[int, int]:
     return additions, deletions
 
 
+def format_result_summary(name: str, content: str, is_error: bool = False) -> str:
+    """Extract a short summary from tool result content.
+
+    Returns a parenthesized summary like "(143 lines)" or "(exit 1)".
+    """
+    if is_error:
+        return "(error)"
+
+    if name == "Read":
+        # Count lines in result (content has N newlines for N+1 lines, unless empty)
+        lines = content.count("\n") + 1 if content.strip() else 0
+        return f"({lines} lines)"
+
+    elif name == "Bash":
+        stripped = content.strip()
+        if not stripped:
+            return "(no output)"
+        lines = stripped.split("\n")
+        # Check last line for exit code pattern
+        if "exit code" in lines[-1].lower():
+            return f"({lines[-1].strip()})"
+        return f"({len(lines)} lines)"
+
+    elif name == "Grep":
+        # Count matches (files or lines)
+        lines = [l for l in content.strip().split("\n") if l.strip()]
+        if not lines or (len(lines) == 1 and "no matches" in lines[0].lower()):
+            return "(no matches)"
+        return f"({len(lines)} matches)"
+
+    elif name == "Glob":
+        # Count files
+        lines = [l for l in content.strip().split("\n") if l.strip()]
+        if not lines:
+            return "(no files)"
+        return f"({len(lines)} files)"
+
+    elif name == "Write":
+        return "(done)"
+
+    return ""
+
+
 def format_tool_header(name: str, input: dict, cwd: Path | None = None) -> str:
     """Format a one-line header for a tool use."""
     if name == "Edit":
