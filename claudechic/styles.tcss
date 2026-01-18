@@ -222,9 +222,16 @@ ShellOutputWidget #shell-output {
     align: center top;
 }
 
+/* Shift left when sidebar visible but not enough room to center */
+#main.sidebar-shift {
+    align: left top;
+}
+
 /* Chat views - both initial and dynamically created */
 #chat-view, .chat-view {
-    width: 100;
+    width: 1fr;
+    min-width: 80;
+    max-width: 100;
     padding: 1 1;
 }
 
@@ -330,6 +337,12 @@ ShellOutputWidget #shell-output {
     width: 100%;
     height: auto;
     align: center top;
+}
+
+/* Shift left when sidebar visible but not enough room to center */
+#input-wrapper.sidebar-shift {
+    align: left top;
+    margin-right: 28;  /* Leave room for sidebar */
 }
 
 #input-container {
@@ -495,6 +508,11 @@ WorktreePrompt {
     height: 100%;
     /* Negative margin shifts chat+sidebar group left so chat is centered */
     margin-right: -28;
+}
+
+/* When shifted left, sidebar takes normal space */
+#main.sidebar-shift #right-sidebar {
+    margin-right: 0;
 }
 
 #right-sidebar.hidden {

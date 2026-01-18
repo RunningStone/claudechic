@@ -126,8 +126,9 @@ class ChatApp(App):
     # Auto-approve Edit/Write tools (but still prompt for Bash, etc.)
     AUTO_EDIT_TOOLS = {"Edit", "Write"}
 
-    # Width threshold for showing sidebar
-    SIDEBAR_MIN_WIDTH = 140
+    # Width thresholds for layout (sidebar=28, min chat=80)
+    SIDEBAR_MIN_WIDTH = 110  # Below this, hide sidebar
+    CENTERED_SIDEBAR_WIDTH = 140  # Above this, center chat while showing sidebar
 
     def __init__(self, resume_session_id: str | None = None, initial_prompt: str | None = None) -> None:
         super().__init__()
@@ -717,19 +718,33 @@ class ChatApp(App):
         self.call_after_refresh(self._position_right_sidebar)
 
     def _position_right_sidebar(self) -> None:
-        """Show/hide right sidebar based on terminal width and content."""
+        """Show/hide right sidebar and adjust centering based on terminal width."""
         # Show sidebar when wide enough and we have multiple agents, worktrees, or todos
         agent_count = len(self.agent_mgr) if self.agent_mgr else 0
         has_content = agent_count > 1 or self.agent_sidebar._worktrees or self.todo_panel.todos
-        if self.size.width >= self.SIDEBAR_MIN_WIDTH and has_content:
+        width = self.size.width
+        main = self.query_one("#main", Horizontal)
+        input_wrapper = self.query_one("#input-wrapper", Horizontal)
+
+        if width >= self.SIDEBAR_MIN_WIDTH and has_content:
             self.right_sidebar.remove_class("hidden")
             # Show/hide todo panel based on whether it has content
             if self.todo_panel.todos:
                 self.todo_panel.remove_class("hidden")
             else:
                 self.todo_panel.add_class("hidden")
+            # Wide enough to center chat while showing sidebar
+            if width >= self.CENTERED_SIDEBAR_WIDTH:
+                main.remove_class("sidebar-shift")
+                input_wrapper.remove_class("sidebar-shift")
+            else:
+                # Shift left to make room for sidebar
+                main.add_class("sidebar-shift")
+                input_wrapper.add_class("sidebar-shift")
         else:
             self.right_sidebar.add_class("hidden")
+            main.remove_class("sidebar-shift")
+            input_wrapper.remove_class("sidebar-shift")
 
     def on_response_complete(self, event: ResponseComplete) -> None:
         agent = self._get_agent(event.agent_id)
