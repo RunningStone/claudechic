@@ -263,6 +263,29 @@ async def test_agent_sidebar_status_updates():
 
 
 @pytest.mark.asyncio
+async def test_agent_sidebar_plan_button():
+    """set_plan shows/hides plan button."""
+    from pathlib import Path
+
+    app = WidgetTestApp(lambda: AgentSidebar(id="sidebar"))
+    async with app.run_test():
+        sidebar = app.query_one(AgentSidebar)
+
+        # Initially no plan button
+        assert sidebar._plan_button is None
+
+        # Set plan shows button
+        plan_path = Path("/tmp/test-plan.md")
+        sidebar.set_plan(plan_path)
+        assert sidebar._plan_button is not None
+        assert sidebar._plan_button.plan_path == plan_path
+
+        # Clear plan hides button
+        sidebar.set_plan(None)
+        assert sidebar._plan_button is None
+
+
+@pytest.mark.asyncio
 async def test_context_bar_rendering():
     """ContextBar shows correct fill and color."""
     app = WidgetTestApp(lambda: ContextBar(id="ctx"))

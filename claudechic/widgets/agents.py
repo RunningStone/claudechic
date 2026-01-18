@@ -10,6 +10,41 @@ from textual.widget import Widget
 from textual.widgets import Static
 from rich.text import Text
 
+
+class PlanButton(Widget):
+    """Button to open the current session's plan file."""
+
+    class Clicked(Message):
+        """Posted when plan button is clicked."""
+        def __init__(self, plan_path: Path) -> None:
+            self.plan_path = plan_path
+            super().__init__()
+
+    DEFAULT_CSS = """
+    PlanButton {
+        height: 3;
+        padding: 1 1 1 2;
+        dock: bottom;
+    }
+    PlanButton:hover {
+        background: $surface-lighten-1;
+    }
+    PlanButton .plan-label {
+        width: 1fr;
+        color: $text-muted;
+    }
+    """
+
+    def __init__(self, plan_path: Path) -> None:
+        super().__init__()
+        self.plan_path = plan_path
+
+    def compose(self) -> ComposeResult:
+        yield Static(Text.assemble(("📋", ""), " ", ("Plan", "dim")), classes="plan-label")
+
+    def on_click(self) -> None:
+        self.post_message(self.Clicked(self.plan_path))
+
 class WorktreeItem(Widget):
     """A ghost worktree in the sidebar (not yet an agent)."""
 
@@ -152,8 +187,7 @@ class AgentSidebar(Widget):
     DEFAULT_CSS = """
     AgentSidebar {
         width: 24;
-        height: auto;
-        max-height: 100%;
+        height: 100%;
         padding: 0;
         overflow-y: auto;
     }
@@ -168,6 +202,7 @@ class AgentSidebar(Widget):
         super().__init__(*args, **kwargs)
         self._agents: dict[str, AgentItem] = {}
         self._worktrees: dict[str, WorktreeItem] = {}  # branch -> item
+        self._plan_button: PlanButton | None = None
 
     def compose(self) -> ComposeResult:
         yield Static("Agents", classes="sidebar-title")
@@ -222,3 +257,17 @@ class AgentSidebar(Widget):
         if branch in self._worktrees:
             self._worktrees[branch].remove()
             del self._worktrees[branch]
+
+    def set_plan(self, plan_path: Path | None) -> None:
+        """Show or hide the plan button."""
+        if plan_path:
+            if self._plan_button is None:
+                self._plan_button = PlanButton(plan_path)
+                self._plan_button.id = "plan-button"
+                self.mount(self._plan_button)
+            else:
+                self._plan_button.plan_path = plan_path
+        else:
+            if self._plan_button is not None:
+                self._plan_button.remove()
+                self._plan_button = None

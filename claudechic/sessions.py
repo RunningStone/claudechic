@@ -193,6 +193,55 @@ async def load_session_messages(
     return messages[-limit:]
 
 
+async def get_plan_path_for_session(
+    session_id: str, cwd: Path | None = None
+) -> Path | None:
+    """Get the plan file path for a session, if one exists.
+
+    Reads the session JSONL to find the slug, then checks if
+    ~/.claude/plans/{slug}.md exists.
+
+    Args:
+        session_id: UUID of the session
+        cwd: Project directory. If None, uses current working directory.
+
+    Returns:
+        Path to plan file if it exists, None otherwise.
+    """
+    sessions_dir = get_project_sessions_dir(cwd)
+    if not sessions_dir:
+        return None
+
+    session_file = sessions_dir / f"{session_id}.jsonl"
+    if not session_file.exists():
+        return None
+
+    # Find slug in session file (read first 32KB, slug appears early)
+    slug = None
+    try:
+        async with aiofiles.open(session_file, mode='rb') as f:
+            chunk = await f.read(32768)
+
+        for line in chunk.split(b'\n'):
+            if b'"slug"' not in line:
+                continue
+            try:
+                data = json.loads(line)
+                if "slug" in data:
+                    slug = data["slug"]
+                    break
+            except json.JSONDecodeError:
+                continue
+    except (IOError, OSError):
+        return None
+
+    if not slug:
+        return None
+
+    plan_path = Path.home() / ".claude" / "plans" / f"{slug}.md"
+    return plan_path if plan_path.exists() else None
+
+
 async def get_context_from_session(
     session_id: str, cwd: Path | None = None, agent_id: str | None = None
 ) -> int | None:

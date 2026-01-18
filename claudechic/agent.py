@@ -159,6 +159,9 @@ class Agent:
         # Worktree finish state (for /worktree finish flow)
         self.finish_state: Any = None
 
+        # Plan file path (cached after first lookup)
+        self.plan_path: Path | None = None
+
         # UI state - ChatView reference and active prompt
         self.chat_view: Any = None  # ChatView widget (set by ChatApp)
         self.active_prompt: Any = None  # Active SelectionPrompt/QuestionPrompt

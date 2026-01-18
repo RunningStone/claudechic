@@ -37,6 +37,7 @@ from claudechic.messages import (
 )
 from claudechic.sessions import (
     get_context_from_session,
+    get_plan_path_for_session,
     get_recent_sessions,
 )
 from claudechic.features.worktree import list_worktrees
@@ -66,6 +67,7 @@ from claudechic.widgets import (
     AgentItem,
     WorktreeItem,
     ChatView,
+    PlanButton,
 )
 from claudechic.widgets.footer import StatusFooter
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
@@ -737,6 +739,10 @@ class ChatApp(App):
         if agent and agent.finish_state:
             on_response_complete_finish(self, agent)
 
+        # Check for plan file and update sidebar
+        if agent and agent.session_id:
+            self.run_worker(self._check_for_plan(agent))
+
     def on_command_output_message(self, event: CommandOutputMessage) -> None:
         """Handle command output (e.g., /context) by displaying in chat."""
         self._hide_thinking(event.agent_id)
@@ -771,6 +777,8 @@ class ChatApp(App):
             agent.session_id = session_id
             self.post_message(ResponseComplete(None))
             self.refresh_context()
+            # Check for plan file
+            self.run_worker(self._check_for_plan(agent))
             log.info(f"Resume complete for {session_id}")
         except Exception as e:
             self.show_error("Session resume failed", e)
@@ -909,6 +917,16 @@ class ChatApp(App):
         except Exception as e:
             self.show_error("SDK reconnect failed", e)
 
+    async def _check_for_plan(self, agent: "Agent") -> None:
+        """Check if a plan file exists for this agent's session and cache it."""
+        if not agent.session_id:
+            return
+        plan_path = await get_plan_path_for_session(agent.session_id, cwd=agent.cwd)
+        agent.plan_path = plan_path
+        # Update sidebar if this is still the active agent
+        if self._agent and self._agent.id == agent.id:
+            self.agent_sidebar.set_plan(plan_path)
+
     def action_escape(self) -> None:
         """Handle Escape: cancel picker, dismiss prompts, or interrupt agent."""
         # Session picker takes priority
@@ -958,6 +976,11 @@ class ChatApp(App):
     def on_worktree_item_selected(self, event: WorktreeItem.Selected) -> None:
         """Handle ghost worktree selection - create an agent there."""
         self._create_new_agent(event.branch, event.path, worktree=event.branch, auto_resume=True)
+
+    def on_plan_button_clicked(self, event: PlanButton.Clicked) -> None:
+        """Handle plan button click - open plan file in editor."""
+        editor = os.environ.get("EDITOR", "vi")
+        handle_command(self, f"/shell {editor} {event.plan_path}")
 
     def _populate_worktrees(self) -> None:
         """Populate sidebar with ghost worktrees for feature branches."""
@@ -1016,6 +1039,8 @@ class ChatApp(App):
         self.todo_panel.update_todos(agent.todos if agent else [])
         # Update context bar for new agent
         self.refresh_context()
+        # Update plan button for new agent (use cached plan_path)
+        self.agent_sidebar.set_plan(agent.plan_path if agent else None)
         self._position_right_sidebar()
         self.chat_input.focus()
 
