@@ -302,7 +302,7 @@ class ShellOutputWidget(Static):
 
     can_focus = False
     # Threshold for auto-collapsing
-    COLLAPSE_THRESHOLD = 20  # lines
+    COLLAPSE_THRESHOLD = 100  # lines
 
     def __init__(self, command: str, stdout: str, stderr: str, returncode: int) -> None:
         super().__init__()
