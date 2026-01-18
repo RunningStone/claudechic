@@ -3,14 +3,13 @@
 Exposes tools for Claude to manage agents within claudechic:
 - spawn_agent: Create new agent, optionally with initial prompt
 - spawn_worktree: Create git worktree + agent
-- ask_agent: Send prompt to existing agent, wait for response
+- ask_agent: Send question to existing agent (non-blocking)
 - list_agents: List current agents and their status
 - close_agent: Close an agent by name
 """
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -140,43 +139,31 @@ def _make_ask_agent(caller_name: str | None = None):
 
     @tool(
         "ask_agent",
-        "Send a prompt to an existing agent and wait for its response. Returns the agent's full response text.",
+        "Send a question to another agent. Returns immediately - the agent will respond back using ask_agent when ready.",
         {"name": str, "prompt": str},
     )
     async def ask_agent(args: dict[str, Any]) -> dict[str, Any]:
-        """Send prompt to an agent and wait for response."""
+        """Send question to an agent. Non-blocking."""
         if _app is None or _app.agent_mgr is None:
             return _text_response("Error: App not initialized")
 
         name = args["name"]
         prompt = args["prompt"]
 
-        # Prefix with caller info if provided
-        if caller_name:
-            prompt = f"[Question from agent '{caller_name}']\n\n{prompt}"
-
         agent, error = _find_agent_by_name(name)
         if agent is None:
             return _text_response(f"Error: {error}")
 
+        # Wrap prompt with caller info and reply expectation
+        if caller_name:
+            prompt = f"[Question from agent '{caller_name}' - please respond back using ask_agent]\n\n{prompt}"
+
         try:
-            # Send prompt and wait for completion using Agent API
             await _send_prompt_to_agent(agent, prompt)
-            response_text = await agent.wait_for_completion(timeout=300)
-        except asyncio.TimeoutError:
-            return _text_response(f"Error: Agent '{name}' response timed out after 5 minutes")
         except Exception as e:
             return _text_response(f"Error: {e}")
 
-        if response_text is None:
-            return _text_response(f"Error: Agent '{name}' response timed out")
-
-        # Truncate if too long
-        max_len = 4000
-        if len(response_text) > max_len:
-            response_text = response_text[:max_len] + f"\n\n[Truncated - full response was {len(response_text)} chars]"
-
-        return _text_response(f"Response from '{name}':\n\n{response_text}")
+        return _text_response(f"Question sent to '{name}'. They will respond when ready.")
 
     return ask_agent
 

@@ -168,10 +168,6 @@ class Agent:
         self.active_prompt: Any = None  # Active SelectionPrompt/QuestionPrompt
         self.pending_input: str = ""  # Saved input text when switching away
 
-        # MCP ask_agent support
-        self._completion_event = asyncio.Event()
-        self._last_response: str | None = None
-
         # Observer for UI integration (set by AgentManager)
         self.observer: AgentObserver | None = None
         self.permission_handler: PermissionHandler | None = None
@@ -328,7 +324,6 @@ class Agent:
 
         self._set_status("busy")
         self.response_had_tools = False
-        self._completion_event.clear()
         self._current_assistant = None
         self._current_text_buffer = ""
         self._needs_new_message = True
@@ -363,17 +358,6 @@ class Agent:
         """Send a follow-up message after brief delay (for 'do something else' flow)."""
         await asyncio.sleep(0.1)  # Let UI update
         await self.send(message)
-
-    async def wait_for_completion(self, timeout: float = 300) -> str | None:
-        """Wait for current response to complete. Returns response text.
-
-        Used by MCP ask_agent tool.
-        """
-        try:
-            await asyncio.wait_for(self._completion_event.wait(), timeout=timeout)
-            return self._last_response
-        except asyncio.TimeoutError:
-            return None
 
     # -----------------------------------------------------------------------
     # Response processing
@@ -425,7 +409,6 @@ class Agent:
         finally:
             self._flush_current_text()
             self._set_status("idle")
-            self._completion_event.set()
 
     async def _handle_sdk_message(
         self, message: Any, had_tool_use: dict[str | None, bool]
@@ -463,7 +446,6 @@ class Agent:
         elif isinstance(message, ResultMessage):
             self._flush_current_text()
             self.session_id = message.session_id
-            self._last_response = message.result or ""
             if self.observer:
                 self.observer.on_complete(self, message)
 

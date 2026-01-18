@@ -6,6 +6,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -82,6 +83,21 @@ def _scroll_if_at_bottom(chat_view: Any) -> None:
     """Scroll to end only if in tailing mode."""
     if getattr(chat_view, "_tailing", True):
         chat_view.scroll_end(animate=False)
+
+
+_AGENT_QUESTION_RE = re.compile(
+    r"^\[Question from agent '([^']+)' - please respond back using ask_agent\]\n\n"
+)
+
+
+def _format_agent_prompt(prompt: str) -> str:
+    """Format inter-agent prompts for nicer display."""
+    match = _AGENT_QUESTION_RE.match(prompt)
+    if match:
+        agent_name = match.group(1)
+        rest = prompt[match.end():]
+        return f"From **{agent_name}**:\n\n{rest}"
+    return prompt
 
 
 class ChatApp(App):
@@ -721,9 +737,6 @@ class ChatApp(App):
         self._set_agent_status("idle", event.agent_id)
         if event.result and agent:
             agent.session_id = event.result.session_id
-            # Store response text and signal completion for MCP ask_agent
-            agent._last_response = event.result.result or ""
-            agent._completion_event.set()
             self.refresh_context()
         if agent and agent.chat_view:
             # End response via ChatView (hides thinking, flushes content)
@@ -1459,7 +1472,10 @@ class ChatApp(App):
         if prompt.strip() == "/clear":
             return
 
-        chat_view.append_user_message(prompt, images)
+        # Format inter-agent messages nicely for display
+        display_prompt = _format_agent_prompt(prompt)
+
+        chat_view.append_user_message(display_prompt, images)
         chat_view.start_response()
 
     async def _handle_agent_permission_ui(
