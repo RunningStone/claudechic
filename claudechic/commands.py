@@ -118,13 +118,9 @@ def _handle_agent(app: "ChatApp", command: str) -> bool:
 
 
 def _handle_shell(app: "ChatApp", command: str) -> bool:
-    """Suspend TUI and run shell command."""
+    """Suspend TUI and run shell command, or interactive shell if no command."""
     parts = command.split(maxsplit=1)
-    if len(parts) < 2:
-        app.notify("Usage: /shell <command>")
-        return True
-
-    cmd = parts[1]
+    cmd = parts[1] if len(parts) > 1 else None
     agent = app._agent
     cwd = str(agent.cwd) if agent else None
 
@@ -132,7 +128,11 @@ def _handle_shell(app: "ChatApp", command: str) -> bool:
         env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
         shell = os.environ.get("SHELL", "/bin/sh")
         start = time.monotonic()
-        subprocess.run([shell, "-lc", cmd], cwd=cwd, env=env)
+        if cmd:
+            subprocess.run([shell, "-lc", cmd], cwd=cwd, env=env)
+        else:
+            # Interactive shell
+            subprocess.run([shell, "-l"], cwd=cwd, env=env)
 
         # Only prompt if command completed quickly (likely non-interactive)
         if time.monotonic() - start < 1.0:
