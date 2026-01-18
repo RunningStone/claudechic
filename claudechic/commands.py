@@ -127,6 +127,8 @@ def _handle_shell(app: "ChatApp", command: str) -> bool:
     agent = app._agent
     cwd = str(agent.cwd) if agent else None
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    # Force color output, disable pagers for captured output
+    env.update({"FORCE_COLOR": "1", "CLICOLOR_FORCE": "1", "TERM": "xterm-256color", "BAT_PAGER": "", "PAGER": ""})
     shell = os.environ.get("SHELL", "/bin/sh")
 
     if cmd and not interactive:

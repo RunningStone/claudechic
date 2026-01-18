@@ -896,7 +896,11 @@ class ChatApp(App):
         self.exit()
 
     def run_shell_command(self, cmd: str, shell: str, cwd: str | None, env: dict[str, str]) -> None:
-        """Run a shell command async with spinner and Ctrl+C support."""
+        """Run a shell command async with PTY for color support."""
+        import pty
+        import select
+        import subprocess
+
         from claudechic.widgets import ShellOutputWidget
         from claudechic.widgets.chat import Spinner
 
@@ -912,37 +916,79 @@ class ChatApp(App):
 
         async def _run() -> None:
             tip_shown = False
-            try:
-                self._shell_process = await asyncio.create_subprocess_shell(
-                    f"{shell} -lc {cmd!r}",
-                    cwd=cwd,
-                    env=env,
-                    stdin=asyncio.subprocess.DEVNULL,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    start_new_session=True,
-                )
+            loop = asyncio.get_event_loop()
 
+            def run_in_pty() -> tuple[str, int]:
+                """Run command in PTY to capture colors."""
+                master_fd, slave_fd = pty.openpty()
+                try:
+                    proc = subprocess.Popen(
+                        [shell, "-lc", cmd],
+                        stdin=slave_fd,
+                        stdout=slave_fd,
+                        stderr=slave_fd,
+                        cwd=cwd,
+                        env=env,
+                        close_fds=True,
+                        start_new_session=True,
+                    )
+                    os.close(slave_fd)
+
+                    output = b""
+                    while True:
+                        r, _, _ = select.select([master_fd], [], [], 0.1)
+                        if r:
+                            try:
+                                data = os.read(master_fd, 4096)
+                                if data:
+                                    output += data
+                                else:
+                                    break
+                            except OSError:
+                                break
+                        elif proc.poll() is not None:
+                            # Process done, drain remaining output
+                            while True:
+                                r, _, _ = select.select([master_fd], [], [], 0.05)
+                                if not r:
+                                    break
+                                try:
+                                    data = os.read(master_fd, 4096)
+                                    if data:
+                                        output += data
+                                    else:
+                                        break
+                                except OSError:
+                                    break
+                            break
+
+                    os.close(master_fd)
+                    proc.wait()
+                    return output.decode(errors="replace"), proc.returncode or 0
+                except Exception:
+                    os.close(master_fd)
+                    raise
+
+            try:
                 # Show tip after 1 second if still running
                 async def show_tip_after_delay() -> None:
                     nonlocal tip_shown
                     await asyncio.sleep(1.0)
-                    if self._shell_process is not None and not tip_shown:
+                    if not tip_shown:
                         tip_shown = True
                         self.notify("Tip: Use /shell alone for interactive commands", timeout=5)
 
                 tip_task = asyncio.create_task(show_tip_after_delay())
 
-                stdout, stderr = await self._shell_process.communicate()
+                output, returncode = await loop.run_in_executor(None, run_in_pty)
                 tip_task.cancel()
-                returncode = self._shell_process.returncode or 0
 
                 # Remove spinner and show output
                 spinner.remove()
                 widget = ShellOutputWidget(
                     command=cmd,
-                    stdout=stdout.decode() if stdout else "",
-                    stderr=stderr.decode() if stderr else "",
+                    stdout=output,
+                    stderr="",
                     returncode=returncode,
                 )
                 chat_view.mount(widget)
@@ -951,8 +997,6 @@ class ChatApp(App):
             except asyncio.CancelledError:
                 spinner.remove()
                 self.notify("Command cancelled")
-            finally:
-                self._shell_process = None
 
         self.run_worker(_run(), exclusive=False)
 

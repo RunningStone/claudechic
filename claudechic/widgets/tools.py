@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 import pyperclip
+from rich.text import Text
 
 from textual.app import ComposeResult
 from textual.message import Message
@@ -320,10 +321,10 @@ class ShellOutputWidget(Static):
             title += f" (exit {self.returncode})"
         yield Button("⧉", classes="copy-btn")
         with Collapsible(title=title, collapsed=self._collapsed):
-            # Combine stderr + stdout
+            # Combine stderr + stdout, parse ANSI color codes
             output = "\n".join(filter(None, [self.stderr, self.stdout])).rstrip()
             if output:
-                yield Static(output, id="shell-output")
+                yield Static(Text.from_ansi(output), id="shell-output")
 
     def get_copyable_content(self) -> str:
         parts = [f"$ {self.command}"]
