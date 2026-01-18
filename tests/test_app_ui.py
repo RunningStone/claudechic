@@ -580,7 +580,7 @@ async def test_bang_command_inline_shell(mock_sdk):
 
 @pytest.mark.asyncio
 async def test_bang_command_captures_stderr(mock_sdk):
-    """'!cmd' captures stderr output."""
+    """'!cmd' captures stderr output (merged with stdout via PTY)."""
     from claudechic.widgets import ShellOutputWidget
 
     app = ChatApp()
@@ -595,7 +595,8 @@ async def test_bang_command_captures_stderr(mock_sdk):
 
         widgets = list(chat_view.query(ShellOutputWidget))
         assert len(widgets) == 1
-        assert "error" in widgets[0].stderr
+        # PTY merges stdout/stderr, so check stdout (which contains both)
+        assert "error" in widgets[0].stdout
 
 
 @pytest.mark.asyncio

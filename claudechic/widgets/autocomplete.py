@@ -18,6 +18,7 @@ from textual_autocomplete.fuzzy_search import FuzzySearch
 from rich.text import Text
 
 from claudechic.file_index import search_files
+from claudechic.shell_complete import complete_command, complete_path, parse_shell_input
 
 
 @dataclass
@@ -187,8 +188,12 @@ class TextAreaAutoComplete(Widget):
         self._mode = None
         self._trigger_pos = 0
 
+        # Check for shell command (! prefix or /shell)
+        if state.text.startswith("!") or state.text.startswith("/shell "):
+            self._mode = "shell"
+            self._trigger_pos = 0
         # Check for slash command at start of input
-        if state.text.startswith("/"):
+        elif state.text.startswith("/"):
             self._mode = "slash"
             self._trigger_pos = 0
         # Check for @ path reference
@@ -199,7 +204,11 @@ class TextAreaAutoComplete(Widget):
                 self._mode = "path"
                 self._trigger_pos = at_pos
 
-        if self._mode == "path":
+        if self._mode == "shell":
+            # Shell completion - debounce like path search
+            self._cancel_search_timer()
+            self._search_timer = self.set_timer(0.1, self._do_shell_search)
+        elif self._mode == "path":
             # Debounce file search - cancel pending timer, start new one
             self._cancel_search_timer()
             self._search_timer = self.set_timer(0.15, self._do_path_search)
@@ -229,6 +238,16 @@ class TextAreaAutoComplete(Widget):
         at_pos = text_to_check.rfind("@")
         if at_pos != self._trigger_pos:
             return  # Trigger position changed, skip this search
+        self._show_options(current_state)
+
+    def _do_shell_search(self) -> None:
+        """Execute debounced shell completion search."""
+        self._search_timer = None
+        current_state = self._get_target_state()
+        # Verify still in shell mode
+        if not (current_state.text.startswith("!") or current_state.text.startswith("/shell ")):
+            self.action_hide()
+            return
         self._show_options(current_state)
 
     def _show_options(self, state: TargetState) -> None:
@@ -268,6 +287,10 @@ class TextAreaAutoComplete(Widget):
         elif self._mode == "path":
             # Return full query after @ for fuzzy file matching
             return text_to_check[self._trigger_pos + 1:]
+        elif self._mode == "shell":
+            # Parse shell input to get what we're completing
+            _cmd, arg = parse_shell_input(text_to_check)
+            return arg
         return ""
 
     def _get_candidates(self, state: TargetState) -> list[DropdownItem]:
@@ -276,7 +299,28 @@ class TextAreaAutoComplete(Widget):
             return [DropdownItem(cmd, prefix="⚡ ") for cmd in self.slash_commands]
         elif self._mode == "path":
             return self._get_path_candidates(state)
+        elif self._mode == "shell":
+            return self._get_shell_candidates(state)
         return []
+
+    def _get_shell_candidates(self, state: TargetState) -> list[DropdownItem]:
+        """Get shell completion candidates (commands or paths)."""
+        text = state.text[:state.cursor_position] if state.cursor_position > 0 else state.text
+        cmd, arg = parse_shell_input(text)
+
+        # Get cwd from app's agent if available
+        cwd = None
+        if hasattr(self.app, "_agent") and self.app._agent:  # type: ignore[attr-defined]
+            cwd = self.app._agent.cwd  # type: ignore[attr-defined]
+
+        if not cmd:
+            # Still typing command name - complete from executables
+            completions = complete_command(arg, limit=20)
+            return [DropdownItem(c, prefix="$ ") for c in completions]
+        else:
+            # Typing argument - complete file paths
+            completions = complete_path(arg, cwd=cwd, limit=20)
+            return [DropdownItem(c, prefix="📄 ") for c in completions]
 
     def _get_path_candidates(self, state: TargetState) -> list[DropdownItem]:
         """Get file path candidates from index with fuzzy matching."""
@@ -311,8 +355,8 @@ class TextAreaAutoComplete(Widget):
 
         candidates = self._get_candidates(state)
 
-        # For path mode, candidates are already filtered and highlighted
-        if self._mode == "path":
+        # For path/shell mode, candidates are already filtered
+        if self._mode in ("path", "shell"):
             matches = candidates
         else:
             search_string = self._get_search_string(state)
@@ -432,8 +476,8 @@ class TextAreaAutoComplete(Widget):
 
         option = self.option_list.get_option_at_index(option_index)
         value = option.prompt.plain if isinstance(option.prompt, Text) else str(option.prompt)
-        # Strip prefix (emoji + space)
-        if value.startswith(("⚡ ", "📄 ")):
+        # Strip prefix (emoji + space or $ + space)
+        if value.startswith(("⚡ ", "📄 ", "$ ")):
             value = value[2:]
 
         state = self._get_target_state()
@@ -469,6 +513,29 @@ class TextAreaAutoComplete(Widget):
             row = len(lines) - 1
             col = len(lines[-1])
             target.move_cursor((row, col))
+        elif self._mode == "shell":
+            # Replace the current argument being typed
+            text_before = text[:cursor_pos]
+            cmd, arg = parse_shell_input(text_before)
+
+            if not cmd:
+                # Completing command - replace everything after ! or /shell
+                if text.startswith("!"):
+                    new_text = "!" + value + " "
+                else:
+                    new_text = "/shell " + value + " "
+            else:
+                # Completing argument - find where current arg starts
+                if arg:
+                    # Find the start of the current arg
+                    arg_start = text_before.rfind(arg)
+                    new_text = text[:arg_start] + value
+                else:
+                    # No partial arg, just append
+                    new_text = text_before + value
+
+            target.text = new_text
+            target.move_cursor((0, len(new_text)))
 
     def action_hide(self) -> None:
         self.styles.display = "none"
