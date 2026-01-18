@@ -283,6 +283,7 @@ class ChatInput(TextArea):
         Binding("up", "history_prev", "Previous", priority=True, show=False),
         Binding("down", "history_next", "Next", priority=True, show=False),
         Binding("ctrl+a", "select_all", "Select all", priority=True, show=False),
+        Binding("alt+backspace", "delete_word_left", "Delete word", priority=True, show=False),
     ]
 
     class Submitted(Message):
