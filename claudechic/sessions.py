@@ -1,5 +1,6 @@
 """Session management - loading and listing Claude Code sessions."""
 
+import asyncio
 import json
 import os
 import re
@@ -35,10 +36,32 @@ def get_project_sessions_dir(cwd: Path | None = None) -> Path | None:
     return sessions_dir if sessions_dir.exists() else None
 
 
+def _extract_preview_from_chunk(chunk: bytes) -> str | None:
+    """Extract first user message preview from a chunk of session data."""
+    for line in chunk.split(b'\n'):
+        if not line.strip():
+            continue
+        try:
+            d = json.loads(line)
+            if d.get("type") == "user" and not d.get("isMeta"):
+                content = d.get("message", {}).get("content", "")
+                if isinstance(content, str) and not content.startswith("<"):
+                    text = content.replace("\n", " ")
+                    return text[:200] + "…" if len(text) > 200 else text
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 async def get_recent_sessions(
     limit: int = 20, search: str = "", cwd: Path | None = None
 ) -> list[tuple[str, str, float, int]]:
     """Get recent sessions from a project.
+
+    Optimized for responsiveness:
+    - Reads only first 16KB of each file for preview (not entire file)
+    - Sorts by mtime first, then only reads files needed
+    - Yields to event loop periodically
 
     Args:
         limit: Maximum number of sessions to return
@@ -49,39 +72,61 @@ async def get_recent_sessions(
         List of (session_id, preview, mtime, msg_count) tuples,
         sorted by modification time descending.
     """
-    sessions = []
     sessions_dir = get_project_sessions_dir(cwd)
     if not sessions_dir:
-        return sessions
+        return []
 
-    search_lower = search.lower()
+    # Phase 1: Quick stat() to get files sorted by mtime (sync, fast)
+    candidates = []
     for f in sessions_dir.glob("*.jsonl"):
         if not is_valid_uuid(f.stem):
             continue
-        if f.stat().st_size == 0:
-            continue
         try:
-            preview = ""
-            msg_count = 0
-            matches_search = not search
-            async with aiofiles.open(f) as fh:
-                async for line in fh:
-                    d = json.loads(line)
-                    if d.get("type") == "user" and not d.get("isMeta"):
-                        content = d.get("message", {}).get("content", "")
-                        if isinstance(content, str) and not content.startswith("<"):
-                            msg_count += 1
-                            if not preview:
-                                text = content.replace("\n", " ")
-                                preview = text[:200] + "…" if len(text) > 200 else text
-                            if search and search_lower in content.lower():
-                                matches_search = True
-            if preview and msg_count > 0 and matches_search:
-                sessions.append((f.stem, preview, f.stat().st_mtime, msg_count))
-        except (json.JSONDecodeError, IOError):
+            stat = f.stat()
+            if stat.st_size > 0:
+                candidates.append((f, stat.st_mtime, stat.st_size))
+        except OSError:
             continue
 
-    sessions.sort(key=lambda x: x[2], reverse=True)
+    # Sort by mtime descending - most recent first
+    candidates.sort(key=lambda x: x[1], reverse=True)
+
+    # Phase 2: Read previews from top candidates only
+    # If no search, we only need `limit` files
+    # If searching, we need to check more but can stop early
+    search_lower = search.lower()
+    sessions = []
+    check_limit = len(candidates) if search else limit * 2  # read a few extra in case some fail
+
+    for i, (f, mtime, size) in enumerate(candidates[:check_limit]):
+        # Yield to event loop every 10 files to stay responsive
+        if i > 0 and i % 10 == 0:
+            await asyncio.sleep(0)
+
+        try:
+            # Read only first 16KB - enough to find first user message
+            chunk_size = min(16384, size)
+            async with aiofiles.open(f, mode='rb') as fh:
+                chunk = await fh.read(chunk_size)
+
+            preview = _extract_preview_from_chunk(chunk)
+            if not preview:
+                continue
+
+            # For search, check if preview matches (simplified - only checks preview, not full content)
+            if search and search_lower not in preview.lower():
+                continue
+
+            # msg_count is now approximate (we don't read whole file)
+            sessions.append((f.stem, preview, mtime, 1))
+
+            # Early exit if we have enough and not searching
+            if not search and len(sessions) >= limit:
+                break
+
+        except (IOError, OSError):
+            continue
+
     return sessions[:limit]
 
 
