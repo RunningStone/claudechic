@@ -847,6 +847,15 @@ class ChatApp(App):
             self.copy_to_clipboard(selected)
 
     def action_quit(self) -> None:  # type: ignore[override]
+        # If history search is visible, cancel it
+        try:
+            hs = self.query_one("#history-search", HistorySearch)
+            if hs.styles.display != "none":
+                hs.action_cancel()
+                return
+        except Exception:
+            pass
+
         # If shell command is running, kill it
         if self._shell_process is not None:
             try:
