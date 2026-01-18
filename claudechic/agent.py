@@ -607,7 +607,7 @@ class Agent:
 
         log.info(f"Permission result: {result}")
         if result == "allow_all":
-            self.auto_approve_edits = True
+            self._set_auto_edit(True)
             return PermissionResultAllow()
         elif result == "allow_session":
             self.session_allowed_tools.add(tool_name)
@@ -668,6 +668,13 @@ class Agent:
             self.status = status
             if self.observer:
                 self.observer.on_status_changed(self)
+
+    def _set_auto_edit(self, value: bool) -> None:
+        """Update auto_approve_edits and emit event."""
+        if self.auto_approve_edits != value:
+            self.auto_approve_edits = value
+            if self.observer:
+                self.observer.on_auto_edit_changed(self)
 
     def _build_message_with_images(self, prompt: str) -> dict[str, Any]:
         """Build SDK message with text and images."""

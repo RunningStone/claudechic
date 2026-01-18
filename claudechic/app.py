@@ -354,8 +354,7 @@ class ChatApp(App):
     def action_cycle_permission_mode(self) -> None:
         """Toggle auto-approve for Edit/Write tools for current agent."""
         if self._agent:
-            self._agent.auto_approve_edits = not self._agent.auto_approve_edits
-            self._update_footer_auto_edit()
+            self._agent._set_auto_edit(not self._agent.auto_approve_edits)
             self.notify(f"Auto-edit: {'ON' if self._agent.auto_approve_edits else 'OFF'}")
 
     def _update_footer_auto_edit(self) -> None:
@@ -1384,6 +1383,12 @@ class ChatApp(App):
             self.agent_sidebar.update_status(agent.id, agent.status)
         except Exception:
             log.debug(f"Failed to update sidebar status for agent {agent.id}")
+
+    def on_auto_edit_changed(self, agent: Agent) -> None:
+        """Handle auto-edit mode change."""
+        # Only update footer if this is the active agent
+        if self._agent and agent.id == self._agent.id:
+            self._update_footer_auto_edit()
 
     def on_message_updated(self, agent: Agent) -> None:  # noqa: ARG002
         """Handle agent message content update (unused - fine-grained callbacks used instead)."""

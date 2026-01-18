@@ -37,6 +37,10 @@ class AgentObserver(Protocol):
         """Called when agent status changes (idle/busy/needs_input)."""
         ...
 
+    def on_auto_edit_changed(self, agent: Agent) -> None:
+        """Called when auto_approve_edits changes."""
+        ...
+
     def on_message_updated(self, agent: Agent) -> None:
         """Called when agent message content changes."""
         ...
