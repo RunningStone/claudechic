@@ -155,6 +155,7 @@ class Agent:
         self.todos: list[dict] = []
         self.auto_approve_edits: bool = False
         self.session_allowed_tools: set[str] = set()  # Tools allowed for this session
+        self._pending_followup: str | None = None  # Auto-send after current response
 
         # Worktree finish state (for /worktree finish flow)
         self.finish_state: Any = None
@@ -358,6 +359,11 @@ class Agent:
 
         self._set_status("idle")
 
+    async def _send_followup(self, message: str) -> None:
+        """Send a follow-up message after brief delay (for 'do something else' flow)."""
+        await asyncio.sleep(0.1)  # Let UI update
+        await self.send(message)
+
     async def wait_for_completion(self, timeout: float = 300) -> str | None:
         """Wait for current response to complete. Returns response text.
 
@@ -389,6 +395,13 @@ class Agent:
 
             async for message in self.client.receive_response():  # type: ignore[union-attr]
                 await self._handle_sdk_message(message, had_tool_use)
+
+            # Check for pending follow-up (from "do something else" permission response)
+            if self._pending_followup:
+                followup = self._pending_followup
+                self._pending_followup = None
+                # Schedule follow-up query after a brief delay to let UI update
+                asyncio.create_task(self._send_followup(followup))
 
         except asyncio.CancelledError:
             raise
@@ -619,9 +632,10 @@ class Agent:
             return PermissionResultAllow()
         elif result == "allow":
             return PermissionResultAllow()
-        elif result.startswith("instead:"):
-            # User provided alternative instructions - interrupt and pass message
-            message = result[8:]  # Strip "instead:" prefix
+        elif result.startswith("deny:"):
+            # User provided alternative instructions - store for follow-up after response
+            message = result[5:]  # Strip "deny:" prefix
+            self._pending_followup = message
             return PermissionResultDeny(message=message, interrupt=True)
         else:
             return PermissionResultDeny(message="User denied permission")

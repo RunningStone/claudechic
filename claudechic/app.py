@@ -1497,16 +1497,14 @@ class ChatApp(App):
             options = [
                 ("allow_all", "Yes, all edits in this session"),
                 ("allow", "Yes, this time only"),
-                ("deny", "No"),
             ]
         else:
             options = [
                 ("allow", "Yes, this time only"),
                 ("allow_session", "Yes, always in this session"),
-                ("deny", "No"),
             ]
-        # Add text option to provide alternative instructions
-        text_option = ("instead", "Do something else...")
+        # "No" option doubles as text input - empty = deny, text = alternative instructions
+        text_option = ("deny", "No / Do something else...")
 
         async with self._show_prompt(SelectionPrompt(request.title, options, text_option), agent) as prompt:
             async def ui_response():

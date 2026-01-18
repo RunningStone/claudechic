@@ -91,6 +91,10 @@ class BasePrompt(Static):
         """Handle text submission. Override in subclasses that support text input."""
         pass
 
+    def _submit_text_option_empty(self) -> None:
+        """Handle empty text submission. Override in subclasses. Default: exit text mode."""
+        self._exit_text_mode()
+
     # Text mode methods
     def _enter_text_mode(self) -> None:
         """Enter inline text input mode."""
@@ -129,7 +133,7 @@ class BasePrompt(Static):
             if self._text_buffer.strip():
                 self._submit_text(self._text_buffer.strip())
             else:
-                self._exit_text_mode()
+                self._submit_text_option_empty()
             return True
         elif event.key == "backspace":
             self._text_buffer = self._text_buffer[:-1]
@@ -259,6 +263,11 @@ class SelectionPrompt(BasePrompt):
     def _submit_text(self, text: str) -> None:
         if self.text_option:
             self._resolve(f"{self.text_option[0]}:{text}")
+
+    def _submit_text_option_empty(self) -> None:
+        """Submit text option with no text (just the value without colon)."""
+        if self.text_option:
+            self._resolve(self.text_option[0])
 
     def cancel(self) -> None:
         self._resolve("")
