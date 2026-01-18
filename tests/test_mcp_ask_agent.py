@@ -13,13 +13,9 @@ class MockAgent:
         self.worktree = None
         self.client = True  # truthy
         self.received_prompt = None
-        self._completion_result = "test response"
 
     async def send(self, prompt: str) -> None:
         self.received_prompt = prompt
-
-    async def wait_for_completion(self, timeout: float = 300) -> str:
-        return self._completion_result
 
 
 class MockAgentManager:
@@ -62,9 +58,10 @@ async def test_ask_agent_injects_sender(mock_app):
     # Call the handler directly
     await ask_agent.handler({"name": "bob", "prompt": "What's the weather?"})
 
-    # Bob should have received the prompt with alice's identity
+    # Bob should have received the prompt with alice's identity and reply instruction
     assert bob.received_prompt is not None
-    assert "[Question from agent 'alice']" in bob.received_prompt
+    assert "[Question from agent 'alice'" in bob.received_prompt
+    assert "please respond back using ask_agent" in bob.received_prompt
     assert "What's the weather?" in bob.received_prompt
 
 
