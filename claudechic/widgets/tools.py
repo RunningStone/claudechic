@@ -183,16 +183,22 @@ class ToolUseWidget(Static):
                 )
                 # Strip SDK-injected system reminders from display
                 content = SYSTEM_REMINDER_PATTERN.sub("", content)
-                preview = content[:2000] + ("..." if len(content) > 2000 else "")
+                truncated = len(content) > 2000
+                preview = content[:2000]
+                trunc_chars = f"\n... (truncated, {len(content):,} chars total)" if truncated else ""
                 if result.is_error:
-                    details += f"\n\n**Error:**\n```\n{preview}\n```"
+                    details += f"\n\n**Error:**\n```\n{preview}{trunc_chars}\n```"
                 elif self.block.name == "Read":
                     lang = get_lang_from_path(self.block.input.get("file_path", ""))
                     # Replace arrow with space in line number gutter
                     preview = re.sub(r"^(\s*\d+)→", r"\1  ", preview, flags=re.MULTILINE)
+                    if truncated:
+                        shown = preview.count("\n") + (1 if preview and not preview.endswith("\n") else 0)
+                        total = content.count("\n") + (1 if content and not content.endswith("\n") else 0)
+                        preview += f"\n... ({shown} of {total} lines shown)"
                     details += f"\n\n```{lang}\n{preview}\n```"
                 elif self.block.name in ("Bash", "Grep", "Glob"):
-                    details += f"\n\n```text\n{preview}\n```"
+                    details += f"\n\n```text\n{preview}{trunc_chars}\n```"
                 elif self.block.name == "ExitPlanMode":
                     # Extract plan from result and render as markdown
                     plan = self._extract_plan_from_result(content)
