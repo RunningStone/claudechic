@@ -365,7 +365,7 @@ class ChatApp(App):
             pass  # Footer may not be mounted yet
 
     # Built-in slash commands (local to this app)
-    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell", "/theme", "/compactish", "/usage"]
+    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell", "/theme", "/compactish", "/usage", "/welcome"]
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="main"):

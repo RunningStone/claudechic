@@ -60,6 +60,9 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         app.exit()
         return True
 
+    if cmd == "/welcome":
+        return _handle_welcome(app)
+
     return False
 
 
@@ -149,6 +152,65 @@ def _handle_bang(app: "ChatApp", command: str) -> bool:
         app.notify("Usage: !<command>")
         return True
     return _handle_shell(app, f"/shell {command}")
+
+
+def _handle_welcome(app: "ChatApp") -> bool:
+    """Send welcome message to Claude to present to user."""
+    welcome_prompt = """\
+Welcome the user to Claude Chic, the Claude Code app that they're using. Present this information to them exactly:
+
+---
+
+# Welcome to Claude Chic 👋
+
+Claude Chic is a drop-in replacement for the `claude` terminal UI that adds the following:
+
+## Visual Design
+
+Information is organized to be easy to scan and explore.
+
+-  Tool outputs are collapsible
+-  Border colors indicates user (orange), assistant (blue), and tools (gray) messages
+-  Context and CPU indicators are in the footer
+-  Maximum width makes scanning easier on the eyes
+
+**Example**: Resume (`/resume`) a long Claude session to see the differnce side-by-side.
+
+## Multi-Agent
+
+Run multiple Claude agents concurrently in the same UI.
+
+-  Create agents with `/agent <name>` (or ask me to make them).
+-  Enable parallel workstreams without lots of terminals
+-  Agents able to communicate with each other
+
+**Example:** Ask me to set up a game of chess between two agents.
+
+## Git Worktrees
+
+Create isolated git worktrees for parallel feature development.
+
+-  Launch multiple improvements simultaneously without branch conflicts
+-  Use `/worktree branch-nanme` to create a worktree
+-  Use `/worktree finish` to merge it back into main with linear history
+
+**Example:** Run `claudechic` in your repo, and ask me to do a thorough review, launching different workstreams for each issue.
+
+## Hackable
+
+Claude Chic is open source and written in Python with Textual.  It's easy to extend with fun tools.
+
+**Example:** Use simple quality of life features like shell support with `!ls`. or `!git diff`.
+
+Enjoy!
+
+---
+
+Repeat this message verbatim.  Help them if they have further questions.
+"""
+
+    app._send_to_active_agent(welcome_prompt, display_as="/welcome")
+    return True
 
 
 def _handle_compactish(app: "ChatApp", command: str) -> bool:
