@@ -7,7 +7,7 @@ from claudechic.widgets import ChatInput, ChatMessage, AgentSidebar, TodoPanel
 from claudechic.widgets.footer import StatusFooter
 from claudechic.messages import StreamChunk, ResponseComplete, ToolUseMessage, ToolResultMessage
 from claude_agent_sdk import ToolUseBlock, ToolResultBlock
-from tests.conftest import wait_for_workers
+from tests.conftest import wait_for_workers, submit_command
 
 
 @pytest.mark.asyncio
@@ -67,14 +67,11 @@ async def test_clear_command(mock_sdk):
         assert len(chat_view.children) == 2
 
         # Send /clear (which clears UI and sends to SDK)
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/clear"
-        await pilot.press("enter")
-        await wait_for_workers(app)  # Give time for async operations
+        await submit_command(app, pilot, "/clear")
+        await wait_for_workers(app)
+        await pilot.pause()  # Let DOM updates complete
 
-        # Chat view should be empty (the ErrorMessage from SDK is also cleared)
-        # Actually /clear removes children THEN runs SDK - so any error appears after
-        # Just check we cleared successfully initially
+        # Chat view should be empty
         messages = list(chat_view.query(ChatMessage))
         assert len(messages) == 0  # Our messages were cleared
 
@@ -87,9 +84,7 @@ async def test_agent_list_command(mock_sdk):
         # Should have one default agent
         assert len(app.agents) == 1
 
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/agent"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/agent")
 
         # The command shows notifications - just verify we have one agent
         assert len(app.agents) == 1
@@ -102,9 +97,7 @@ async def test_agent_create_command(mock_sdk):
     async with app.run_test() as pilot:
         assert len(app.agents) == 1
 
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/agent test-agent"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/agent test-agent")
         await wait_for_workers(app)
 
         assert len(app.agents) == 2
@@ -118,9 +111,7 @@ async def test_agent_switch_keybinding(mock_sdk):
     app = ChatApp()
     async with app.run_test() as pilot:
         # Create second agent
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/agent second"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/agent second")
         await wait_for_workers(app)
 
         assert len(app.agents) == 2
@@ -144,18 +135,16 @@ async def test_agent_close_command(mock_sdk):
     app = ChatApp()
     async with app.run_test() as pilot:
         # Create second agent first
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/agent to-close"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/agent to-close")
         await wait_for_workers(app)
 
         assert len(app.agents) == 2
         assert any(a.name == "to-close" for a in app.agents.values())
 
         # Close current agent
-        input_widget.text = "/agent close"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/agent close")
         await wait_for_workers(app)
+        await pilot.pause()  # Let DOM updates complete
 
         # Should be back to one agent
         assert len(app.agents) == 1
@@ -168,9 +157,7 @@ async def test_cannot_close_last_agent(mock_sdk):
     async with app.run_test() as pilot:
         assert len(app.agents) == 1
 
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/agent close"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/agent close")
         await wait_for_workers(app)
 
         # Still have one agent
@@ -183,9 +170,7 @@ async def test_sidebar_agent_selection(mock_sdk):
     app = ChatApp()
     async with app.run_test() as pilot:
         # Create second agent
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/agent sidebar-test"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/agent sidebar-test")
         await wait_for_workers(app)
 
         sidebar = app.query_one("#agent-sidebar", AgentSidebar)
@@ -208,9 +193,7 @@ async def test_resume_shows_session_picker(mock_sdk):
     """'/resume' shows session picker."""
     app = ChatApp()
     async with app.run_test() as pilot:
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/resume"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/resume")
 
         # Session picker should be visible
         assert app._session_picker_active
@@ -221,9 +204,7 @@ async def test_escape_hides_session_picker(mock_sdk):
     """Escape hides session picker."""
     app = ChatApp()
     async with app.run_test() as pilot:
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/resume"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/resume")
 
         assert app._session_picker_active
 
@@ -351,9 +332,7 @@ async def test_sidebar_shows_with_multiple_agents(mock_sdk):
     app = ChatApp()
     async with app.run_test(size=(160, 40)) as pilot:
         # Create second agent
-        input_widget = app.query_one("#input", ChatInput)
-        input_widget.text = "/agent second"
-        await pilot.press("enter")
+        await submit_command(app, pilot, "/agent second")
         await wait_for_workers(app)
 
         # Trigger resize handling
