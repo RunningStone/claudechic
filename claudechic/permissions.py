@@ -28,7 +28,7 @@ class PermissionRequest:
         """Respond to this permission request.
 
         Args:
-            result: One of "allow", "allow_all", or "deny"
+            result: One of "allow", "allow_session", "allow_all", or "deny"
         """
         self._result = result
         self._event.set()
@@ -37,7 +37,7 @@ class PermissionRequest:
         """Wait for response (from UI or programmatic).
 
         Returns:
-            The response string ("allow", "allow_all", or "deny")
+            The response string ("allow", "allow_session", "allow_all", or "deny")
         """
         await self._event.wait()
         return self._result

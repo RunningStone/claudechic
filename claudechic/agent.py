@@ -154,6 +154,7 @@ class Agent:
         self.file_index: FileIndex | None = None
         self.todos: list[dict] = []
         self.auto_approve_edits: bool = False
+        self.session_allowed_tools: set[str] = set()  # Tools allowed for this session
 
         # Worktree finish state (for /worktree finish flow)
         self.finish_state: Any = None
@@ -577,7 +578,12 @@ class Agent:
 
         # Auto-approve edits if enabled
         if self.auto_approve_edits and tool_name in self.AUTO_EDIT_TOOLS:
-            log.info(f"Auto-approved {tool_name}")
+            log.info(f"Auto-approved {tool_name} (auto-edit mode)")
+            return PermissionResultAllow()
+
+        # Auto-approve if tool was allowed for session
+        if tool_name in self.session_allowed_tools:
+            log.info(f"Auto-approved {tool_name} (session allowed)")
             return PermissionResultAllow()
 
         # Create permission request and queue it
@@ -604,6 +610,9 @@ class Agent:
         log.info(f"Permission result: {result}")
         if result == "allow_all":
             self.auto_approve_edits = True
+            return PermissionResultAllow()
+        elif result == "allow_session":
+            self.session_allowed_tools.add(tool_name)
             return PermissionResultAllow()
         elif result == "allow":
             return PermissionResultAllow()

@@ -1390,7 +1390,11 @@ class ChatApp(App):
             return "allow"
 
         # Regular permission prompt
-        options = [("allow", "Yes, this time only"), ("deny", "No")]
+        options = [
+            ("allow_session", "Yes, always in this session"),
+            ("allow", "Yes, this time only"),
+            ("deny", "No"),
+        ]
         if request.tool_name in self.AUTO_EDIT_TOOLS:
             options.insert(0, ("allow_all", "Yes, all edits in this session"))
         # Add text option to provide alternative instructions
@@ -1407,6 +1411,8 @@ class ChatApp(App):
 
         if result == "allow_all":
             self.notify("Auto-edit enabled (Shift+Tab to disable)")
+        elif result == "allow_session":
+            self.notify(f"{request.tool_name} allowed for this session")
 
         return result
 
