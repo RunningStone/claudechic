@@ -133,6 +133,8 @@ class ChatApp(App):
         self._input_container: Vertical | None = None
         self._chat_input: ChatInput | None = None
         self._status_footer: StatusFooter | None = None
+        # Track running shell command for Ctrl+C cancellation
+        self._shell_process: asyncio.subprocess.Process | None = None
 
     # Properties to access active agent's state
     @property
@@ -832,6 +834,14 @@ class ChatApp(App):
             self.copy_to_clipboard(selected)
 
     def action_quit(self) -> None:  # type: ignore[override]
+        # If shell command is running, kill it
+        if self._shell_process is not None:
+            try:
+                os.killpg(self._shell_process.pid, 15)  # SIGTERM to process group
+            except (ProcessLookupError, OSError):
+                self._shell_process.terminate()
+            return
+
         # If input has text, clear it first
         try:
             chat_input = self.query_one("ChatInput", ChatInput)
@@ -862,6 +872,67 @@ class ChatApp(App):
         # Suppress SDK stderr noise during exit (stream closed errors)
         sys.stderr = open(os.devnull, "w")
         self.exit()
+
+    def run_shell_command(self, cmd: str, shell: str, cwd: str | None, env: dict[str, str]) -> None:
+        """Run a shell command async with spinner and Ctrl+C support."""
+        from claudechic.widgets import ShellOutputWidget
+        from claudechic.widgets.chat import Spinner
+
+        chat_view = self._chat_view
+        if not chat_view:
+            return
+
+        # Create spinner widget
+        spinner = Spinner(f"Running: {cmd[:50]}..." if len(cmd) > 50 else f"Running: {cmd}")
+        spinner.add_class("shell-spinner")
+        chat_view.mount(spinner)
+        _scroll_if_at_bottom(chat_view)
+
+        async def _run() -> None:
+            tip_shown = False
+            try:
+                self._shell_process = await asyncio.create_subprocess_shell(
+                    f"{shell} -lc {cmd!r}",
+                    cwd=cwd,
+                    env=env,
+                    stdin=asyncio.subprocess.DEVNULL,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    start_new_session=True,
+                )
+
+                # Show tip after 1 second if still running
+                async def show_tip_after_delay() -> None:
+                    nonlocal tip_shown
+                    await asyncio.sleep(1.0)
+                    if self._shell_process is not None and not tip_shown:
+                        tip_shown = True
+                        self.notify("Tip: Use /shell alone for interactive commands", timeout=5)
+
+                tip_task = asyncio.create_task(show_tip_after_delay())
+
+                stdout, stderr = await self._shell_process.communicate()
+                tip_task.cancel()
+                returncode = self._shell_process.returncode or 0
+
+                # Remove spinner and show output
+                spinner.remove()
+                widget = ShellOutputWidget(
+                    command=cmd,
+                    stdout=stdout.decode() if stdout else "",
+                    stderr=stderr.decode() if stderr else "",
+                    returncode=returncode,
+                )
+                chat_view.mount(widget)
+                _scroll_if_at_bottom(chat_view)
+
+            except asyncio.CancelledError:
+                spinner.remove()
+                self.notify("Command cancelled")
+            finally:
+                self._shell_process = None
+
+        self.run_worker(_run(), exclusive=False)
 
     def _show_session_picker(self) -> None:
         picker = self.query_one("#session-picker", ListView)

@@ -8,10 +8,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
-import termios
-import time
-import tty
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -118,72 +114,39 @@ def _handle_agent(app: "ChatApp", command: str) -> bool:
 
 
 def _handle_shell(app: "ChatApp", command: str) -> bool:
-    """Suspend TUI and run shell command, or interactive shell if no command."""
+    """Run shell command inline, or interactive shell if no command or -i flag."""
     parts = command.split(maxsplit=1)
     cmd = parts[1] if len(parts) > 1 else None
+
+    # Check for -i flag (interactive mode)
+    interactive = False
+    if cmd and cmd.startswith("-i "):
+        interactive = True
+        cmd = cmd[3:].lstrip()
+
     agent = app._agent
     cwd = str(agent.cwd) if agent else None
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    shell = os.environ.get("SHELL", "/bin/sh")
 
-    with app.suspend():
-        env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-        shell = os.environ.get("SHELL", "/bin/sh")
-        start = time.monotonic()
-        if cmd:
-            subprocess.run([shell, "-lc", cmd], cwd=cwd, env=env)
-        else:
-            # Interactive shell
-            subprocess.run([shell, "-l"], cwd=cwd, env=env)
-
-        # Only prompt if command completed quickly (likely non-interactive)
-        if time.monotonic() - start < 1.0:
-            print("\nPress any key to continue...", end="", flush=True)
-            fd = sys.stdin.fileno()
-            old = termios.tcgetattr(fd)
-            try:
-                tty.setraw(fd)
-                sys.stdin.read(1)
-            finally:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old)
-                print()
+    if cmd and not interactive:
+        # Async execution with captured output
+        app.run_shell_command(cmd, shell, cwd, env)
+    else:
+        # Interactive: suspend TUI and run in real terminal
+        with app.suspend():
+            args = [shell, "-lc", cmd] if cmd else [shell, "-l"]
+            subprocess.run(args, cwd=cwd, env=env)
 
     return True
 
 
 def _handle_bang(app: "ChatApp", command: str) -> bool:
-    """Run shell command and display output inline."""
-    from claudechic.widgets import ShellOutputWidget
-    from claudechic.app import _scroll_if_at_bottom
-
+    """Alias for /shell <command>."""
     if not command:
         app.notify("Usage: !<command>")
         return True
-
-    agent = app._agent
-    cwd = str(agent.cwd) if agent else None
-
-    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-    shell = os.environ.get("SHELL", "/bin/sh")
-
-    result = subprocess.run(
-        [shell, "-lc", command],
-        cwd=cwd,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-
-    chat_view = app._chat_view
-    if chat_view:
-        widget = ShellOutputWidget(
-            command=command,
-            stdout=result.stdout,
-            stderr=result.stderr,
-            returncode=result.returncode,
-        )
-        chat_view.mount(widget)
-        _scroll_if_at_bottom(chat_view)
-
-    return True
+    return _handle_shell(app, f"/shell {command}")
 
 
 def _handle_compactish(app: "ChatApp", command: str) -> bool:
