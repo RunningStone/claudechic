@@ -395,6 +395,10 @@ class ChatInput(TextArea):
 
     def action_history_prev(self) -> None:
         """Go to previous command in history (only when cursor at top visual row)."""
+        # If autocomplete is visible, navigate it instead
+        if self._autocomplete and self._autocomplete.display:
+            self._autocomplete.handle_key("up")
+            return
         # Check if we're at the top visual row (considering soft wrap)
         visual_offset = self.wrapped_document.location_to_offset(self.cursor_location)
         if visual_offset.y > 0:
@@ -413,6 +417,10 @@ class ChatInput(TextArea):
 
     def action_history_next(self) -> None:
         """Go to next command in history (only when cursor at bottom visual row)."""
+        # If autocomplete is visible, navigate it instead
+        if self._autocomplete and self._autocomplete.display:
+            self._autocomplete.handle_key("down")
+            return
         # Check if we're at the bottom visual row (considering soft wrap)
         visual_offset = self.wrapped_document.location_to_offset(self.cursor_location)
         total_visual_rows = self.wrapped_document.height

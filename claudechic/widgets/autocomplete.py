@@ -394,13 +394,13 @@ class TextAreaAutoComplete(Widget):
 
         highlighted = option_list.highlighted or 0
 
-        # Up moves toward better matches (higher index = bottom of list)
-        # Down moves toward worse matches (lower index = top of list)
+        # Up moves visually up (lower index = top of list)
+        # Down moves visually down (higher index = bottom of list)
         if key == "up":
-            option_list.highlighted = min(highlighted + 1, option_list.option_count - 1)
+            option_list.highlighted = max(highlighted - 1, 0)
             return True
         elif key == "down":
-            option_list.highlighted = max(highlighted - 1, 0)
+            option_list.highlighted = min(highlighted + 1, option_list.option_count - 1)
             return True
         elif key == "tab":
             self._complete(highlighted)
@@ -415,14 +415,14 @@ class TextAreaAutoComplete(Widget):
         return False
 
     def _handle_key(self, event) -> None:
-        """Handle key events from target (via message_signal, for navigation only)."""
+        """Handle key events from target (via message_signal)."""
         from textual import events
 
         if not isinstance(event, events.Key):
             return
 
-        # Only handle navigation keys via signal (tab/enter handled via ChatInput override)
-        if event.key in ("down", "up", "escape"):
+        # Only handle escape via signal (up/down handled by ChatInput actions)
+        if event.key == "escape":
             self.handle_key(event.key)
 
     def _complete(self, option_index: int) -> None:
