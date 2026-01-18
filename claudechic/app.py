@@ -1390,13 +1390,19 @@ class ChatApp(App):
             return "allow"
 
         # Regular permission prompt
-        options = [
-            ("allow_session", "Yes, always in this session"),
-            ("allow", "Yes, this time only"),
-            ("deny", "No"),
-        ]
         if request.tool_name in self.AUTO_EDIT_TOOLS:
-            options.insert(0, ("allow_all", "Yes, all edits in this session"))
+            # For edit tools, offer auto-edit mode (superset of allow_session)
+            options = [
+                ("allow_all", "Yes, all edits in this session"),
+                ("allow", "Yes, this time only"),
+                ("deny", "No"),
+            ]
+        else:
+            options = [
+                ("allow", "Yes, this time only"),
+                ("allow_session", "Yes, always in this session"),
+                ("deny", "No"),
+            ]
         # Add text option to provide alternative instructions
         text_option = ("instead", "Do something else...")
 
