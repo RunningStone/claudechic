@@ -27,6 +27,17 @@ log = logging.getLogger(__name__)
 # Pattern to strip SDK-injected system reminders from tool results
 SYSTEM_REMINDER_PATTERN = re.compile(r"\n*<system-reminder>.*?</system-reminder>\n*", re.DOTALL)
 
+# Pattern to extract plan file path from ExitPlanMode result
+PLAN_PATH_PATTERN = re.compile(r"saved to:\s*(/[^\s]+\.md)")
+
+
+class EditPlanRequested(Message):
+    """Posted when user clicks Edit Plan button."""
+
+    def __init__(self, plan_path: Path) -> None:
+        super().__init__()
+        self.plan_path = plan_path
+
 
 class ToolUseWidget(Static):
     """A collapsible widget showing a tool use."""
@@ -114,6 +125,10 @@ class ToolUseWidget(Static):
                 self.app.notify("Copied tool output")
             except Exception as e:
                 self.app.notify(f"Copy failed: {e}", severity="error")
+        elif "edit-plan-btn" in event.button.classes:
+            event.stop()
+            if hasattr(self, "_plan_path"):
+                self.post_message(EditPlanRequested(self._plan_path))
 
     def on_mouse_move(self) -> None:
         """Track mouse presence for hover effect."""
@@ -122,6 +137,24 @@ class ToolUseWidget(Static):
 
     def on_leave(self) -> None:
         self.remove_class("hovered")
+
+    def _extract_plan_from_result(self, content: str) -> str | None:
+        """Extract plan from ExitPlanMode result content.
+
+        The result typically contains text with 'Approved Plan:' followed by the plan,
+        or may have plan info embedded in other text.
+        """
+        # Look for "Approved Plan:" section and extract everything after
+        if "Approved Plan:" in content:
+            idx = content.index("Approved Plan:")
+            plan_text = content[idx + len("Approved Plan:"):].strip()
+            return plan_text if plan_text else None
+        # Fallback: look for markdown heading
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if line.startswith('# '):
+                return '\n'.join(lines[i:])
+        return None
 
     def set_result(self, result: ToolResultBlock) -> None:
         """Update with tool result."""
@@ -159,6 +192,18 @@ class ToolUseWidget(Static):
                     details += f"\n\n```{lang}\n{preview}\n```"
                 elif self.block.name in ("Bash", "Grep", "Glob"):
                     details += f"\n\n```text\n{preview}\n```"
+                elif self.block.name == "ExitPlanMode":
+                    # Extract plan from result and render as markdown
+                    plan = self._extract_plan_from_result(content)
+                    if plan:
+                        details = plan
+                    # Add View Plan button if we can find the path
+                    plan_match = PLAN_PATH_PATTERN.search(content)
+                    if plan_match:
+                        self._plan_path = Path(plan_match.group(1))
+                        collapsible.mount(Button("📋 View Plan in Editor", classes="edit-plan-btn"))
+                elif self.block.name == "EnterPlanMode":
+                    details = "*Entered plan mode*"
                 else:
                     details += f"\n\n{preview}"
             md.update(details.rstrip())

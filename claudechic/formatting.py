@@ -117,6 +117,10 @@ def format_tool_header(name: str, input: dict, cwd: Path | None = None) -> str:
         return "AskUserQuestion"
     elif name == "Skill":
         return f"Skill: {input.get('skill', '?')}"
+    elif name == "EnterPlanMode":
+        return "EnterPlanMode"
+    elif name == "ExitPlanMode":
+        return "ExitPlanMode"
     else:
         return f"{name}"
 
@@ -243,5 +247,9 @@ def format_tool_details(name: str, input: dict, cwd: Path | None = None) -> str:
         pattern = input.get("pattern", "?")
         path = input.get("path", ".")
         return f"**Pattern:** `{pattern}`\n**Path:** `{path}`"
+    elif name == "EnterPlanMode":
+        return "*Entering plan mode*"
+    elif name == "ExitPlanMode":
+        return "*Exiting plan mode*"
     else:
         return f"```\n{json.dumps(input, indent=2)}\n```"

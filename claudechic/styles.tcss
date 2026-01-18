@@ -209,6 +209,13 @@ ShellOutputWidget #shell-output {
     background: transparent !important;
 }
 
+/* Edit plan button in ExitPlanMode widget */
+.edit-plan-btn {
+    margin-top: 1;
+    width: auto;
+    min-width: 14;
+}
+
 /* Main layout */
 #main {
     height: 1fr;

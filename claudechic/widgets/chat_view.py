@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 
 # Tools to collapse by default
-COLLAPSE_BY_DEFAULT = {"WebSearch", "WebFetch", "AskUserQuestion", "Read", "Glob", "Grep"}
+COLLAPSE_BY_DEFAULT = {"WebSearch", "WebFetch", "AskUserQuestion", "Read", "Glob", "Grep", "EnterPlanMode"}
 
 # How many recent tools to keep expanded
 RECENT_TOOLS_EXPANDED = 3
