@@ -313,7 +313,7 @@ class ShellOutputWidget(Static):
         self._collapsed = lines > self.COLLAPSE_THRESHOLD
 
     def compose(self) -> ComposeResult:
-        title = f"! {self.command}"
+        title = self.command
         if len(title) > 60:
             title = title[:57] + "..."
         if self.returncode != 0:
