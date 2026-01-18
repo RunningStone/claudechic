@@ -17,6 +17,7 @@ from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 from claudechic.formatting import (
     format_tool_header,
     format_tool_details,
+    format_result_summary,
     get_lang_from_path,
     make_relative,
 )
@@ -170,6 +171,12 @@ class ToolUseWidget(Static):
             collapsible = self.query_one(Collapsible)
             if result.is_error:
                 collapsible.add_class("error")
+            # Update title with result summary
+            if result.content:
+                content = result.content if isinstance(result.content, str) else str(result.content)
+                summary = format_result_summary(self.block.name, content, result.is_error or False)
+                if summary:
+                    collapsible.title = f"{self._header} {summary}"
             # Edit uses Static for diff, others use Markdown
             if self.block.name == "Edit":
                 return
