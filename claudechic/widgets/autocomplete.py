@@ -268,6 +268,9 @@ class TextAreaAutoComplete(Widget):
         option_count = self.option_list.option_count
         if option_count == 0:
             return False
+        # Shell mode requires user to start typing something
+        if self._mode == "shell" and not search_string:
+            return False
         if option_count == 1:
             first_option = self.option_list.get_option_at_index(0).prompt
             text = first_option.plain if isinstance(first_option, Text) else str(first_option)
