@@ -368,9 +368,22 @@ Markdown {
 }
 
 /* Markdown overrides - neutral headers, brighter code blocks */
-MarkdownH1, MarkdownH2, MarkdownH3 {
+MarkdownH1 {
     color: $text;
     text-style: bold;
+    margin: 1 0;
+}
+
+MarkdownH2 {
+    color: $text;
+    text-style: bold underline;
+    margin: 2 0 1 0;
+}
+
+MarkdownH3 {
+    color: $text;
+    text-style: bold;
+    margin: 1 0 0 0;
 }
 
 MarkdownTableContent > .header {
