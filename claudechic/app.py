@@ -823,6 +823,15 @@ class ChatApp(App):
             self.copy_to_clipboard(selected)
 
     def action_quit(self) -> None:  # type: ignore[override]
+        # If input has text, clear it first
+        try:
+            chat_input = self.query_one("ChatInput", ChatInput)
+            if chat_input.text:
+                chat_input.text = ""
+                return
+        except Exception:
+            pass  # No input widget or not mounted
+
         now = time.time()
         if hasattr(self, "_last_quit_time") and now - self._last_quit_time < 1.0:
             self.run_worker(self._cleanup_and_exit())
