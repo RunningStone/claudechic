@@ -23,6 +23,10 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
     """Route slash commands. Returns True if handled, False to send to Claude."""
     cmd = prompt.strip()
 
+    # Handle ! prefix for inline shell commands
+    if cmd.startswith("!"):
+        return _handle_bang(app, cmd[1:].strip())
+
     if cmd == "/clear":
         chat_view = app._chat_view
         if chat_view:
@@ -141,6 +145,43 @@ def _handle_shell(app: "ChatApp", command: str) -> bool:
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old)
                 print()
+
+    return True
+
+
+def _handle_bang(app: "ChatApp", command: str) -> bool:
+    """Run shell command and display output inline."""
+    from claudechic.widgets import ShellOutputWidget
+    from claudechic.app import _scroll_if_at_bottom
+
+    if not command:
+        app.notify("Usage: !<command>")
+        return True
+
+    agent = app._agent
+    cwd = str(agent.cwd) if agent else None
+
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    shell = os.environ.get("SHELL", "/bin/sh")
+
+    result = subprocess.run(
+        [shell, "-lc", command],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    chat_view = app._chat_view
+    if chat_view:
+        widget = ShellOutputWidget(
+            command=command,
+            stdout=result.stdout,
+            stderr=result.stderr,
+            returncode=result.returncode,
+        )
+        chat_view.mount(widget)
+        _scroll_if_at_bottom(chat_view)
 
     return True
 

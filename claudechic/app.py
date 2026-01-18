@@ -541,8 +541,9 @@ class ChatApp(App):
         if agent:
             append_to_history(prompt, agent.cwd, agent.session_id or agent.id)
 
-        # Try slash commands first
-        if prompt.strip().startswith("/") and handle_command(self, prompt):
+        # Try slash commands and bang commands first
+        stripped = prompt.strip()
+        if (stripped.startswith("/") or stripped.startswith("!")) and handle_command(self, prompt):
             return
 
         # User message will be mounted by _on_agent_prompt_sent callback

@@ -2,7 +2,7 @@
 
 from claudechic.widgets.indicators import CPUBar, ContextBar
 from claudechic.widgets.chat import ChatMessage, ChatInput, ThinkingIndicator, ImageAttachments, ErrorMessage, SystemInfo, ChatAttachment, Spinner
-from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
+from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget, ShellOutputWidget
 from claudechic.widgets.diff import DiffWidget
 from claudechic.widgets.todo import TodoWidget, TodoPanel
 from claudechic.widgets.prompts import BasePrompt, SelectionPrompt, QuestionPrompt, SessionItem
@@ -27,6 +27,7 @@ __all__ = [
     "ToolUseWidget",
     "TaskWidget",
     "AgentToolWidget",
+    "ShellOutputWidget",
     "DiffWidget",
     "TodoWidget",
     "TodoPanel",

@@ -575,3 +575,65 @@ async def test_sdk_stderr_ignores_empty(mock_sdk):
         # No widgets should be created
         info_widgets = list(chat_view.query(SystemInfo))
         assert len(info_widgets) == 0
+
+
+@pytest.mark.asyncio
+async def test_bang_command_inline_shell(mock_sdk):
+    """'!cmd' runs shell command and displays output inline."""
+    from claudechic.widgets import ShellOutputWidget
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+        assert chat_view is not None
+
+        input_widget = app.query_one("#input", ChatInput)
+        input_widget.text = "!echo hello"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # Should create a ShellOutputWidget
+        widgets = list(chat_view.query(ShellOutputWidget))
+        assert len(widgets) == 1
+        assert widgets[0].command == "echo hello"
+        assert "hello" in widgets[0].stdout
+
+
+@pytest.mark.asyncio
+async def test_bang_command_captures_stderr(mock_sdk):
+    """'!cmd' captures stderr output."""
+    from claudechic.widgets import ShellOutputWidget
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+        assert chat_view is not None
+
+        input_widget = app.query_one("#input", ChatInput)
+        input_widget.text = "!echo error >&2"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        widgets = list(chat_view.query(ShellOutputWidget))
+        assert len(widgets) == 1
+        assert "error" in widgets[0].stderr
+
+
+@pytest.mark.asyncio
+async def test_bang_command_shows_exit_code(mock_sdk):
+    """'!cmd' shows non-zero exit code in title."""
+    from claudechic.widgets import ShellOutputWidget
+
+    app = ChatApp()
+    async with app.run_test() as pilot:
+        chat_view = app._chat_view
+        assert chat_view is not None
+
+        input_widget = app.query_one("#input", ChatInput)
+        input_widget.text = "!exit 42"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        widgets = list(chat_view.query(ShellOutputWidget))
+        assert len(widgets) == 1
+        assert widgets[0].returncode == 42

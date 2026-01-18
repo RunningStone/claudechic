@@ -251,6 +251,60 @@ class TaskWidget(Static):
             pass  # Widget may not be mounted
 
 
+class ShellOutputWidget(Static):
+    """Collapsible widget showing inline shell command output."""
+
+    can_focus = False
+    # Threshold for auto-collapsing
+    COLLAPSE_THRESHOLD = 20  # lines
+
+    def __init__(self, command: str, stdout: str, stderr: str, returncode: int) -> None:
+        super().__init__()
+        self.command = command
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
+        lines = (stdout + stderr).count("\n") + 1
+        self._collapsed = lines > self.COLLAPSE_THRESHOLD
+
+    def compose(self) -> ComposeResult:
+        title = f"! {self.command}"
+        if len(title) > 60:
+            title = title[:57] + "..."
+        if self.returncode != 0:
+            title += f" (exit {self.returncode})"
+        yield Button("⧉", classes="copy-btn")
+        with Collapsible(title=title, collapsed=self._collapsed):
+            # Combine stderr + stdout
+            output = "\n".join(filter(None, [self.stderr, self.stdout])).rstrip()
+            if output:
+                yield Static(output, id="shell-output")
+
+    def get_copyable_content(self) -> str:
+        parts = [f"$ {self.command}"]
+        if self.stdout:
+            parts.append(self.stdout)
+        if self.stderr:
+            parts.append(f"stderr:\n{self.stderr}")
+        return "\n".join(parts)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if "copy-btn" in event.button.classes:
+            event.stop()
+            try:
+                pyperclip.copy(self.get_copyable_content())
+                self.app.notify("Copied shell output")
+            except Exception as e:
+                self.app.notify(f"Copy failed: {e}", severity="error")
+
+    def on_mouse_move(self) -> None:
+        if not self.has_class("hovered"):
+            self.add_class("hovered")
+
+    def on_leave(self) -> None:
+        self.remove_class("hovered")
+
+
 class AgentToolWidget(Static):
     """Widget for displaying chic agent MCP tool calls (spawn_agent, ask_agent, etc.)."""
 

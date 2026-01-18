@@ -157,6 +157,21 @@ TaskWidget #task-content {
     padding-left: 2;
 }
 
+/* Shell output from ! commands */
+ShellOutputWidget {
+    border-left: wide $warning;
+    margin: 1 0;
+}
+
+ShellOutputWidget.hovered {
+    border-left: wide $warning-lighten-1;
+    background: $surface;
+}
+
+ShellOutputWidget #shell-output {
+    padding: 0 1;
+}
+
 /* Thinking indicator - fixed position above input */
 #thinking-indicator {
     height: 1;
