@@ -49,3 +49,8 @@ class AutoHideScroll(VerticalScroll):
         """Mouse wheel down - check if at bottom."""
         super()._on_mouse_scroll_down(event)
         self._tailing = self.scroll_y >= self.max_scroll_y - 50
+
+    def scroll_if_tailing(self) -> None:
+        """Scroll to end if in tailing mode."""
+        if self._tailing:
+            self.scroll_end(animate=False)

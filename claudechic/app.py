@@ -10,7 +10,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from textual.app import App, ComposeResult
 
@@ -77,13 +77,6 @@ from claudechic.errors import setup_logging  # noqa: F401 - used at startup
 from claudechic.profiling import profile
 
 log = logging.getLogger(__name__)
-
-
-@profile
-def _scroll_if_at_bottom(chat_view: Any) -> None:
-    """Scroll to end only if in tailing mode."""
-    if getattr(chat_view, "_tailing", True):
-        chat_view.scroll_end(animate=False)
 
 
 _AGENT_QUESTION_RE = re.compile(
@@ -291,7 +284,7 @@ class ChatApp(App):
         if chat_view:
             error_widget = ErrorMessage(message, exception)
             chat_view.mount(error_widget)
-            self.call_after_refresh(_scroll_if_at_bottom, chat_view)
+            self.call_after_refresh(chat_view.scroll_if_tailing)
         # Also show toast for visibility
         self.notify(message, severity="error")
 
@@ -539,7 +532,7 @@ class ChatApp(App):
         chat_view = self._chat_views.get(agent.id)
         if chat_view:
             chat_view._render_full()
-            self.call_after_refresh(_scroll_if_at_bottom, chat_view)
+            self.call_after_refresh(chat_view.scroll_if_tailing)
 
     @work(group="refresh_context", exclusive=True)
     async def refresh_context(self) -> None:
@@ -805,7 +798,7 @@ class ChatApp(App):
             widget.add_class("system-message")
 
         chat_view.mount(widget)
-        _scroll_if_at_bottom(chat_view)
+        chat_view.scroll_if_tailing()
 
     @work(group="resume", exclusive=True, exit_on_error=False)
     async def resume_session(self, session_id: str) -> None:
@@ -941,7 +934,7 @@ class ChatApp(App):
         spinner = Spinner(f"Running: {cmd[:50]}..." if len(cmd) > 50 else f"Running: {cmd}")
         spinner.add_class("shell-spinner")
         chat_view.mount(spinner)
-        _scroll_if_at_bottom(chat_view)
+        chat_view.scroll_if_tailing()
 
         async def _run() -> None:
             tip_shown = False
@@ -1021,7 +1014,7 @@ class ChatApp(App):
                     returncode=returncode,
                 )
                 chat_view.mount(widget)
-                _scroll_if_at_bottom(chat_view)
+                chat_view.scroll_if_tailing()
 
             except asyncio.CancelledError:
                 spinner.remove()
@@ -1239,7 +1232,7 @@ class ChatApp(App):
         usage = await fetch_usage()
         widget = UsageReport(usage)
         chat_view.mount(widget)
-        _scroll_if_at_bottom(chat_view)
+        chat_view.scroll_if_tailing()
 
     @work(group="new_agent", exclusive=True, exit_on_error=False)
     async def _create_new_agent(

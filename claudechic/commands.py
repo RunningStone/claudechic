@@ -82,7 +82,6 @@ def _handle_resume(app: "ChatApp", command: str) -> bool:
 def _handle_agent(app: "ChatApp", command: str) -> bool:
     """Handle /agent commands: list, create, close."""
     from claudechic.widgets import ChatMessage
-    from claudechic.app import _scroll_if_at_bottom
 
     parts = command.split(maxsplit=2)
 
@@ -100,7 +99,7 @@ def _handle_agent(app: "ChatApp", command: str) -> bool:
             msg = ChatMessage("\n".join(lines))
             msg.add_class("system-message")
             chat_view.mount(msg)
-            _scroll_if_at_bottom(chat_view)
+            chat_view.scroll_if_tailing()
         return True
 
     subcommand = parts[1]
@@ -223,7 +222,6 @@ def _handle_compactish(app: "ChatApp", command: str) -> bool:
     """
     from claudechic.compact import compact_session, format_compact_summary
     from claudechic.widgets import ChatMessage
-    from claudechic.app import _scroll_if_at_bottom
 
     agent = app._agent
     if not agent or not agent.session_id:
@@ -250,7 +248,7 @@ def _handle_compactish(app: "ChatApp", command: str) -> bool:
         summary_msg = ChatMessage(summary_md)
         summary_msg.add_class("system-message")
         chat_view.mount(summary_msg)
-        _scroll_if_at_bottom(chat_view)
+        chat_view.scroll_if_tailing()
 
     if dry_run:
         app.notify("Dry run - no changes made", timeout=3)

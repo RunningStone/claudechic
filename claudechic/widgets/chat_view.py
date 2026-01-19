@@ -92,13 +92,13 @@ class ChatView(AutoHideScroll):
     def append_user_message(self, text: str, images: list[ImageAttachment]) -> None:
         """Append a user message to the view."""
         self._mount_user_message(text, images)
-        self._scroll_if_tailing()
+        self.scroll_if_tailing()
 
     def start_response(self) -> None:
         """Show thinking indicator at start of response."""
         if not self.query(ThinkingIndicator):
             self.mount(ThinkingIndicator())
-            self._scroll_if_tailing()
+            self.scroll_if_tailing()
 
     def end_response(self) -> None:
         """Clean up at end of response."""
@@ -128,7 +128,7 @@ class ChatView(AutoHideScroll):
             self.mount(self._current_response)
 
         self._current_response.append_content(text)
-        self._scroll_if_tailing()
+        self.scroll_if_tailing()
 
     def append_tool_use(self, tool: ToolUse, block: "ToolUseBlock", parent_tool_id: str | None) -> None:
         """Append a tool use widget to the view.
@@ -165,7 +165,7 @@ class ChatView(AutoHideScroll):
         self._pending_tool_widgets[tool.id] = widget
         self._recent_tools.append(widget)
         self.mount(widget)
-        self._scroll_if_tailing()
+        self.scroll_if_tailing()
 
     def update_tool_result(self, tool_id: str, block: "ToolResultBlock", parent_tool_id: str | None) -> None:
         """Update a tool widget with its result.
@@ -240,7 +240,3 @@ class ChatView(AutoHideScroll):
         for ind in self.query(ThinkingIndicator):
             ind.remove()
 
-    def _scroll_if_tailing(self) -> None:
-        """Scroll to end if in tailing mode (inherited from AutoHideScroll)."""
-        if self._tailing:
-            self.scroll_end(animate=False)
