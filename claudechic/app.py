@@ -809,9 +809,33 @@ class ChatApp(App):
         agent = self._get_agent(event.agent_id)
         chat_view = self._get_chat_view(event.agent_id)
         self._set_agent_status(AgentStatus.IDLE, event.agent_id)
-        if event.result and agent:
-            agent.session_id = event.result.session_id
+
+        # Check for errors or empty responses
+        error_shown = False
+        if event.result:
+            if agent:
+                agent.session_id = event.result.session_id
             self.refresh_context()
+            # Show error if response failed (e.g., credit limit)
+            if event.result.is_error:
+                error_msg = event.result.result or "Request failed"
+                self._show_system_info(error_msg, "error", event.agent_id)
+                error_shown = True
+                log.warning("Response error: %s", error_msg)
+
+        # Detect silent failures: response ended but produced nothing
+        if chat_view and not error_shown and agent:
+            # Check if we got any content during this response
+            had_content = chat_view._current_response is not None or agent.response_had_tools
+            if not had_content:
+                # Response ended with no text or tools - likely a silent error
+                self._show_system_info(
+                    "Response ended with no output. Check rate limits or try again.",
+                    "warning",
+                    event.agent_id
+                )
+                log.warning("Response ended with no content (possible silent error)")
+
         if chat_view:
             # End response via ChatView (hides thinking, flushes content)
             chat_view.end_response()

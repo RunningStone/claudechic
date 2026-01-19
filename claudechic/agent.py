@@ -413,6 +413,10 @@ class Agent:
         self, message: Any, had_tool_use: dict[str | None, bool]
     ) -> None:
         """Handle a single SDK message."""
+        # Log all messages for debugging (helps diagnose issues like credit limits)
+        log.debug("SDK message: type=%s, attrs=%s", type(message).__name__,
+                  {k: str(v)[:100] for k, v in vars(message).items()} if hasattr(message, '__dict__') else str(message)[:200])
+
         if isinstance(message, AssistantMessage):
             parent_id = message.parent_tool_use_id
             for block in message.content:
@@ -447,6 +451,10 @@ class Agent:
             self.session_id = message.session_id
             if self.observer:
                 self.observer.on_complete(self, message)
+
+        else:
+            # Unknown message type - log for debugging
+            log.warning("Unhandled SDK message type: %s", type(message).__name__)
 
     def _handle_text_chunk(
         self, text: str, new_message: bool, parent_tool_use_id: str | None
