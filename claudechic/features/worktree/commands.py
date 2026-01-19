@@ -249,21 +249,7 @@ def _finish_complete(app: "ChatApp", agent: "Agent", warning: str = "") -> None:
     else:
         app.notify(f"Cleaned up {branch_name}")
 
-    # Close the worktree agent if it exists
-    worktree_agent = next(
-        (a for a in app.agents.values() if a.worktree == branch_name),
-        None
-    )
-    if worktree_agent and len(app.agents) > 1:
-        # Only switch away if user is still on the agent being closed
-        if app.active_agent_id == worktree_agent.id:
-            main_agent = next(
-                (a for a in app.agents.values() if a.worktree is None),
-                None
-            )
-            if main_agent:
-                app._switch_to_agent(main_agent.id)
-        app._do_close_agent(worktree_agent.id)
+    _close_agents_for_branches(app, [branch_name])
 
 
 def on_response_complete_finish(app: "ChatApp", agent: "Agent") -> None:
@@ -316,6 +302,18 @@ def _switch_or_create_worktree(app: "ChatApp", feature_name: str) -> None:
             app.notify(message, severity="error")
 
 
+def _close_agents_for_branches(app: "ChatApp", branches: list[str]) -> None:
+    """Close agents associated with removed worktree branches."""
+    for branch in branches:
+        agent = next((a for a in app.agents.values() if a.worktree == branch), None)
+        if agent and len(app.agents) > 1:
+            if app.active_agent_id == agent.id:
+                main = next((a for a in app.agents.values() if a.worktree is None), None)
+                if main:
+                    app._switch_to_agent(main.id)
+            app._do_close_agent(agent.id)
+
+
 def _handle_cleanup(app: "ChatApp", branches: list[str] | None) -> None:
     """Handle /worktree cleanup command."""
     results = cleanup_worktrees(branches)
@@ -328,6 +326,9 @@ def _handle_cleanup(app: "ChatApp", branches: list[str] | None) -> None:
     needs_confirm = [(b, msg) for b, _, msg, confirm in results if confirm]
     removed = [b for b, success, _, _ in results if success]
     failed = [(b, msg) for b, success, msg, confirm in results if not success and not confirm]
+
+    # Close agents for successfully removed worktrees
+    _close_agents_for_branches(app, removed)
 
     # Report results
     for branch in removed:
@@ -357,11 +358,15 @@ async def _run_cleanup_prompt(app: "ChatApp", needs_confirm: list[tuple[str, str
     if selected and selected != "cancel":
         to_remove = branches_to_confirm if selected == "all" else [selected]
         worktrees = list_worktrees()
+        removed = []
         for branch in to_remove:
             wt = next((w for w in worktrees if w.branch == branch), None)
             if wt:
                 success, msg = remove_worktree(wt, force=True)
+                if success:
+                    removed.append(branch)
                 app.notify(f"Removed: {branch}" if success else msg, severity="error" if not success else "information")
+        _close_agents_for_branches(app, removed)
     else:
         app.notify("Cleanup cancelled")
 
