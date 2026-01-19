@@ -1132,12 +1132,12 @@ class ChatApp(App):
     def on_plan_button_clicked(self, event: PlanButton.Clicked) -> None:
         """Handle plan button click - open plan file in editor."""
         editor = os.environ.get("EDITOR", "vi")
-        handle_command(self, f"/shell {editor} {event.plan_path}")
+        handle_command(self, f"/shell -i {editor} {event.plan_path}")
 
     def on_edit_plan_requested(self, event: EditPlanRequested) -> None:
         """Handle edit plan button click in ExitPlanMode widget."""
         editor = os.environ.get("EDITOR", "vi")
-        handle_command(self, f"/shell {editor} {event.plan_path}")
+        handle_command(self, f"/shell -i {editor} {event.plan_path}")
 
     def _populate_worktrees(self) -> None:
         """Populate sidebar with ghost worktrees for feature branches."""
