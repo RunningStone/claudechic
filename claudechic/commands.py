@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -148,7 +149,21 @@ def _handle_shell(app: "ChatApp", command: str) -> bool:
         # Interactive: suspend TUI and run in real terminal
         with app.suspend():
             args = [shell, "-lc", cmd] if cmd else [shell, "-l"]
+            start = time.monotonic()
             subprocess.run(args, cwd=cwd, env=env)
+            # If command was fast, wait for keypress so user can see output
+            if cmd and time.monotonic() - start < 1.0:
+                import sys
+                import termios
+                import tty
+                print("\nPress any key to continue...", end="", flush=True)
+                fd = sys.stdin.fileno()
+                old = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd)
+                    sys.stdin.read(1)
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
     return True
 
