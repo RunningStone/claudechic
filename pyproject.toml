@@ -1,6 +1,6 @@
 [project]
 name = "claudechic"
-version = "0.1.0"
+version = "0.2.0"
 description = "Claude Chic - A stylish terminal UI for Claude Code"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,6 +23,9 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
 ]
+
+[tool.uv]
+package = true
 
 [tool.setuptools.packages.find]
 include = ["claudechic*"]

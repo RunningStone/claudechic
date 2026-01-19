@@ -1,6 +1,7 @@
 """Entry point for claudechic CLI."""
 
 import argparse
+from importlib.metadata import version
 
 from claudechic.app import ChatApp
 from claudechic.errors import setup_logging
@@ -11,6 +12,9 @@ setup_logging()
 
 def main():
     parser = argparse.ArgumentParser(description="Claude Chic")
+    parser.add_argument(
+        "--version", "-V", action="version", version=f"claudechic {version('claudechic')}"
+    )
     parser.add_argument(
         "--resume", "-r", action="store_true", help="Resume the most recent session"
     )
