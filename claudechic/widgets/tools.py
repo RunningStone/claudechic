@@ -14,6 +14,7 @@ from textual.widgets import Markdown, Static, Collapsible, Button
 
 from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 
+from claudechic.enums import ToolName
 from claudechic.formatting import (
     format_tool_header,
     format_tool_details,
@@ -59,7 +60,7 @@ class ToolUseWidget(Static):
         if not self.result:
             yield Spinner()
         with Collapsible(title=self._header, collapsed=self._initial_collapsed):
-            if self.block.name == "Edit":
+            if self.block.name == ToolName.EDIT:
                 path = make_relative(self.block.input.get("file_path", ""), self._cwd)
                 yield DiffWidget(
                     self.block.input.get("old_string", ""),
@@ -93,19 +94,19 @@ class ToolUseWidget(Static):
         """Get content suitable for copying."""
         inp = self.block.input
         parts = []
-        if self.block.name == "Edit":
+        if self.block.name == ToolName.EDIT:
             parts.append(f"File: {inp.get('file_path', '?')}")
             if inp.get("old_string"):
                 parts.append(f"Old:\n```\n{inp['old_string']}\n```")
             if inp.get("new_string"):
                 parts.append(f"New:\n```\n{inp['new_string']}\n```")
-        elif self.block.name == "Bash":
+        elif self.block.name == ToolName.BASH:
             parts.append(f"Command:\n```\n{inp.get('command', '?')}\n```")
-        elif self.block.name == "Write":
+        elif self.block.name == ToolName.WRITE:
             parts.append(f"File: {inp.get('file_path', '?')}")
             if inp.get("content"):
                 parts.append(f"Content:\n```\n{inp['content']}\n```")
-        elif self.block.name == "Read":
+        elif self.block.name == ToolName.READ:
             parts.append(f"File: {inp.get('file_path', '?')}")
         else:
             parts.append(json.dumps(inp, indent=2))
@@ -178,7 +179,7 @@ class ToolUseWidget(Static):
                 if summary:
                     collapsible.title = f"{self._header} {summary}"
             # Edit uses Static for diff, others use Markdown
-            if self.block.name == "Edit":
+            if self.block.name == ToolName.EDIT:
                 return
             md = collapsible.query_one("#md-content", Markdown)
             details = format_tool_details(self.block.name, self.block.input, self._cwd)
@@ -195,7 +196,7 @@ class ToolUseWidget(Static):
                 trunc_chars = f"\n... (truncated, {len(content):,} chars total)" if truncated else ""
                 if result.is_error:
                     details += f"\n\n**Error:**\n```\n{preview}{trunc_chars}\n```"
-                elif self.block.name == "Read":
+                elif self.block.name == ToolName.READ:
                     lang = get_lang_from_path(self.block.input.get("file_path", ""))
                     # Replace arrow with space in line number gutter
                     preview = re.sub(r"^(\s*\d+)→", r"\1  ", preview, flags=re.MULTILINE)
@@ -204,9 +205,9 @@ class ToolUseWidget(Static):
                         total = content.count("\n") + (1 if content and not content.endswith("\n") else 0)
                         preview += f"\n... ({shown} of {total} lines shown)"
                     details += f"\n\n```{lang}\n{preview}\n```"
-                elif self.block.name in ("Bash", "Grep", "Glob"):
+                elif self.block.name in (ToolName.BASH, ToolName.GREP, ToolName.GLOB):
                     details += f"\n\n```text\n{preview}{trunc_chars}\n```"
-                elif self.block.name == "ExitPlanMode":
+                elif self.block.name == ToolName.EXIT_PLAN_MODE:
                     # Extract plan from result and render as markdown
                     plan = self._extract_plan_from_result(content)
                     if plan:
@@ -216,7 +217,7 @@ class ToolUseWidget(Static):
                     if plan_match:
                         self._plan_path = Path(plan_match.group(1))
                         collapsible.mount(Button("📋 View Plan in Editor", classes="edit-plan-btn"))
-                elif self.block.name == "EnterPlanMode":
+                elif self.block.name == ToolName.ENTER_PLAN_MODE:
                     details = "*Entered plan mode*"
                 else:
                     details += f"\n\n{preview}"

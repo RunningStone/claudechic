@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from claudechic.agent import Agent, ImageAttachment, UserContent, AssistantContent, ToolUse
+from claudechic.enums import ToolName
 from claudechic.widgets.chat import ChatMessage, ChatAttachment, ThinkingIndicator, SystemInfo
 from claudechic.widgets.scroll import AutoHideScroll
 from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
@@ -13,7 +14,16 @@ if TYPE_CHECKING:
     from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 
 # Tools to collapse by default
-COLLAPSE_BY_DEFAULT = {"WebSearch", "WebFetch", "AskUserQuestion", "Read", "Glob", "Grep", "EnterPlanMode", "Skill"}
+COLLAPSE_BY_DEFAULT = {
+    ToolName.WEB_SEARCH,
+    ToolName.WEB_FETCH,
+    ToolName.ASK_USER_QUESTION,
+    ToolName.READ,
+    ToolName.GLOB,
+    ToolName.GREP,
+    ToolName.ENTER_PLAN_MODE,
+    ToolName.SKILL,
+}
 
 # How many recent tools to keep expanded
 RECENT_TOOLS_EXPANDED = 3
@@ -144,7 +154,7 @@ class ChatView(AutoHideScroll):
         # Create widget based on tool type
         collapsed = tool.name in COLLAPSE_BY_DEFAULT
         cwd = self._agent.cwd if self._agent else None
-        if tool.name == "Task":
+        if tool.name == ToolName.TASK:
             widget = TaskWidget(block, collapsed=collapsed, cwd=cwd)
             self._active_task_widgets[tool.id] = widget
         elif tool.name.startswith("mcp__chic__"):
@@ -216,7 +226,7 @@ class ChatView(AutoHideScroll):
         collapsed = tool.name in COLLAPSE_BY_DEFAULT
         cwd = self._agent.cwd if self._agent else None
 
-        if tool.name == "Task":
+        if tool.name == ToolName.TASK:
             widget = TaskWidget(block, collapsed=collapsed, cwd=cwd)
         elif tool.name.startswith("mcp__chic__"):
             widget = AgentToolWidget(block)

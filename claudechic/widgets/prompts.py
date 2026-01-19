@@ -6,7 +6,6 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.widgets import Static, Label, ListItem
 
-
 class SessionItem(ListItem):
     """A session in the sidebar."""
 

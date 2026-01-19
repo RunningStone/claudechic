@@ -13,6 +13,7 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 
+from claudechic.enums import ToolName
 from claudechic.sessions import get_project_sessions_dir
 
 
@@ -35,18 +36,18 @@ def _is_whitelisted_read(file_path: str) -> bool:
 # These are minimal strings that won't crash Claude Code's renderer.
 COMPACTED_RESULTS = {
     # Most tools just use plain text - a simple message works
-    "Bash": "[output compacted]",
-    "Read": "[file content compacted]",
-    "Write": "[compacted]",
-    "Edit": "[compacted]",
-    "Glob": "[compacted]",
-    "Task": "[compacted]",
-    "Skill": "[compacted]",
-    "TodoWrite": "[compacted]",
-    "WebFetch": "[compacted]",
-    "WebSearch": "[compacted]",
+    ToolName.BASH: "[output compacted]",
+    ToolName.READ: "[file content compacted]",
+    ToolName.WRITE: "[compacted]",
+    ToolName.EDIT: "[compacted]",
+    ToolName.GLOB: "[compacted]",
+    ToolName.TASK: "[compacted]",
+    ToolName.SKILL: "[compacted]",
+    ToolName.TODO_WRITE: "[compacted]",
+    ToolName.WEB_FETCH: "[compacted]",
+    ToolName.WEB_SEARCH: "[compacted]",
     # Grep needs special handling - empty result that parses correctly
-    "Grep": "No matches found",
+    ToolName.GREP: "No matches found",
 }
 
 
@@ -115,9 +116,9 @@ def compact_session(
                     # Track file operations
                     file_path = inp.get("file_path")
                     if file_path:
-                        if tool_name == "Read":
+                        if tool_name == ToolName.READ:
                             file_reads[file_path].append(tool_id)
-                        elif tool_name in ("Write", "Edit"):
+                        elif tool_name in (ToolName.WRITE, ToolName.EDIT):
                             file_writes[file_path].append(tool_id)
 
     # Second pass: collect tool_result info

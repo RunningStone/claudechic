@@ -4,6 +4,8 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.widgets import Static
 
+from claudechic.enums import TodoStatus
+
 
 class TodoPanel(Static):
     """Sidebar panel for todo list - docked right when space allows."""
@@ -55,28 +57,32 @@ class TodoItem(Static):
 
     can_focus = False
 
-    ICONS = {"pending": "☐", "in_progress": "◉", "completed": "✓"}
+    ICONS = {
+        TodoStatus.PENDING: "☐",
+        TodoStatus.IN_PROGRESS: "◉",
+        TodoStatus.COMPLETED: "✓",
+    }
 
     def __init__(self, todo: dict) -> None:
         super().__init__()
         self.todo = todo
-        self.add_class(todo.get("status", "pending"))
+        self.add_class(todo.get("status", TodoStatus.PENDING))
 
     def render(self) -> Text:
-        status = self.todo.get("status", "pending")
+        status = self.todo.get("status", TodoStatus.PENDING)
         icon = self.ICONS.get(status, "?")
 
         # Show activeForm for in_progress, content otherwise
-        if status == "in_progress":
+        if status == TodoStatus.IN_PROGRESS:
             label = self.todo.get("activeForm", self.todo.get("content", ""))
         else:
             label = self.todo.get("content", "")
 
         result = Text()
-        if status == "completed":
+        if status == TodoStatus.COMPLETED:
             result.append(f"{icon} ", style="green")
             result.append(label, style="strike dim")
-        elif status == "in_progress":
+        elif status == TodoStatus.IN_PROGRESS:
             result.append(f"{icon} ", style="yellow bold")
             result.append(label, style="yellow")
         else:  # pending

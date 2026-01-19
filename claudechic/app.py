@@ -47,6 +47,7 @@ from claudechic.features.worktree.commands import on_response_complete_finish
 from claudechic.permissions import PermissionRequest
 from claudechic.agent import Agent, ImageAttachment, ToolUse
 from claudechic.agent_manager import AgentManager
+from claudechic.enums import AgentStatus, PermissionChoice, ToolName
 from claudechic.mcp import set_app, create_chic_server
 from claudechic.file_index import FileIndex
 from claudechic.history import append_to_history
@@ -124,7 +125,7 @@ class ChatApp(App):
     ]
 
     # Auto-approve Edit/Write tools (but still prompt for Bash, etc.)
-    AUTO_EDIT_TOOLS = {"Edit", "Write"}
+    AUTO_EDIT_TOOLS = {ToolName.EDIT, ToolName.WRITE}
 
     # Width thresholds for layout (sidebar=28, min chat=80)
     SIDEBAR_MIN_WIDTH = 110  # Below this, hide sidebar
@@ -257,7 +258,7 @@ class ChatApp(App):
             self._status_footer = self.query_one(StatusFooter)
         return self._status_footer
 
-    def _set_agent_status(self, status: Literal["idle", "busy", "needs_input"], agent_id: str | None = None) -> None:
+    def _set_agent_status(self, status: AgentStatus, agent_id: str | None = None) -> None:
         """Update an agent's status and sidebar display."""
         agent = self._get_agent(agent_id)
         if not agent:
@@ -748,7 +749,7 @@ class ChatApp(App):
 
     def on_response_complete(self, event: ResponseComplete) -> None:
         agent = self._get_agent(event.agent_id)
-        self._set_agent_status("idle", event.agent_id)
+        self._set_agent_status(AgentStatus.IDLE, event.agent_id)
         if event.result and agent:
             agent.session_id = event.result.session_id
             self.refresh_context()
@@ -1567,33 +1568,33 @@ class ChatApp(App):
             while agent.id != self.active_agent_id:
                 await asyncio.sleep(0.1)
 
-        if request.tool_name == "AskUserQuestion":
+        if request.tool_name == ToolName.ASK_USER_QUESTION:
             # Handle question prompts
             questions = request.tool_input.get("questions", [])
             async with self._show_prompt(QuestionPrompt(questions), agent) as prompt:
                 answers = await prompt.wait()
 
             if not answers:
-                return "deny"
+                return PermissionChoice.DENY
 
             # Store answers on request for Agent to retrieve
             request._answers = answers  # type: ignore[attr-defined]
-            return "allow"
+            return PermissionChoice.ALLOW
 
         # Regular permission prompt
         if request.tool_name in self.AUTO_EDIT_TOOLS:
             # For edit tools, offer auto-edit mode (superset of allow_session)
             options = [
-                ("allow_all", "Yes, all edits in this session"),
-                ("allow", "Yes, this time only"),
+                (PermissionChoice.ALLOW_ALL, "Yes, all edits in this session"),
+                (PermissionChoice.ALLOW, "Yes, this time only"),
             ]
         else:
             options = [
-                ("allow", "Yes, this time only"),
-                ("allow_session", "Yes, always in this session"),
+                (PermissionChoice.ALLOW, "Yes, this time only"),
+                (PermissionChoice.ALLOW_SESSION, "Yes, always in this session"),
             ]
         # "No" option doubles as text input - empty = deny, text = alternative instructions
-        text_option = ("deny", "No / Do something else...")
+        text_option = (PermissionChoice.DENY, "No / Do something else...")
 
         async with self._show_prompt(SelectionPrompt(request.title, options, text_option), agent) as prompt:
             async def ui_response():
@@ -1604,9 +1605,9 @@ class ChatApp(App):
             asyncio.create_task(ui_response())
             result = await request.wait()
 
-        if result == "allow_all":
+        if result == PermissionChoice.ALLOW_ALL:
             self.notify("Auto-edit enabled (Shift+Tab to disable)")
-        elif result == "allow_session":
+        elif result == PermissionChoice.ALLOW_SESSION:
             self.notify(f"{request.tool_name} allowed for this session")
 
         return result

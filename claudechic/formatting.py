@@ -7,6 +7,8 @@ from pathlib import Path
 
 from rich.text import Text
 
+from claudechic.enums import ToolName
+
 
 # Constants
 MAX_CONTEXT_TOKENS = 200_000  # Claude's context window
@@ -75,12 +77,12 @@ def format_result_summary(name: str, content: str, is_error: bool = False) -> st
     if is_error:
         return "(error)"
 
-    if name == "Read":
+    if name == ToolName.READ:
         # Count lines in result (content has N newlines for N+1 lines, unless empty)
         lines = content.count("\n") + 1 if content.strip() else 0
         return f"({lines} lines)"
 
-    elif name == "Bash":
+    elif name == ToolName.BASH:
         stripped = content.strip()
         if not stripped:
             return "(no output)"
@@ -90,21 +92,21 @@ def format_result_summary(name: str, content: str, is_error: bool = False) -> st
             return f"({lines[-1].strip()})"
         return f"({len(lines)} lines)"
 
-    elif name == "Grep":
+    elif name == ToolName.GREP:
         # Count matches (files or lines)
         lines = [l for l in content.strip().split("\n") if l.strip()]
         if not lines or (len(lines) == 1 and "no matches" in lines[0].lower()):
             return "(no matches)"
         return f"({len(lines)} matches)"
 
-    elif name == "Glob":
+    elif name == ToolName.GLOB:
         # Count files
         lines = [l for l in content.strip().split("\n") if l.strip()]
         if not lines:
             return "(no files)"
         return f"({len(lines)} files)"
 
-    elif name == "Write":
+    elif name == ToolName.WRITE:
         return "(done)"
 
     return ""
@@ -112,7 +114,7 @@ def format_result_summary(name: str, content: str, is_error: bool = False) -> st
 
 def format_tool_header(name: str, input: dict, cwd: Path | None = None) -> str:
     """Format a one-line header for a tool use."""
-    if name == "Edit":
+    if name == ToolName.EDIT:
         old = input.get("old_string", "")
         new = input.get("new_string", "")
         additions, deletions = count_diff_changes(old, new)
@@ -121,48 +123,48 @@ def format_tool_header(name: str, input: dict, cwd: Path | None = None) -> str:
         path = make_relative(input.get("file_path", "?"), cwd)
         path = truncate_path(path, MAX_HEADER_WIDTH - 6 - len(stats))
         return f"Edit: {path}{stats}"
-    elif name == "Write":
+    elif name == ToolName.WRITE:
         path = make_relative(input.get("file_path", "?"), cwd)
         path = truncate_path(path, MAX_HEADER_WIDTH - 7)
         return f"Write: {path}"
-    elif name == "Read":
+    elif name == ToolName.READ:
         path = make_relative(input.get("file_path", "?"), cwd)
         path = truncate_path(path, MAX_HEADER_WIDTH - 6)
         return f"Read: {path}"
-    elif name == "Bash":
+    elif name == ToolName.BASH:
         cmd = input.get("command", "?")
         desc = input.get("description", "")
         if desc:
             return f"Bash: {desc}"
         return f"Bash: {cmd[:50]}{'...' if len(cmd) > 50 else ''}"
-    elif name == "Glob":
+    elif name == ToolName.GLOB:
         return f"Glob: {input.get('pattern', '?')}"
-    elif name == "Grep":
+    elif name == ToolName.GREP:
         return f"Grep: {input.get('pattern', '?')}"
-    elif name == "WebSearch":
+    elif name == ToolName.WEB_SEARCH:
         return f"WebSearch: {input.get('query', '?')}"
-    elif name == "WebFetch":
+    elif name == ToolName.WEB_FETCH:
         return f"WebFetch: {input.get('url', '?')[:50]}"
-    elif name == "Task":
+    elif name == ToolName.TASK:
         desc = input.get("description", "")
         agent = input.get("subagent_type", "")
         if desc:
             return f"Task: {desc}" + (f" ({agent})" if agent else "")
         return f"Task" + (f" ({agent})" if agent else "")
-    elif name == "TodoWrite":
+    elif name == ToolName.TODO_WRITE:
         todos = input.get("todos", [])
         return f"TodoWrite: {len(todos)} items"
-    elif name == "AskUserQuestion":
+    elif name == ToolName.ASK_USER_QUESTION:
         questions = input.get("questions", [])
         if questions and questions[0].get("question"):
             q = questions[0]["question"][:40]
             return f"AskUserQuestion: {q}..."
         return "AskUserQuestion"
-    elif name == "Skill":
+    elif name == ToolName.SKILL:
         return f"Skill: {input.get('skill', '?')}"
-    elif name == "EnterPlanMode":
+    elif name == ToolName.ENTER_PLAN_MODE:
         return "EnterPlanMode"
-    elif name == "ExitPlanMode":
+    elif name == ToolName.EXIT_PLAN_MODE:
         return "ExitPlanMode"
     else:
         return f"{name}"
@@ -264,13 +266,13 @@ def format_diff_text(old: str, new: str, max_len: int = 300) -> Text:
 
 def format_tool_details(name: str, input: dict, cwd: Path | None = None) -> str:
     """Format expanded details for a tool use (non-Edit tools)."""
-    if name == "Write":
+    if name == ToolName.WRITE:
         path = make_relative(input.get("file_path", "?"), cwd)
         content = input.get("content", "")
         lang = get_lang_from_path(path)
         preview = content[:400] + ("..." if len(content) > 400 else "")
         return f"```{lang}\n{preview}\n```"
-    elif name == "Read":
+    elif name == ToolName.READ:
         path = make_relative(input.get("file_path", "?"), cwd)
         offset = input.get("offset")
         limit = input.get("limit")
@@ -279,20 +281,20 @@ def format_tool_details(name: str, input: dict, cwd: Path | None = None) -> str:
             end = (offset or 0) + limit if limit else "end"
             details += f"\nLines: {offset or 0} - {end}"
         return details
-    elif name == "Bash":
+    elif name == ToolName.BASH:
         cmd = input.get("command", "?")
         return f"```bash\n{cmd}\n```"
-    elif name == "Glob":
+    elif name == ToolName.GLOB:
         pattern = input.get("pattern", "?")
         path = input.get("path", ".")
         return f"**Pattern:** `{pattern}`\n**Path:** `{path}`"
-    elif name == "Grep":
+    elif name == ToolName.GREP:
         pattern = input.get("pattern", "?")
         path = input.get("path", ".")
         return f"**Pattern:** `{pattern}`\n**Path:** `{path}`"
-    elif name == "EnterPlanMode":
+    elif name == ToolName.ENTER_PLAN_MODE:
         return "*Entering plan mode*"
-    elif name == "ExitPlanMode":
+    elif name == ToolName.EXIT_PLAN_MODE:
         return "*Exiting plan mode*"
     else:
         return f"```\n{json.dumps(input, indent=2)}\n```"

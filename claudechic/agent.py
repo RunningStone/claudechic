@@ -31,6 +31,7 @@ from claude_agent_sdk.types import (
     ToolPermissionContext,
 )
 
+from claudechic.enums import AgentStatus, PermissionChoice, ToolName
 from claudechic.file_index import FileIndex
 from claudechic.permissions import PermissionRequest
 
@@ -108,7 +109,7 @@ class Agent:
     """
 
     # Tools to auto-approve when auto_approve_edits is True
-    AUTO_EDIT_TOOLS = {"Edit", "Write"}
+    AUTO_EDIT_TOOLS = {ToolName.EDIT, ToolName.WRITE}
 
     def __init__(
         self,
@@ -130,7 +131,7 @@ class Agent:
         self._response_task: asyncio.Task | None = None
 
         # Status
-        self.status: Literal["idle", "busy", "needs_input"] = "idle"
+        self.status: AgentStatus = AgentStatus.IDLE
         self._thinking: bool = False  # Whether this agent is currently thinking
         self._interrupted: bool = False  # Suppress errors after intentional interrupt
 
@@ -322,7 +323,7 @@ class Agent:
         if self.observer:
             self.observer.on_prompt_sent(self, display_text, list(self.pending_images))
 
-        self._set_status("busy")
+        self._set_status(AgentStatus.BUSY)
         self.response_had_tools = False
         self._current_assistant = None
         self._current_text_buffer = ""
@@ -352,7 +353,7 @@ class Agent:
             except Exception:
                 pass
 
-        self._set_status("idle")
+        self._set_status(AgentStatus.IDLE)
 
     async def _send_followup(self, message: str) -> None:
         """Send a follow-up message after brief delay (for 'do something else' flow)."""
@@ -408,7 +409,7 @@ class Agent:
                 self.observer.on_complete(self, None)
         finally:
             self._flush_current_text()
-            self._set_status("idle")
+            self._set_status(AgentStatus.IDLE)
 
     async def _handle_sdk_message(
         self, message: Any, had_tool_use: dict[str | None, bool]
@@ -513,7 +514,7 @@ class Agent:
         self._needs_new_message = True  # Next text chunk starts a new ChatMessage
 
         # TodoWrite updates todos
-        if block.name == "TodoWrite":
+        if block.name == ToolName.TODO_WRITE:
             self.todos = block.input.get("todos", [])
             if self.observer:
                 self.observer.on_todos_updated(self)
@@ -522,7 +523,7 @@ class Agent:
         tool = ToolUse(id=block.id, name=block.name, input=block.input)
 
         # Track Task tools specially
-        if block.name == "Task":
+        if block.name == ToolName.TASK:
             self.active_tasks[block.id] = ""
 
         self.pending_tools[block.id] = tool
@@ -565,11 +566,11 @@ class Agent:
         log.info(f"Permission requested for {tool_name}: {str(tool_input)[:100]}")
 
         # AskUserQuestion needs special handling
-        if tool_name == "AskUserQuestion":
+        if tool_name == ToolName.ASK_USER_QUESTION:
             return await self._handle_ask_user_question(tool_input)
 
         # Always allow ExitPlanMode and chic MCP tools
-        if tool_name == "ExitPlanMode":
+        if tool_name == ToolName.EXIT_PLAN_MODE:
             return PermissionResultAllow()
         if tool_name.startswith("mcp__chic__"):
             return PermissionResultAllow()
@@ -590,7 +591,7 @@ class Agent:
         if self.observer:
             self.observer.on_prompt_added(self, request)
 
-        self._set_status("needs_input")
+        self._set_status(AgentStatus.NEEDS_INPUT)
 
         # Wait for UI to respond
         if self.permission_handler:
@@ -603,18 +604,18 @@ class Agent:
         if request in self.pending_prompts:
             self.pending_prompts.remove(request)
 
-        self._set_status("busy")
+        self._set_status(AgentStatus.BUSY)
 
         log.info(f"Permission result: {result}")
-        if result == "allow_all":
+        if result == PermissionChoice.ALLOW_ALL:
             self._set_auto_edit(True)
             return PermissionResultAllow()
-        elif result == "allow_session":
+        elif result == PermissionChoice.ALLOW_SESSION:
             self.session_allowed_tools.add(tool_name)
             return PermissionResultAllow()
-        elif result == "allow":
+        elif result == PermissionChoice.ALLOW:
             return PermissionResultAllow()
-        elif result.startswith("deny:"):
+        elif result.startswith(f"{PermissionChoice.DENY}:"):
             # User provided alternative instructions - store for follow-up after response
             message = result[5:]  # Strip "deny:" prefix
             self._pending_followup = message
@@ -631,12 +632,12 @@ class Agent:
             return PermissionResultAllow(updated_input=tool_input)
 
         # Create a special request for question prompts
-        request = PermissionRequest("AskUserQuestion", tool_input)
+        request = PermissionRequest(ToolName.ASK_USER_QUESTION, tool_input)
         self.pending_prompts.append(request)
         if self.observer:
             self.observer.on_prompt_added(self, request)
 
-        self._set_status("needs_input")
+        self._set_status(AgentStatus.NEEDS_INPUT)
 
         # The UI callback should handle question collection
         if self.permission_handler:
@@ -647,9 +648,9 @@ class Agent:
         if request in self.pending_prompts:
             self.pending_prompts.remove(request)
 
-        self._set_status("busy")
+        self._set_status(AgentStatus.BUSY)
 
-        if result == "deny":
+        if result == PermissionChoice.DENY:
             return PermissionResultDeny(message="User cancelled questions")
 
         # Result should be the answers dict (stored in request._result by UI)
@@ -662,7 +663,7 @@ class Agent:
     # Helpers
     # -----------------------------------------------------------------------
 
-    def _set_status(self, status: Literal["idle", "busy", "needs_input"]) -> None:
+    def _set_status(self, status: AgentStatus) -> None:
         """Update status and emit event."""
         if self.status != status:
             self.status = status

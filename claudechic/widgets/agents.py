@@ -3,6 +3,8 @@
 from pathlib import Path
 
 from textual.app import ComposeResult
+
+from claudechic.enums import AgentStatus
 from textual.events import Click
 from textual.message import Message
 from textual.reactive import reactive
@@ -137,9 +139,9 @@ class AgentItem(Widget):
     }
     """
 
-    status = reactive("idle")
+    status: reactive[AgentStatus] = reactive(AgentStatus.IDLE)
 
-    def __init__(self, agent_id: str, display_name: str, status: str = "idle") -> None:
+    def __init__(self, agent_id: str, display_name: str, status: AgentStatus = AgentStatus.IDLE) -> None:
         super().__init__()
         self.agent_id = agent_id
         self.display_name = display_name
@@ -150,10 +152,10 @@ class AgentItem(Widget):
         yield Static(Text("X"), classes="agent-close")
 
     def _render_label(self) -> Text:
-        if self.status == "busy":
+        if self.status == AgentStatus.BUSY:
             indicator = "\u25cf"
             style = ""  # default text color
-        elif self.status == "needs_input":
+        elif self.status == AgentStatus.NEEDS_INPUT:
             indicator = "\u25cf"
             style = self.app.current_theme.primary if self.app else "bold"
         else:
@@ -207,7 +209,7 @@ class AgentSidebar(Widget):
     def compose(self) -> ComposeResult:
         yield Static("Agents", classes="sidebar-title")
 
-    def add_agent(self, agent_id: str, name: str, status: str = "idle") -> None:
+    def add_agent(self, agent_id: str, name: str, status: AgentStatus = AgentStatus.IDLE) -> None:
         """Add an agent to the sidebar."""
         if agent_id in self._agents:
             return
@@ -234,7 +236,7 @@ class AgentSidebar(Widget):
             else:
                 item.remove_class("active")
 
-    def update_status(self, agent_id: str, status: str) -> None:
+    def update_status(self, agent_id: str, status: AgentStatus) -> None:
         """Update an agent's status."""
         if agent_id in self._agents:
             self._agents[agent_id].status = status
