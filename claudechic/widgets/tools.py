@@ -59,6 +59,10 @@ class ToolUseWidget(Static):
         yield Button("⧉", classes="copy-btn")
         if not self.result:
             yield Spinner()
+        # Skill with no args: just show header, no collapsible
+        if self.block.name == ToolName.SKILL and not self.block.input.get("args"):
+            yield Static(self._header, classes="skill-header")
+            return
         with Collapsible(title=self._header, collapsed=self._initial_collapsed):
             if self.block.name == ToolName.EDIT:
                 path = make_relative(self.block.input.get("file_path", ""), self._cwd)

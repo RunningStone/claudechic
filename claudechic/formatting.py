@@ -296,5 +296,9 @@ def format_tool_details(name: str, input: dict, cwd: Path | None = None) -> str:
         return "*Entering plan mode*"
     elif name == ToolName.EXIT_PLAN_MODE:
         return "*Exiting plan mode*"
+    elif name == ToolName.SKILL:
+        # Header already shows skill name, args are optional extra detail
+        args = input.get("args", "")
+        return f"*{args}*" if args else ""
     else:
         return f"```\n{json.dumps(input, indent=2)}\n```"

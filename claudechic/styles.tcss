@@ -146,6 +146,12 @@ ToolUseWidget.hovered {
     background: $surface;
 }
 
+/* Skill header (when no collapsible needed) */
+ToolUseWidget .skill-header {
+    color: $text-muted;
+    padding: 0;
+}
+
 /* Task widgets - slightly more prominent */
 TaskWidget {
     border-left: wide $accent;
