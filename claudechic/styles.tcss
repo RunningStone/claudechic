@@ -519,6 +519,15 @@ WorktreePrompt {
     display: none;
 }
 
+/* Overlay mode - float over content on narrow screens */
+#right-sidebar.overlay {
+    layer: above;
+    dock: right;
+    margin-right: 0;
+    background: $surface;
+    border-left: solid $panel;
+}
+
 /* Todo panel - inside right sidebar */
 #todo-panel {
     width: 100%;

@@ -70,6 +70,7 @@ from claudechic.widgets import (
     WorktreeItem,
     ChatView,
     PlanButton,
+    HamburgerButton,
     EditPlanRequested,
 )
 from claudechic.widgets.footer import StatusFooter
@@ -150,6 +151,9 @@ class ChatApp(App):
         # Agent-to-UI mappings (Agent has no UI references)
         self._chat_views: dict[str, ChatView] = {}  # agent_id -> ChatView
         self._active_prompts: dict[str, Any] = {}  # agent_id -> SelectionPrompt/QuestionPrompt
+        # Sidebar overlay state (for narrow screens)
+        self._sidebar_overlay_open = False
+        self._hamburger_btn: HamburgerButton | None = None
 
     # Properties to access active agent's state
     @property
@@ -261,6 +265,12 @@ class ChatApp(App):
         if self._status_footer is None:
             self._status_footer = self.query_one(StatusFooter)
         return self._status_footer
+
+    @property
+    def hamburger_btn(self) -> HamburgerButton:
+        if self._hamburger_btn is None:
+            self._hamburger_btn = self.query_one("#hamburger-btn", HamburgerButton)
+        return self._hamburger_btn
 
     def _set_agent_status(self, status: AgentStatus, agent_id: str | None = None) -> None:
         """Update an agent's status and sidebar display."""
@@ -374,6 +384,7 @@ class ChatApp(App):
     LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell", "/theme", "/compactish", "/usage", "/welcome"]
 
     def compose(self) -> ComposeResult:
+        yield HamburgerButton(id="hamburger-btn")
         with Horizontal(id="main"):
             yield ListView(id="session-picker", classes="hidden")
             yield ChatView(id="chat-view")
@@ -733,8 +744,18 @@ class ChatApp(App):
         main = self.query_one("#main", Horizontal)
         input_wrapper = self.query_one("#input-wrapper", Horizontal)
 
+        # Check if any agent needs attention (for hamburger color)
+        needs_attention = any(
+            a.status == AgentStatus.NEEDS_INPUT
+            for a in self.agents.values()
+        )
+
         if width >= self.SIDEBAR_MIN_WIDTH and has_content:
+            # Wide enough - show sidebar inline, hide hamburger
             self.right_sidebar.remove_class("hidden")
+            self.right_sidebar.remove_class("overlay")
+            self.hamburger_btn.remove_class("visible")
+            self._sidebar_overlay_open = False
             # Show/hide todo panel based on whether it has content
             if self.todo_panel.todos:
                 self.todo_panel.remove_class("hidden")
@@ -748,8 +769,35 @@ class ChatApp(App):
                 # Shift left to make room for sidebar
                 main.add_class("sidebar-shift")
                 input_wrapper.add_class("sidebar-shift")
+        elif has_content:
+            # Narrow but has content - show hamburger, sidebar as overlay when open
+            main.remove_class("sidebar-shift")
+            input_wrapper.remove_class("sidebar-shift")
+
+            if self._sidebar_overlay_open:
+                # Sidebar open - hide hamburger, show sidebar
+                self.hamburger_btn.remove_class("visible")
+                self.right_sidebar.remove_class("hidden")
+                self.right_sidebar.add_class("overlay")
+                if self.todo_panel.todos:
+                    self.todo_panel.remove_class("hidden")
+                else:
+                    self.todo_panel.add_class("hidden")
+            else:
+                # Sidebar closed - show hamburger
+                self.hamburger_btn.add_class("visible")
+                if needs_attention:
+                    self.hamburger_btn.add_class("needs-attention")
+                else:
+                    self.hamburger_btn.remove_class("needs-attention")
+                self.right_sidebar.add_class("hidden")
+                self.right_sidebar.remove_class("overlay")
         else:
+            # No content - hide everything
             self.right_sidebar.add_class("hidden")
+            self.right_sidebar.remove_class("overlay")
+            self.hamburger_btn.remove_class("visible")
+            self._sidebar_overlay_open = False
             main.remove_class("sidebar-shift")
             input_wrapper.remove_class("sidebar-shift")
 
@@ -861,6 +909,20 @@ class ChatApp(App):
         self.chat_input.focus()
 
     def on_mouse_up(self, event: MouseUp) -> None:
+        # Close sidebar overlay if clicking outside of it
+        if self._sidebar_overlay_open:
+            # Check if click is outside the sidebar
+            try:
+                sidebar = self.right_sidebar
+                # Get click position relative to screen
+                x, y = event.screen_x, event.screen_y
+                # Check if within sidebar bounds
+                sb_x = sidebar.region.x
+                sb_width = sidebar.region.width
+                if x < sb_x or x >= sb_x + sb_width:
+                    self._close_sidebar_overlay()
+            except Exception:
+                pass
         self.set_timer(0.05, self._check_and_copy_selection)
 
     def _check_and_copy_selection(self) -> None:
@@ -1088,7 +1150,12 @@ class ChatApp(App):
             self.agent_sidebar.set_plan(plan_path)
 
     def action_escape(self) -> None:
-        """Handle Escape: cancel picker, dismiss prompts, or interrupt agent."""
+        """Handle Escape: cancel picker, dismiss prompts, close overlay, or interrupt agent."""
+        # Sidebar overlay takes priority (most likely what user wants to dismiss)
+        if self._sidebar_overlay_open:
+            self._close_sidebar_overlay()
+            return
+
         # Session picker takes priority
         if self._session_picker_active:
             self._hide_session_picker()
@@ -1121,6 +1188,8 @@ class ChatApp(App):
 
     def on_agent_item_selected(self, event: AgentItem.Selected) -> None:
         """Handle agent selection from sidebar."""
+        # Close overlay when selecting (even if same agent - user is done with sidebar)
+        self._close_sidebar_overlay()
         if event.agent_id == self.active_agent_id:
             return
         self._switch_to_agent(event.agent_id)
@@ -1135,12 +1204,38 @@ class ChatApp(App):
 
     def on_worktree_item_selected(self, event: WorktreeItem.Selected) -> None:
         """Handle ghost worktree selection - create an agent there."""
+        self._close_sidebar_overlay()
         self._create_new_agent(event.branch, event.path, worktree=event.branch, auto_resume=True)
 
     def on_plan_button_clicked(self, event: PlanButton.Clicked) -> None:
         """Handle plan button click - open plan file in editor."""
         editor = os.environ.get("EDITOR", "vi")
         handle_command(self, f"/shell -i {editor} {event.plan_path}")
+
+    def on_hamburger_button_clicked(self, event: HamburgerButton.Clicked) -> None:
+        """Handle hamburger button click - toggle sidebar overlay."""
+        self._sidebar_overlay_open = not self._sidebar_overlay_open
+        self._position_right_sidebar()
+
+    def _close_sidebar_overlay(self) -> None:
+        """Close sidebar overlay if open."""
+        if self._sidebar_overlay_open:
+            self._sidebar_overlay_open = False
+            self._position_right_sidebar()
+
+    def _update_hamburger_attention(self) -> None:
+        """Update hamburger button color based on agent attention needs."""
+        try:
+            needs_attention = any(
+                a.status == AgentStatus.NEEDS_INPUT
+                for a in self.agents.values()
+            )
+            if needs_attention:
+                self.hamburger_btn.add_class("needs-attention")
+            else:
+                self.hamburger_btn.remove_class("needs-attention")
+        except Exception:
+            pass  # Widget may not be mounted
 
     def on_edit_plan_requested(self, event: EditPlanRequested) -> None:
         """Handle edit plan button click in ExitPlanMode widget."""
@@ -1466,6 +1561,8 @@ class ChatApp(App):
         """Handle agent status change."""
         try:
             self.agent_sidebar.update_status(agent.id, agent.status)
+            # Update hamburger color if any agent needs attention
+            self._update_hamburger_attention()
         except Exception:
             log.debug(f"Failed to update sidebar status for agent {agent.id}")
 

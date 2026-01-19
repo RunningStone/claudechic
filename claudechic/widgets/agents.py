@@ -13,6 +13,49 @@ from textual.widgets import Static
 from rich.text import Text
 
 
+class HamburgerButton(Widget):
+    """Floating hamburger button for narrow screens."""
+
+    class Clicked(Message):
+        """Posted when hamburger is clicked."""
+        pass
+
+    DEFAULT_CSS = """
+    HamburgerButton {
+        layer: above;
+        width: 10;
+        height: 3;
+        content-align: center middle;
+        background: $surface;
+        color: $text-muted;
+        display: none;
+        /* Position top-right */
+        offset: -1 1;
+        dock: right;
+        border: round $panel;
+    }
+    HamburgerButton:hover {
+        color: $text;
+    }
+    HamburgerButton.visible {
+        display: block;
+    }
+    HamburgerButton.needs-attention {
+        color: $primary;
+        border: round $primary;
+    }
+    """
+
+    def __init__(self, id: str | None = None) -> None:
+        super().__init__(id=id)
+
+    def render(self) -> str:
+        return "Agents"
+
+    def on_click(self) -> None:
+        self.post_message(self.Clicked())
+
+
 class PlanButton(Widget):
     """Button to open the current session's plan file."""
 

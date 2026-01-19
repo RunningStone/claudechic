@@ -617,3 +617,87 @@ async def test_bang_command_shows_exit_code(mock_sdk):
         widgets = list(chat_view.query(ShellOutputWidget))
         assert len(widgets) == 1
         assert widgets[0].returncode == 42
+
+
+@pytest.mark.asyncio
+async def test_hamburger_button_narrow_screen(mock_sdk):
+    """Hamburger button appears on narrow screens with multiple agents."""
+    from claudechic.widgets import HamburgerButton
+
+    app = ChatApp()
+    # Start narrow (below SIDEBAR_MIN_WIDTH=110)
+    async with app.run_test(size=(80, 40)) as pilot:
+        # Create second agent so sidebar has content
+        await submit_command(app, pilot, "/agent second")
+        await wait_for_workers(app)
+
+        hamburger = app.query_one("#hamburger-btn", HamburgerButton)
+
+        # Trigger layout update
+        app._position_right_sidebar()
+        await pilot.pause()
+
+        # Hamburger should be visible on narrow screen with multiple agents
+        assert hamburger.has_class("visible")
+
+        # Sidebar should be hidden (not overlay yet)
+        sidebar = app.query_one("#right-sidebar")
+        assert sidebar.has_class("hidden")
+
+
+@pytest.mark.asyncio
+async def test_hamburger_opens_sidebar_overlay(mock_sdk):
+    """Clicking hamburger opens sidebar as overlay."""
+    from claudechic.widgets import HamburgerButton
+
+    app = ChatApp()
+    async with app.run_test(size=(80, 40)) as pilot:
+        # Create second agent
+        await submit_command(app, pilot, "/agent second")
+        await wait_for_workers(app)
+
+        app._position_right_sidebar()
+        await pilot.pause()
+
+        hamburger = app.query_one("#hamburger-btn", HamburgerButton)
+        sidebar = app.query_one("#right-sidebar")
+
+        # Click hamburger
+        await pilot.click("#hamburger-btn")
+        await pilot.pause()
+
+        # Sidebar should now be visible as overlay
+        assert not sidebar.has_class("hidden")
+        assert sidebar.has_class("overlay")
+
+
+@pytest.mark.asyncio
+async def test_escape_closes_sidebar_overlay(mock_sdk):
+    """Escape key closes sidebar overlay."""
+    from claudechic.widgets import HamburgerButton
+
+    app = ChatApp()
+    async with app.run_test(size=(80, 40)) as pilot:
+        # Create second agent
+        await submit_command(app, pilot, "/agent second")
+        await wait_for_workers(app)
+
+        app._position_right_sidebar()
+        await pilot.pause()
+
+        # Open overlay via state directly (more reliable than click in test)
+        app._sidebar_overlay_open = True
+        app._position_right_sidebar()
+        await pilot.pause()
+
+        sidebar = app.query_one("#right-sidebar")
+        assert not sidebar.has_class("hidden"), "Sidebar should be visible after opening overlay"
+        assert app._sidebar_overlay_open, "Overlay state should be True"
+
+        # Call action_escape directly (escape key may be consumed by input widget)
+        app.action_escape()
+        await pilot.pause()
+
+        # Sidebar should be hidden again
+        assert not app._sidebar_overlay_open, "Overlay state should be False after escape"
+        assert sidebar.has_class("hidden"), "Sidebar should be hidden after escape"

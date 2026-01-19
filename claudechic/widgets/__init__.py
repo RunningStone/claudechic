@@ -7,7 +7,7 @@ from claudechic.widgets.diff import DiffWidget
 from claudechic.widgets.todo import TodoWidget, TodoPanel
 from claudechic.widgets.prompts import BasePrompt, SelectionPrompt, QuestionPrompt, SessionItem
 from claudechic.widgets.autocomplete import TextAreaAutoComplete
-from claudechic.widgets.agents import AgentItem, AgentSidebar, WorktreeItem, PlanButton
+from claudechic.widgets.agents import AgentItem, AgentSidebar, WorktreeItem, PlanButton, HamburgerButton
 from claudechic.widgets.scroll import AutoHideScroll
 from claudechic.widgets.chat_view import ChatView
 from claudechic.widgets.history_search import HistorySearch
@@ -41,6 +41,7 @@ __all__ = [
     "AgentSidebar",
     "WorktreeItem",
     "PlanButton",
+    "HamburgerButton",
     "AutoHideScroll",
     "ChatView",
     "HistorySearch",
