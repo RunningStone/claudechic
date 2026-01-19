@@ -614,10 +614,9 @@ class Agent:
         elif result == PermissionChoice.ALLOW:
             return PermissionResultAllow()
         elif result.startswith(f"{PermissionChoice.DENY}:"):
-            # User provided alternative instructions - store for follow-up after response
+            # User provided alternative instructions - don't interrupt so model continues
             message = result[5:]  # Strip "deny:" prefix
-            self._pending_followup = message
-            return PermissionResultDeny(message=message, interrupt=True)
+            return PermissionResultDeny(message=message, interrupt=False)
         else:
             return PermissionResultDeny(message="User denied permission")
 
