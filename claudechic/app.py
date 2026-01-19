@@ -22,6 +22,7 @@ from textual.widgets import ListView, TextArea
 from textual import work
 
 from claude_agent_sdk import (
+    CLIConnectionError,
     ClaudeSDKClient,
     ClaudeAgentOptions,
     SystemMessage,
@@ -476,7 +477,10 @@ class ChatApp(App):
 
         # Connect the agent to SDK
         options = self._make_options(cwd=agent.cwd, resume=resume, agent_name=agent.name)
-        await agent.connect(options, resume=resume)
+        try:
+            await agent.connect(options, resume=resume)
+        except CLIConnectionError as e:
+            self.exit(message=f"Connection failed: {e}\n\nPlease run `claude /login` to authenticate.")
 
         # Load history if resuming
         if resume:

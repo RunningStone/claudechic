@@ -16,3 +16,6 @@ wheels/
 test_write*.txt
 site/
 uv.lock
+
+# Recordings
+*.cast
