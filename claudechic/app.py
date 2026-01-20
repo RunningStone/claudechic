@@ -82,9 +82,12 @@ from claudechic.sampling import start_sampler
 log = logging.getLogger(__name__)
 
 
+# Matches ask_agent: [Question from agent 'X' - please respond back using tell_agent, or ask_agent if you need more context]
 _AGENT_QUESTION_RE = re.compile(
-    r"^\[Question from agent '([^']+)' - please respond back using ask_agent\]\n\n"
+    r"^\[Question from agent '([^']+)' - please respond back using tell_agent, or ask_agent if you need more context\]\n\n"
 )
+# Matches tell_agent: [Message from agent 'X']
+_AGENT_MESSAGE_RE = re.compile(r"^\[Message from agent '([^']+)'\]\n\n")
 
 
 def _format_agent_prompt(prompt: str) -> tuple[str, bool]:
@@ -92,7 +95,12 @@ def _format_agent_prompt(prompt: str) -> tuple[str, bool]:
     match = _AGENT_QUESTION_RE.match(prompt)
     if match:
         agent_name = match.group(1)
-        rest = prompt[match.end():]
+        rest = prompt[match.end() :]
+        return f"Question from **{agent_name}**:\n\n{rest}", True
+    match = _AGENT_MESSAGE_RE.match(prompt)
+    if match:
+        agent_name = match.group(1)
+        rest = prompt[match.end() :]
         return f"From **{agent_name}**:\n\n{rest}", True
     return prompt, False
 

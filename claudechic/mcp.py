@@ -3,7 +3,8 @@
 Exposes tools for Claude to manage agents within claudechic:
 - spawn_agent: Create new agent, optionally with initial prompt
 - spawn_worktree: Create git worktree + agent
-- ask_agent: Send question to existing agent (non-blocking)
+- ask_agent: Send question to existing agent (expects reply)
+- tell_agent: Send message to existing agent (no reply expected)
 - list_agents: List current agents and their status
 - close_agent: Close an agent by name
 """
@@ -139,7 +140,7 @@ def _make_ask_agent(caller_name: str | None = None):
 
     @tool(
         "ask_agent",
-        "Send a question to another agent. Returns immediately - the agent will respond back using ask_agent when ready.",
+        "Send a question to another agent. Returns immediately - the agent will respond back using tell_agent (or ask_agent if they need more context) when ready.",
         {"name": str, "prompt": str},
     )
     async def ask_agent(args: dict[str, Any]) -> dict[str, Any]:
@@ -156,7 +157,7 @@ def _make_ask_agent(caller_name: str | None = None):
 
         # Wrap prompt with caller info and reply expectation
         if caller_name:
-            prompt = f"[Question from agent '{caller_name}' - please respond back using ask_agent]\n\n{prompt}"
+            prompt = f"[Question from agent '{caller_name}' - please respond back using tell_agent, or ask_agent if you need more context]\n\n{prompt}"
 
         try:
             await _send_prompt_to_agent(agent, prompt)
@@ -166,6 +167,40 @@ def _make_ask_agent(caller_name: str | None = None):
         return _text_response(f"Question sent to '{name}'. They will respond when ready.")
 
     return ask_agent
+
+
+def _make_tell_agent(caller_name: str | None = None):
+    """Create tell_agent tool with optional caller name bound."""
+
+    @tool(
+        "tell_agent",
+        "Send a message to another agent without expecting a reply. Use for status updates, results, or answering questions.",
+        {"name": str, "message": str},
+    )
+    async def tell_agent(args: dict[str, Any]) -> dict[str, Any]:
+        """Send message to an agent. Non-blocking, no reply expected."""
+        if _app is None or _app.agent_mgr is None:
+            return _text_response("Error: App not initialized")
+
+        name = args["name"]
+        message = args["message"]
+
+        agent, error = _find_agent_by_name(name)
+        if agent is None:
+            return _text_response(f"Error: {error}")
+
+        # Wrap message with caller info (no reply expectation)
+        if caller_name:
+            message = f"[Message from agent '{caller_name}']\n\n{message}"
+
+        try:
+            await _send_prompt_to_agent(agent, message)
+        except Exception as e:
+            return _text_response(f"Error: {e}")
+
+        return _text_response(f"Message sent to '{name}'.")
+
+    return tell_agent
 
 
 @tool(
@@ -224,10 +259,17 @@ def create_chic_server(caller_name: str | None = None):
 
     Args:
         caller_name: Name of the agent that will use this server.
-            Used to identify the sender in ask_agent calls.
+            Used to identify the sender in ask_agent/tell_agent calls.
     """
     return create_sdk_mcp_server(
         name="chic",
         version="1.0.0",
-        tools=[spawn_agent, spawn_worktree, _make_ask_agent(caller_name), list_agents, close_agent],
+        tools=[
+            spawn_agent,
+            spawn_worktree,
+            _make_ask_agent(caller_name),
+            _make_tell_agent(caller_name),
+            list_agents,
+            close_agent,
+        ],
     )
