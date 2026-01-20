@@ -10,7 +10,9 @@ from rich.text import Text
 
 from textual.app import ComposeResult
 from textual.message import Message
-from textual.widgets import Markdown, Static, Collapsible, Button
+from textual.widgets import Markdown, Static, Button
+
+from claudechic.widgets.collapsible import QuietCollapsible
 
 from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 
@@ -101,7 +103,7 @@ class ToolUseWidget(Static):
         if self.block.name == ToolName.SKILL and not self.block.input.get("args"):
             yield Static(self._header, classes="skill-header")
             return
-        with Collapsible(title=self._header, collapsed=self._initial_collapsed):
+        with QuietCollapsible(title=self._header, collapsed=self._initial_collapsed):
             if self.block.name == ToolName.EDIT:
                 path = make_relative(self.block.input.get("file_path", ""), self._cwd)
                 yield DiffWidget(
@@ -130,7 +132,7 @@ class ToolUseWidget(Static):
     def collapse(self) -> None:
         """Collapse this widget."""
         try:
-            self.query_one(Collapsible).collapsed = True
+            self.query_one(QuietCollapsible).collapsed = True
         except Exception:
             pass  # Widget may not be mounted
 
@@ -207,7 +209,7 @@ class ToolUseWidget(Static):
         except Exception:
             pass
         try:
-            collapsible = self.query_one(Collapsible)
+            collapsible = self.query_one(QuietCollapsible)
             if result.is_error:
                 collapsible.add_class("error")
             # Update title with result summary
@@ -304,13 +306,13 @@ class TaskWidget(Static):
         desc = self.block.input.get("description", "Task")
         agent_type = self.block.input.get("subagent_type", "")
         title = f"Task: {desc}" + (f" ({agent_type})" if agent_type else "")
-        with Collapsible(title=title, collapsed=self._initial_collapsed):
+        with QuietCollapsible(title=title, collapsed=self._initial_collapsed):
             yield Static("", id="task-content")
 
     def collapse(self) -> None:
         """Collapse this widget."""
         try:
-            self.query_one(Collapsible).collapsed = True
+            self.query_one(QuietCollapsible).collapsed = True
         except Exception:
             pass  # Widget may not be mounted
 
@@ -362,7 +364,7 @@ class TaskWidget(Static):
             widget.stop_spinner()
         self._pending_tools.clear()
         try:
-            collapsible = self.query_one(Collapsible)
+            collapsible = self.query_one(QuietCollapsible)
             if result.is_error:
                 collapsible.add_class("error")
         except Exception:
@@ -392,7 +394,7 @@ class ShellOutputWidget(Static):
         if self.returncode != 0:
             title += f" (exit {self.returncode})"
         yield Button("⧉", classes="copy-btn")
-        with Collapsible(title=title, collapsed=self._collapsed):
+        with QuietCollapsible(title=title, collapsed=self._collapsed):
             # Combine stderr + stdout, parse ANSI color codes
             output = "\n".join(filter(None, [self.stderr, self.stdout])).rstrip()
             if output:
