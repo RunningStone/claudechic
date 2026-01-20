@@ -1,6 +1,5 @@
 """Profile statistics modal."""
 
-import pyperclip
 from rich.table import Table
 
 from textual.app import ComposeResult
@@ -186,6 +185,8 @@ class ProfileModal(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "copy-btn":
             try:
+                import pyperclip
+
                 text = get_stats_text() + "\n" + _get_sampling_text()
                 pyperclip.copy(text)
                 self.notify("Copied to clipboard")

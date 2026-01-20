@@ -5,7 +5,6 @@ import logging
 import re
 from pathlib import Path
 
-import pyperclip
 from rich.text import Text
 
 from textual.app import ComposeResult
@@ -173,6 +172,8 @@ class ToolUseWidget(Static, HoverableMixin):
         if "copy-btn" in event.button.classes:
             event.stop()
             try:
+                import pyperclip
+
                 pyperclip.copy(self.get_copyable_content())
                 self.app.notify("Copied tool output")
             except Exception as e:
@@ -416,6 +417,8 @@ class ShellOutputWidget(Static, HoverableMixin):
         if "copy-btn" in event.button.classes:
             event.stop()
             try:
+                import pyperclip
+
                 pyperclip.copy(self.get_copyable_content())
                 self.app.notify("Copied shell output")
             except Exception as e:

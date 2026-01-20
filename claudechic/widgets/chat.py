@@ -4,8 +4,6 @@ import re
 import time
 from pathlib import Path
 
-import pyperclip
-
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -235,6 +233,8 @@ class ChatMessage(Static, PointerMixin):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "copy-btn":
             try:
+                import pyperclip
+
                 pyperclip.copy(self.get_raw_content())
                 self.app.notify("Copied to clipboard")
             except Exception as e:
