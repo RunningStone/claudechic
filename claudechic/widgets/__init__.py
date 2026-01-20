@@ -1,5 +1,7 @@
 """Textual widgets for Claude Code UI."""
 
+from claudechic.cursor import ClickableMixin
+from claudechic.widgets.button import Button
 from claudechic.widgets.indicators import CPUBar, ContextBar
 from claudechic.widgets.chat import (
     ChatMessage,
@@ -44,6 +46,8 @@ from claudechic.widgets.usage import UsageReport
 from claudechic.widgets.profile_modal import ProfileModal
 
 __all__ = [
+    "Button",
+    "ClickableMixin",
     "CPUBar",
     "ContextBar",
     "ChatMessage",

@@ -1,18 +1,12 @@
-"""OSC 22 mouse pointer cursor control.
+"""Mouse cursor and hover mixins for Textual widgets.
 
-Modern terminals (Ghostty, Kitty, WezTerm, foot) support OSC 22 to change
-the mouse pointer shape. This provides visual feedback for clickable elements.
+Provides three mixins for different use cases:
+- ClickableMixin: Hand cursor + .hovered class (for buttons)
+- PointerMixin: Configurable cursor style (for text areas)
+- HoverableMixin: Just .hovered class (for hover effects without cursor)
 
-Unsupported terminals simply ignore the escape sequence.
-
-Usage:
-    from claudechic.cursor import PointerMixin
-
-    class MyButton(Widget, PointerMixin):
-        pass  # shows hand cursor on hover
-
-    class MyText(Widget, PointerMixin):
-        pointer_style = "text"  # shows I-beam cursor
+Uses OSC 22 escape sequences supported by modern terminals
+(Ghostty, Kitty, WezTerm, foot). Unsupported terminals ignore the sequence.
 """
 
 import os
@@ -78,20 +72,10 @@ class PointerMixin:
             super().on_leave()  # type: ignore[misc]
 
 
-class ContainerPointerMixin(PointerMixin):
-    """PointerMixin for widgets with children that also change cursor.
-
-    Uses on_mouse_move to maintain cursor when moving between children.
-    """
-
-    def on_mouse_move(self) -> None:
-        set_pointer(self.pointer_style)
-
-
 class HoverableMixin:
     """Mixin for widgets that need a .hovered class for CSS styling.
 
-    Adds/removes 'hovered' class on mouse enter/leave/move. Useful when
+    Adds/removes 'hovered' class on mouse enter/leave. Useful when
     CSS :hover doesn't propagate properly through child widgets.
     """
 
@@ -102,5 +86,26 @@ class HoverableMixin:
         self.remove_class("hovered")  # type: ignore[attr-defined]
         set_pointer("default")
 
-    def on_mouse_move(self) -> None:
+
+class ClickableMixin:
+    """Mixin for clickable widgets with hand cursor and hover state.
+
+    Combines pointer cursor with .hovered class. Use for buttons and
+    clickable containers.
+
+    Example:
+        class MyButton(Static, ClickableMixin):
+            pass
+
+        class MyContainer(Widget, ClickableMixin):
+            def compose(self):
+                yield Child()
+    """
+
+    def on_enter(self) -> None:
+        set_pointer("pointer")
         self.add_class("hovered")  # type: ignore[attr-defined]
+
+    def on_leave(self) -> None:
+        set_pointer("default")
+        self.remove_class("hovered")  # type: ignore[attr-defined]

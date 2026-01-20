@@ -67,9 +67,8 @@ StatusFooter {
     width: auto;
 }
 
-#model-label:hover {
-    color: $text;
-    text-style: underline;
+ModelLabel:hover {
+    background: $panel;
 }
 
 .footer-sep {

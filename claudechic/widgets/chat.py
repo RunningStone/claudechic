@@ -10,23 +10,18 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
-from textual.widgets import Markdown, TextArea, Static, Button
+from textual.widgets import Markdown, TextArea, Static
 
 from claudechic.cursor import PointerMixin, set_pointer
 from claudechic.errors import log_exception
 from claudechic.profiling import profile
+from claudechic.widgets.button import Button
 
 
 class CopyButton(Button):
     """Copy button with hand cursor on hover."""
 
-    def on_enter(self) -> None:
-        set_pointer("pointer")
-        self.add_class("hovered")
-
-    def on_leave(self) -> None:
-        set_pointer("default")
-        self.remove_class("hovered")
+    pass
 
 
 class Spinner(Static):
@@ -208,19 +203,18 @@ class ChatMessage(Static, PointerMixin):
                 self.app.notify(f"Copy failed: {e}", severity="error")
 
 
-class ChatAttachment(Button, PointerMixin):
+class ChatAttachment(Button):
     """Clickable attachment tag in chat messages - opens file on click."""
 
     def __init__(self, path: str, display_name: str) -> None:
         super().__init__(f"📎 {display_name}", classes="chat-attachment")
         self._path = path
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    def on_click(self, event) -> None:
         """Open the file when clicked."""
         import subprocess
         import sys
 
-        event.stop()
         try:
             if sys.platform == "darwin":
                 subprocess.run(["open", self._path], check=True)

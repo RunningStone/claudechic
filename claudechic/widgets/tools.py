@@ -10,7 +10,9 @@ from rich.text import Text
 
 from textual.app import ComposeResult
 from textual.message import Message
-from textual.widgets import Markdown, Static, Button
+from textual.widgets import Markdown, Static
+
+from claudechic.widgets.button import Button
 
 from claudechic.widgets.collapsible import QuietCollapsible
 

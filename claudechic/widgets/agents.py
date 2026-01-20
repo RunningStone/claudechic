@@ -3,9 +3,6 @@
 from pathlib import Path
 
 from textual.app import ComposeResult
-
-from claudechic.cursor import ContainerPointerMixin, PointerMixin
-from claudechic.enums import AgentStatus
 from textual.events import Click
 from textual.message import Message
 from textual.reactive import reactive
@@ -13,14 +10,12 @@ from textual.widget import Widget
 from textual.widgets import Static
 from rich.text import Text
 
-
-class PointerStatic(Static, PointerMixin):
-    """Static widget that shows pointer cursor on hover."""
-
-    pass
+from claudechic.enums import AgentStatus
+from claudechic.cursor import ClickableMixin
+from claudechic.widgets.button import Button
 
 
-class HamburgerButton(Widget, PointerMixin):
+class HamburgerButton(Button):
     """Floating hamburger button for narrow screens."""
 
     class Clicked(Message):
@@ -60,11 +55,11 @@ class HamburgerButton(Widget, PointerMixin):
     def render(self) -> str:
         return "Agents"
 
-    def on_click(self) -> None:
+    def on_click(self, event) -> None:
         self.post_message(self.Clicked())
 
 
-class PlanButton(Widget, ContainerPointerMixin):
+class PlanButton(Button):
     """Button to open the current session's plan file."""
 
     class Clicked(Message):
@@ -77,15 +72,12 @@ class PlanButton(Widget, ContainerPointerMixin):
     DEFAULT_CSS = """
     PlanButton {
         height: 3;
+        min-height: 3;
         padding: 1 1 1 2;
         dock: bottom;
     }
     PlanButton:hover {
         background: $surface-lighten-1;
-    }
-    PlanButton .plan-label {
-        width: 1fr;
-        color: $text-muted;
     }
     """
 
@@ -93,16 +85,14 @@ class PlanButton(Widget, ContainerPointerMixin):
         super().__init__()
         self.plan_path = plan_path
 
-    def compose(self) -> ComposeResult:
-        yield PointerStatic(
-            Text.assemble(("📋", ""), " ", ("Plan", "dim")), classes="plan-label"
-        )
+    def render(self) -> Text:
+        return Text.assemble(("📋", ""), " ", ("Plan", "dim"))
 
-    def on_click(self) -> None:
+    def on_click(self, event) -> None:
         self.post_message(self.Clicked(self.plan_path))
 
 
-class WorktreeItem(Widget, ContainerPointerMixin):
+class WorktreeItem(Widget, ClickableMixin):
     """A ghost worktree in the sidebar (not yet an agent)."""
 
     class Selected(Message):
@@ -116,17 +106,11 @@ class WorktreeItem(Widget, ContainerPointerMixin):
     DEFAULT_CSS = """
     WorktreeItem {
         height: 3;
+        min-height: 3;
         padding: 1 1 1 2;
-        layout: horizontal;
     }
     WorktreeItem:hover {
         background: $surface-lighten-1;
-    }
-    WorktreeItem .worktree-label {
-        width: 1fr;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        color: $text-muted;
     }
     """
 
@@ -135,18 +119,17 @@ class WorktreeItem(Widget, ContainerPointerMixin):
         self.branch = branch
         self.path = path
 
-    def compose(self) -> ComposeResult:
+    def render(self) -> Text:
         name = self.branch
         if len(name) > 16:
             name = name[:15] + "…"
-        label = Text.assemble(("◌", ""), " ", (name, "dim"))
-        yield PointerStatic(label, classes="worktree-label")
+        return Text.assemble(("◌", ""), " ", (name, "dim"))
 
-    def on_click(self) -> None:
+    def on_click(self, event) -> None:
         self.post_message(self.Selected(self.branch, self.path))
 
 
-class AgentItem(Widget, ContainerPointerMixin):
+class AgentItem(Widget, ClickableMixin):
     """A single agent in the sidebar."""
 
     class Selected(Message):
@@ -179,6 +162,7 @@ class AgentItem(Widget, ContainerPointerMixin):
     }
     AgentItem .agent-label {
         width: 1fr;
+        height: 1;
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -208,8 +192,8 @@ class AgentItem(Widget, ContainerPointerMixin):
         self.status = status
 
     def compose(self) -> ComposeResult:
-        yield PointerStatic(self._render_label(), classes="agent-label")
-        yield PointerStatic(Text("X"), classes="agent-close")
+        yield Static(self._render_label(), classes="agent-label")
+        yield Static(Text("X"), classes="agent-close")
 
     def _render_label(self) -> Text:
         if self.status == AgentStatus.BUSY:
@@ -229,7 +213,7 @@ class AgentItem(Widget, ContainerPointerMixin):
     def watch_status(self, _status: str) -> None:
         """Update label when status changes."""
         try:
-            label = self.query_one(".agent-label", PointerStatic)
+            label = self.query_one(".agent-label", Static)
             label.update(self._render_label())
         except Exception:
             pass  # Widget may not be mounted yet

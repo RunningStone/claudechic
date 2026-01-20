@@ -3,32 +3,32 @@
 import asyncio
 
 from textual.app import ComposeResult
+from textual.message import Message
 from textual.reactive import reactive
 from textual.containers import Horizontal
-from textual.message import Message
 from textual.widgets import Static
 
-from claudechic.cursor import PointerMixin
+from claudechic.widgets.button import Button
 from claudechic.widgets.indicators import CPUBar, ContextBar
 
 
-class AutoEditLabel(Static, PointerMixin):
+class AutoEditLabel(Button):
     """Clickable auto-edit status label."""
 
     class Toggled(Message):
         """Emitted when auto-edit is toggled."""
 
-    def on_click(self) -> None:
+    def on_click(self, event) -> None:
         self.post_message(self.Toggled())
 
 
-class ModelLabel(Static):
+class ModelLabel(Button):
     """Clickable model label."""
 
     class Clicked(Message):
         """Emitted when model label is clicked."""
 
-    def on_click(self) -> None:
+    def on_click(self, event) -> None:
         self.post_message(self.Clicked())
 
 

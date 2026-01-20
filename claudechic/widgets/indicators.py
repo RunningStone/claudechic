@@ -4,15 +4,14 @@ import psutil
 
 from textual.app import RenderResult
 from textual.reactive import reactive
-from textual.widget import Widget
 from rich.text import Text
 
-from claudechic.cursor import PointerMixin
+from claudechic.widgets.button import Button
 from claudechic.formatting import MAX_CONTEXT_TOKENS
 from claudechic.profiling import profile, timed
 
 
-class CPUBar(Widget, PointerMixin):
+class CPUBar(Button):
     """Display CPU usage. Click to show profiling stats."""
 
     cpu_pct = reactive(0.0)
@@ -45,14 +44,14 @@ class CPUBar(Widget, PointerMixin):
             color = "red"
         return Text.assemble(("CPU ", "dim"), (f"{self.cpu_pct:3.0f}%", color))
 
-    def on_click(self) -> None:
+    def on_click(self, event) -> None:
         """Show profile modal on click."""
         from claudechic.widgets.profile_modal import ProfileModal
 
         self.app.push_screen(ProfileModal())
 
 
-class ContextBar(Widget, PointerMixin):
+class ContextBar(Button):
     """Display context usage as a progress bar. Click to run /context."""
 
     tokens = reactive(0)
@@ -84,7 +83,7 @@ class ContextBar(Widget, PointerMixin):
                 result.append(" ", style=f"on {bg}")
         return result
 
-    def on_click(self) -> None:
+    def on_click(self, event) -> None:
         """Run /context command on click."""
         from claudechic.app import ChatApp
 
