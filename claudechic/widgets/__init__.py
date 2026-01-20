@@ -27,6 +27,7 @@ from claudechic.widgets.prompts import (
     QuestionPrompt,
     SessionItem,
 )
+from claudechic.widgets.model_prompt import ModelPrompt
 from claudechic.widgets.autocomplete import TextAreaAutoComplete
 from claudechic.widgets.agents import (
     AgentItem,
@@ -78,4 +79,5 @@ __all__ = [
     "HistorySearch",
     "UsageReport",
     "ProfileModal",
+    "ModelPrompt",
 ]

@@ -74,7 +74,8 @@ from claudechic.widgets import (
     HamburgerButton,
     EditPlanRequested,
 )
-from claudechic.widgets.footer import AutoEditLabel, StatusFooter
+from claudechic.widgets.footer import AutoEditLabel, ModelLabel, StatusFooter
+from claudechic.widgets.model_prompt import ModelPrompt
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
 from claudechic.profiling import profile
 from claudechic.sampling import start_sampler
@@ -179,6 +180,10 @@ class ChatApp(App):
         # Sidebar overlay state (for narrow screens)
         self._sidebar_overlay_open = False
         self._hamburger_btn: HamburgerButton | None = None
+        # Selected model (None = SDK default)
+        self.selected_model: str | None = None
+        # Available models from SDK (populated in _update_slash_commands)
+        self._available_models: list[dict] = []
 
     # Properties to access active agent's state
     @property
@@ -428,6 +433,7 @@ class ChatApp(App):
         "/theme",
         "/compactish",
         "/usage",
+        "/model",
         "/welcome",
     ]
 
@@ -474,6 +480,7 @@ class ChatApp(App):
             setting_sources=["user", "project", "local"],
             cwd=cwd,
             resume=resume,
+            model=self.selected_model,
             mcp_servers={"chic": create_chic_server(caller_name=agent_name)},
             include_partial_messages=True,
             stderr=self._handle_sdk_stderr,
@@ -563,16 +570,24 @@ class ChatApp(App):
             all_commands = self.LOCAL_COMMANDS + sdk_commands
             autocomplete = self.query_one(TextAreaAutoComplete)
             autocomplete.slash_commands = all_commands
-            # Update footer with model info - first model marked 'default' is active
+            # Update footer with model info and store available models
             if "models" in info:
                 models = info["models"]
                 if isinstance(models, list) and models:
-                    # Find active model (one marked default)
+                    self._available_models = models
+                    # Find active model - either user-selected or SDK default
                     active = models[0]
                     for m in models:
-                        if m.get("value") == "default":
+                        # If user selected a model, find it
+                        if (
+                            self.selected_model
+                            and m.get("value") == self.selected_model
+                        ):
                             active = m
                             break
+                        # Otherwise use the one marked 'default' by SDK
+                        if m.get("value") == "default":
+                            active = m
                     # Extract short name from description like "Opus 4.5 · ..."
                     desc = active.get("description", "")
                     model_name = (
@@ -1287,6 +1302,10 @@ class ChatApp(App):
         """Handle auto-edit label click - toggle auto-edit mode."""
         self.action_cycle_permission_mode()
 
+    def on_model_label_clicked(self, event: ModelLabel.Clicked) -> None:
+        """Handle model label click - open model selector."""
+        self._handle_model_prompt()
+
     def _close_sidebar_overlay(self) -> None:
         """Close sidebar overlay if open."""
         if self._sidebar_overlay_open:
@@ -1416,6 +1435,36 @@ class ChatApp(App):
         widget = UsageReport(usage)
         chat_view.mount(widget)
         chat_view.scroll_if_tailing()
+
+    @work(group="model_prompt", exclusive=True, exit_on_error=False)
+    async def _handle_model_prompt(self) -> None:
+        """Show model selection prompt and handle result."""
+        from textual.containers import Center
+
+        if not self._available_models:
+            self.notify("No models available", severity="warning")
+            return
+
+        prompt = ModelPrompt(self._available_models, current_value=self.selected_model)
+        container = Center(prompt, id="model-modal")
+        self.mount(container)
+
+        try:
+            result = await prompt.wait()
+        finally:
+            container.remove()
+
+        if result and result != self.selected_model:
+            self.selected_model = result
+            # Reconnect active agent with new model
+            agent = self._agent
+            if agent and agent.client:
+                self.notify(f"Switching to {result}...")
+                await agent.disconnect()
+                options = self._make_options(cwd=agent.cwd, agent_name=agent.name)
+                await agent.connect(options)
+                # Refresh model display
+                await self._update_slash_commands()
 
     @work(group="new_agent", exclusive=True, exit_on_error=False)
     async def _create_new_agent(

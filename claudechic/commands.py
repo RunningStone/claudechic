@@ -54,6 +54,10 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         app._handle_usage_command()
         return True
 
+    if cmd == "/model":
+        app._handle_model_prompt()
+        return True
+
     if cmd == "/exit":
         app.exit()
         return True

@@ -21,6 +21,16 @@ class AutoEditLabel(Static):
         self.post_message(self.Toggled())
 
 
+class ModelLabel(Static):
+    """Clickable model label."""
+
+    class Clicked(Message):
+        """Emitted when model label is clicked."""
+
+    def on_click(self) -> None:
+        self.post_message(self.Clicked())
+
+
 async def get_git_branch(cwd: str | None = None) -> str:
     """Get current git branch name (async)."""
     try:
@@ -55,7 +65,7 @@ class StatusFooter(Static):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="footer-content"):
-            yield Static("", id="model-label", classes="footer-label")
+            yield ModelLabel("", id="model-label", classes="footer-label")
             yield Static("·", classes="footer-sep")
             yield AutoEditLabel(
                 "Auto-edit: off", id="auto-edit-label", classes="footer-label"
@@ -76,7 +86,7 @@ class StatusFooter(Static):
     def watch_model(self, value: str) -> None:
         """Update model label when model changes."""
         try:
-            label = self.query_one("#model-label", Static)
+            label = self.query_one("#model-label", ModelLabel)
             label.update(value if value else "")
         except Exception:
             pass

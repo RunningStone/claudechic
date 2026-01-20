@@ -12,6 +12,7 @@ from claudechic.widgets import (
     QuestionPrompt,
     AgentSidebar,
     TodoPanel,
+    ModelPrompt,
 )
 from claudechic.widgets.todo import TodoItem
 from claudechic.widgets.indicators import ContextBar
@@ -177,6 +178,58 @@ async def test_selection_prompt_text_option():
         result = await prompt.wait()
 
     assert result == "custom:hello"
+
+
+@pytest.mark.asyncio
+async def test_model_prompt_selection():
+    """ModelPrompt allows model selection with arrow keys and numbers."""
+    # Mock SDK model list
+    models = [
+        {"value": "sonnet", "displayName": "Sonnet", "description": "Sonnet 4 · Fast"},
+        {"value": "opus", "displayName": "Opus", "description": "Opus 4.5 · Powerful"},
+        {"value": "haiku", "displayName": "Haiku", "description": "Haiku 3.5 · Quick"},
+    ]
+
+    class TestApp(App):
+        def compose(self):
+            yield ModelPrompt(models, current_value="sonnet")
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        prompt = app.query_one(ModelPrompt)
+
+        # Should start on current model (sonnet = index 0)
+        assert prompt.selected_idx == 0
+
+        # Navigate down to opus
+        await pilot.press("down")
+        assert prompt.selected_idx == 1
+
+        # Select with number key (3 = haiku)
+        await pilot.press("3")
+        result = await prompt.wait()
+
+    assert result == "haiku"
+
+
+@pytest.mark.asyncio
+async def test_model_prompt_escape():
+    """ModelPrompt returns None on escape."""
+    models = [
+        {"value": "sonnet", "displayName": "Sonnet", "description": "Sonnet 4 · Fast"},
+        {"value": "opus", "displayName": "Opus", "description": "Opus 4.5 · Powerful"},
+    ]
+    app = WidgetTestApp(lambda: ModelPrompt(models, current_value="opus"))
+    async with app.run_test() as pilot:
+        prompt = app.query_one(ModelPrompt)
+
+        # Should start on opus (index 1)
+        assert prompt.selected_idx == 1
+
+        await pilot.press("escape")
+        result = await prompt.wait()
+
+    assert result is None
 
 
 @pytest.mark.asyncio
