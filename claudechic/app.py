@@ -1650,7 +1650,8 @@ class ChatApp(App):
             else:
                 # Additional agents get new chat views
                 chat_view = ChatView(
-                    id=f"chat-view-{agent.id}", classes="chat-view hidden"
+                    id=f"chat-view-{agent.id.replace('/', '-')}",
+                    classes="chat-view hidden",
                 )
                 main = self.query_one("#main", Horizontal)
                 main.mount(chat_view, after=self.query_one("#session-picker"))

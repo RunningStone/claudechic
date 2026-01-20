@@ -264,7 +264,8 @@ class AgentSidebar(Widget):
             self._worktrees[name].remove()
             del self._worktrees[name]
         item = AgentItem(agent_id, name, status)
-        item.id = f"agent-{agent_id}"
+        # Sanitize for Textual ID (no slashes allowed)
+        item.id = f"agent-{agent_id.replace('/', '-')}"
         self._agents[agent_id] = item
         self.mount(item)
 
