@@ -863,12 +863,15 @@ class ChatApp(App):
 
         if width >= self.SIDEBAR_MIN_WIDTH and has_content:
             # Wide enough - show sidebar inline, hide hamburger
-            self.right_sidebar.display = True
+            self.right_sidebar.remove_class("hidden")
             self.right_sidebar.remove_class("overlay")
-            self.hamburger_btn.display = False
+            self.hamburger_btn.remove_class("visible")
             self._sidebar_overlay_open = False
             # Show/hide todo panel based on whether it has content
-            self.todo_panel.display = bool(self.todo_panel.todos)
+            if self.todo_panel.todos:
+                self.todo_panel.remove_class("hidden")
+            else:
+                self.todo_panel.add_class("hidden")
             # Wide enough to center chat while showing sidebar
             if width >= self.CENTERED_SIDEBAR_WIDTH:
                 main.remove_class("sidebar-shift")
@@ -884,24 +887,27 @@ class ChatApp(App):
 
             if self._sidebar_overlay_open:
                 # Sidebar open - hide hamburger, show sidebar
-                self.hamburger_btn.display = False
-                self.right_sidebar.display = True
+                self.hamburger_btn.remove_class("visible")
+                self.right_sidebar.remove_class("hidden")
                 self.right_sidebar.add_class("overlay")
-                self.todo_panel.display = bool(self.todo_panel.todos)
+                if self.todo_panel.todos:
+                    self.todo_panel.remove_class("hidden")
+                else:
+                    self.todo_panel.add_class("hidden")
             else:
                 # Sidebar closed - show hamburger
-                self.hamburger_btn.display = True
+                self.hamburger_btn.add_class("visible")
                 if needs_attention:
                     self.hamburger_btn.add_class("needs-attention")
                 else:
                     self.hamburger_btn.remove_class("needs-attention")
-                self.right_sidebar.display = False
+                self.right_sidebar.add_class("hidden")
                 self.right_sidebar.remove_class("overlay")
         else:
             # No content - hide everything
-            self.right_sidebar.display = False
+            self.right_sidebar.add_class("hidden")
             self.right_sidebar.remove_class("overlay")
-            self.hamburger_btn.display = False
+            self.hamburger_btn.remove_class("visible")
             self._sidebar_overlay_open = False
             main.remove_class("sidebar-shift")
             input_wrapper.remove_class("sidebar-shift")
@@ -1356,26 +1362,26 @@ class ChatApp(App):
             old_agent.pending_input = self.chat_input.text
             old_chat_view = self._chat_views.get(old_agent.id)
             if old_chat_view:
-                old_chat_view.display = False
+                old_chat_view.add_class("hidden")
             old_prompt = self._active_prompts.get(old_agent.id)
             if old_prompt:
-                old_prompt.display = False
+                old_prompt.add_class("hidden")
         # Switch active agent (setter syncs to AgentManager)
         self.active_agent_id = agent_id
         agent = self._agent
         chat_view = self._chat_views.get(agent_id)
         if chat_view:
-            chat_view.display = True
+            chat_view.remove_class("hidden")
         # Restore new agent's input
         if agent:
             self.chat_input.text = agent.pending_input
         # Show new agent's prompt if it has one, otherwise show input
         active_prompt = self._active_prompts.get(agent_id)
         if active_prompt:
-            active_prompt.display = True
-            self.input_container.display = False
+            active_prompt.remove_class("hidden")
+            self.input_container.add_class("hidden")
         else:
-            self.input_container.display = True
+            self.input_container.remove_class("hidden")
         # Update sidebar selection
         self.agent_sidebar.set_active(agent_id)
         # Update footer branch for new agent's cwd (async, non-blocking)
