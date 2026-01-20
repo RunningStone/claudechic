@@ -111,18 +111,17 @@ async def get_recent_sessions(
         len(candidates) if search else limit * 2
     )  # read a few extra in case some fail
 
-    for i, (f, mtime, size) in enumerate(candidates[:check_limit]):
+    for i, (f, mtime, _) in enumerate(candidates[:check_limit]):
         # Yield to event loop every 10 files to stay responsive
         if i > 0 and i % 10 == 0:
             await asyncio.sleep(0)
 
         try:
-            # Read only first 16KB - enough to find first user message
-            chunk_size = min(16384, size)
+            # Read full file for preview and line count
             async with aiofiles.open(f, mode="rb") as fh:
-                chunk = await fh.read(chunk_size)
+                content = await fh.read()
 
-            preview = _extract_preview_from_chunk(chunk)
+            preview = _extract_preview_from_chunk(content[:16384])
             if not preview:
                 continue
 
@@ -130,8 +129,8 @@ async def get_recent_sessions(
             if search and search_lower not in preview.lower():
                 continue
 
-            # msg_count is now approximate (we don't read whole file)
-            sessions.append((f.stem, preview, mtime, 1))
+            msg_count = content.count(b"\n")
+            sessions.append((f.stem, preview, mtime, msg_count))
 
             # Early exit if we have enough and not searching
             if not search and len(sessions) >= limit:
