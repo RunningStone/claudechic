@@ -1,5 +1,6 @@
 site_name: Claude Chic
 site_description: A stylish terminal UI for Claude Code
+site_url: https://mrocklin.github.io/claudechic/
 
 nav:
   - Home: index.md
