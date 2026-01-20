@@ -23,7 +23,9 @@ work (not the one who helped you in the first place)
     /agent reviewer
 
 !!! user ""
-    We did lots of work in this repository.  Please review the plan and the work with a critical eye.
+    Please review the ongoing work in this branch with a critical eye.
+
+    Tell the other agent running what you think when you're done.
 
 When you call `/agent` you create a new agent and the UI immediately moves you
 there.  That agent is in the same directory and can see all of your work, but
@@ -88,7 +90,11 @@ development in parallel with a new agent.
 !!! claude ""
     Created worktree 'my-new-feature' at ../myproject-my-new-feature with new agent
 
-*...do work with Claude...*
+!!! user ""
+    Let's start work building my new feature
+
+!!! user ""
+    ...
 
 !!! user ""
     /worktree finish

@@ -4,8 +4,7 @@ site_description: A stylish terminal UI for Claude Code
 nav:
   - Home: index.md
   - Multi-Agent: agents.md
-  - Compaction: compaction.md
-  - Building: architecture.md
+  - Architecture: architecture.md
 
 theme:
   name: material
