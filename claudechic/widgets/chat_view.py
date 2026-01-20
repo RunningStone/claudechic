@@ -89,9 +89,11 @@ class ChatView(AutoHideScroll):
     # Streaming API - called by ChatApp during live response
     # -----------------------------------------------------------------------
 
-    def append_user_message(self, text: str, images: list[ImageAttachment]) -> None:
+    def append_user_message(
+        self, text: str, images: list[ImageAttachment], is_agent: bool = False
+    ) -> None:
         """Append a user message to the view."""
-        self._mount_user_message(text, images)
+        self._mount_user_message(text, images, is_agent=is_agent)
         self.scroll_if_tailing()
 
     def start_response(self) -> None:
@@ -206,10 +208,12 @@ class ChatView(AutoHideScroll):
     # Helpers
     # -----------------------------------------------------------------------
 
-    def _mount_user_message(self, text: str, images: list[ImageAttachment]) -> None:
+    def _mount_user_message(
+        self, text: str, images: list[ImageAttachment], is_agent: bool = False
+    ) -> None:
         """Mount a user message widget with optional image attachments."""
-        msg = ChatMessage(text)
-        msg.add_class("user-message")
+        msg = ChatMessage(text, is_agent=is_agent)
+        msg.add_class("agent-message" if is_agent else "user-message")
         self.mount(msg)
 
         for i, img in enumerate(images):

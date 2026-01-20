@@ -8,7 +8,7 @@ import pyperclip
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Markdown, TextArea, Static, Button
 
@@ -135,14 +135,20 @@ class ChatMessage(Static):
     can_focus = False
     DEBOUNCE_MS = 50  # Batch updates every 50ms
 
-    def __init__(self, content: str = "") -> None:
+    def __init__(self, content: str = "", is_agent: bool = False) -> None:
         super().__init__()
         self._content = content.rstrip()
         self._debounce_timer = None
+        self._is_agent = is_agent
 
     def compose(self) -> ComposeResult:
         yield Button("⧉", id="copy-btn", classes="copy-btn")
-        yield Markdown(self._content, id="content")
+        if self._is_agent:
+            # Wrap in container for nested border effect
+            with Vertical(id="agent-inner"):
+                yield Markdown(self._content, id="content")
+        else:
+            yield Markdown(self._content, id="content")
 
     def append_content(self, text: str) -> None:
         """Append text to message content (debounced)."""

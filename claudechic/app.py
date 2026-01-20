@@ -86,14 +86,14 @@ _AGENT_QUESTION_RE = re.compile(
 )
 
 
-def _format_agent_prompt(prompt: str) -> str:
-    """Format inter-agent prompts for nicer display."""
+def _format_agent_prompt(prompt: str) -> tuple[str, bool]:
+    """Format inter-agent prompts for nicer display. Returns (formatted, is_agent)."""
     match = _AGENT_QUESTION_RE.match(prompt)
     if match:
         agent_name = match.group(1)
         rest = prompt[match.end():]
-        return f"From **{agent_name}**:\n\n{rest}"
-    return prompt
+        return f"From **{agent_name}**:\n\n{rest}", True
+    return prompt, False
 
 
 class ChatApp(App):
@@ -1667,9 +1667,9 @@ class ChatApp(App):
             return
 
         # Format inter-agent messages nicely for display
-        display_prompt = _format_agent_prompt(prompt)
+        display_prompt, is_agent = _format_agent_prompt(prompt)
 
-        chat_view.append_user_message(display_prompt, images)
+        chat_view.append_user_message(display_prompt, images, is_agent=is_agent)
         chat_view.start_response()
 
     async def _handle_agent_permission_ui(

@@ -116,6 +116,19 @@ ChatMessage.user-message {
     margin: 2 0 2 0;
 }
 
+/* Agent-to-agent messages - double border (secondary outer, primary inner) */
+ChatMessage.agent-message {
+    border-left: thick $secondary;
+    padding-left: 0;
+    margin: 2 0 2 0;
+}
+
+ChatMessage.agent-message #agent-inner {
+    border-left: tall $primary;
+    padding-left: 2;
+    height: auto;
+}
+
 /* Assistant messages - softer, consistent spacing */
 ChatMessage.assistant-message {
     border-left: wide $secondary;
