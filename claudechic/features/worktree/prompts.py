@@ -28,7 +28,11 @@ class WorktreePrompt(BasePrompt):
         classes = "prompt-option prompt-placeholder"
         if new_idx == 0:
             classes += " selected"
-        yield Static(f"{new_idx + 1}. {self._text_option_placeholder()}", classes=classes, id=f"opt-{new_idx}")
+        yield Static(
+            f"{new_idx + 1}. {self._text_option_placeholder()}",
+            classes=classes,
+            id=f"opt-{new_idx}",
+        )
 
     def _total_options(self) -> int:
         return len(self.worktrees) + 1  # +1 for "New"

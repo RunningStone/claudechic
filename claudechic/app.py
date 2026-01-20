@@ -10,7 +10,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Any
 
 from textual.app import App, ComposeResult
 
@@ -120,12 +120,23 @@ class ChatApp(App):
         Binding("ctrl+c", "quit", "Quit", priority=True, show=False),
         Binding("ctrl+l", "clear", "Clear", show=False),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
-        Binding("shift+tab", "cycle_permission_mode", "Auto-edit", priority=True, show=False),
+        Binding(
+            "shift+tab", "cycle_permission_mode", "Auto-edit", priority=True, show=False
+        ),
         Binding("escape", "escape", "Cancel", show=False),
         Binding("ctrl+n", "new_agent", "New Agent", priority=True, show=False),
         Binding("ctrl+r", "history_search", "History", priority=True, show=False),
         # Agent switching: ctrl+1 through ctrl+9
-        *[Binding(f"ctrl+{i}", f"switch_agent({i})", f"Agent {i}", priority=True, show=False) for i in range(1, 10)],
+        *[
+            Binding(
+                f"ctrl+{i}",
+                f"switch_agent({i})",
+                f"Agent {i}",
+                priority=True,
+                show=False,
+            )
+            for i in range(1, 10)
+        ],
     ]
 
     # Auto-approve Edit/Write tools (but still prompt for Bash, etc.)
@@ -135,7 +146,9 @@ class ChatApp(App):
     SIDEBAR_MIN_WIDTH = 110  # Below this, hide sidebar
     CENTERED_SIDEBAR_WIDTH = 140  # Above this, center chat while showing sidebar
 
-    def __init__(self, resume_session_id: str | None = None, initial_prompt: str | None = None) -> None:
+    def __init__(
+        self, resume_session_id: str | None = None, initial_prompt: str | None = None
+    ) -> None:
         super().__init__()
         # AgentManager is the single source of truth for agents
         self.agent_mgr: AgentManager | None = None
@@ -160,7 +173,9 @@ class ChatApp(App):
         self._shell_process: asyncio.subprocess.Process | None = None
         # Agent-to-UI mappings (Agent has no UI references)
         self._chat_views: dict[str, ChatView] = {}  # agent_id -> ChatView
-        self._active_prompts: dict[str, Any] = {}  # agent_id -> SelectionPrompt/QuestionPrompt
+        self._active_prompts: dict[
+            str, Any
+        ] = {}  # agent_id -> SelectionPrompt/QuestionPrompt
         # Sidebar overlay state (for narrow screens)
         self._sidebar_overlay_open = False
         self._hamburger_btn: HamburgerButton | None = None
@@ -282,7 +297,9 @@ class ChatApp(App):
             self._hamburger_btn = self.query_one("#hamburger-btn", HamburgerButton)
         return self._hamburger_btn
 
-    def _set_agent_status(self, status: AgentStatus, agent_id: str | None = None) -> None:
+    def _set_agent_status(
+        self, status: AgentStatus, agent_id: str | None = None
+    ) -> None:
         """Update an agent's status and sidebar display."""
         agent = self._get_agent(agent_id)
         if not agent:
@@ -311,7 +328,9 @@ class ChatApp(App):
     async def _replace_client(self, options: ClaudeAgentOptions) -> None:
         """Safely replace current client with a new one."""
         # Cancel any permission prompts waiting for user input
-        for prompt in list(self.query(SelectionPrompt)) + list(self.query(QuestionPrompt)):
+        for prompt in list(self.query(SelectionPrompt)) + list(
+            self.query(QuestionPrompt)
+        ):
             prompt.cancel()
         old = self.client
         self.client = None
@@ -342,7 +361,9 @@ class ChatApp(App):
         """Handle removal of an image attachment from active agent."""
         agent = self._agent
         if agent:
-            agent.pending_images = [img for img in agent.pending_images if img.filename != event.filename]
+            agent.pending_images = [
+                img for img in agent.pending_images if img.filename != event.filename
+            ]
 
     @asynccontextmanager
     async def _show_prompt(self, prompt, agent: Agent | None = None):
@@ -381,17 +402,34 @@ class ChatApp(App):
         """Toggle auto-approve for Edit/Write tools for current agent."""
         if self._agent:
             self._agent._set_auto_edit(not self._agent.auto_approve_edits)
-            self.notify(f"Auto-edit: {'ON' if self._agent.auto_approve_edits else 'OFF'}")
+            self.notify(
+                f"Auto-edit: {'ON' if self._agent.auto_approve_edits else 'OFF'}"
+            )
 
     def _update_footer_auto_edit(self) -> None:
         """Update footer to reflect current agent's auto-edit state."""
         try:
-            self.status_footer.auto_edit = self._agent.auto_approve_edits if self._agent else False
+            self.status_footer.auto_edit = (
+                self._agent.auto_approve_edits if self._agent else False
+            )
         except Exception:
             pass  # Footer may not be mounted yet
 
     # Built-in slash commands (local to this app)
-    LOCAL_COMMANDS = ["/clear", "/resume", "/worktree", "/worktree finish", "/worktree cleanup", "/agent", "/agent close", "/shell", "/theme", "/compactish", "/usage", "/welcome"]
+    LOCAL_COMMANDS = [
+        "/clear",
+        "/resume",
+        "/worktree",
+        "/worktree finish",
+        "/worktree cleanup",
+        "/agent",
+        "/agent close",
+        "/shell",
+        "/theme",
+        "/compactish",
+        "/usage",
+        "/welcome",
+    ]
 
     def compose(self) -> ComposeResult:
         yield HamburgerButton(id="hamburger-btn")
@@ -420,7 +458,10 @@ class ChatApp(App):
         self._show_system_info(message, "warning", None)
 
     def _make_options(
-        self, cwd: Path | None = None, resume: str | None = None, agent_name: str | None = None
+        self,
+        cwd: Path | None = None,
+        resume: str | None = None,
+        agent_name: str | None = None,
     ) -> ClaudeAgentOptions:
         """Create SDK options with common settings.
 
@@ -488,11 +529,15 @@ class ChatApp(App):
             resume = sessions[0][0] if sessions else None
 
         # Connect the agent to SDK
-        options = self._make_options(cwd=agent.cwd, resume=resume, agent_name=agent.name)
+        options = self._make_options(
+            cwd=agent.cwd, resume=resume, agent_name=agent.name
+        )
         try:
             await agent.connect(options, resume=resume)
         except CLIConnectionError as e:
-            self.exit(message=f"Connection failed: {e}\n\nPlease run `claude /login` to authenticate.")
+            self.exit(
+                message=f"Connection failed: {e}\n\nPlease run `claude /login` to authenticate."
+            )
 
         # Load history if resuming
         if resume:
@@ -530,7 +575,11 @@ class ChatApp(App):
                             break
                     # Extract short name from description like "Opus 4.5 · ..."
                     desc = active.get("description", "")
-                    model_name = desc.split("·")[0].strip() if "·" in desc else active.get("displayName", "")
+                    model_name = (
+                        desc.split("·")[0].strip()
+                        if "·" in desc
+                        else active.get("displayName", "")
+                    )
                     self.status_footer.model = model_name
         except Exception as e:
             log.warning(f"Failed to fetch SDK commands: {e}")
@@ -542,7 +591,9 @@ class ChatApp(App):
         if self.file_index:
             await self.file_index.refresh()
 
-    async def _load_and_display_history(self, session_id: str, cwd: Path | None = None) -> None:
+    async def _load_and_display_history(
+        self, session_id: str, cwd: Path | None = None
+    ) -> None:
         """Load session history into agent and render in chat view.
 
         This uses Agent.messages as the single source of truth.
@@ -600,13 +651,17 @@ class ChatApp(App):
 
         # Try slash commands and bang commands first
         stripped = prompt.strip()
-        if (stripped.startswith("/") or stripped.startswith("!")) and handle_command(self, prompt):
+        if (stripped.startswith("/") or stripped.startswith("!")) and handle_command(
+            self, prompt
+        ):
             return
 
         # User message will be mounted by _on_agent_prompt_sent callback
         self._send_to_active_agent(prompt)
 
-    def _send_to_active_agent(self, prompt: str, *, display_as: str | None = None) -> None:
+    def _send_to_active_agent(
+        self, prompt: str, *, display_as: str | None = None
+    ) -> None:
         """Send prompt to active agent using Agent.send().
 
         Args:
@@ -620,7 +675,9 @@ class ChatApp(App):
 
         self._send_to_agent(self.agent_mgr.active, prompt, display_as=display_as)
 
-    def _send_to_agent(self, agent: "Agent", prompt: str, *, display_as: str | None = None) -> None:
+    def _send_to_agent(
+        self, agent: "Agent", prompt: str, *, display_as: str | None = None
+    ) -> None:
         """Send prompt to a specific agent.
 
         Args:
@@ -635,7 +692,9 @@ class ChatApp(App):
             pass
 
         # Start async send (returns immediately, callbacks handle UI)
-        asyncio.create_task(agent.send(prompt, display_as=display_as), name=f"send-{agent.id}")
+        asyncio.create_task(
+            agent.send(prompt, display_as=display_as), name=f"send-{agent.id}"
+        )
 
     def _show_thinking(self, agent_id: str | None = None) -> None:
         """Show the thinking indicator for a specific agent."""
@@ -683,7 +742,9 @@ class ChatApp(App):
             return
 
         # Create ToolUse data object for ChatView
-        tool = ToolUse(id=event.block.id, name=event.block.name, input=event.block.input)
+        tool = ToolUse(
+            id=event.block.id, name=event.block.name, input=event.block.input
+        )
         chat_view.append_tool_use(tool, event.block, event.parent_tool_use_id)
 
     @profile
@@ -692,7 +753,9 @@ class ChatApp(App):
         if not chat_view:
             return
 
-        chat_view.update_tool_result(event.block.tool_use_id, event.block, event.parent_tool_use_id)
+        chat_view.update_tool_result(
+            event.block.tool_use_id, event.block, event.parent_tool_use_id
+        )
         self._show_thinking(event.agent_id)
 
     def on_system_notification(self, event: SystemNotification) -> None:
@@ -716,9 +779,15 @@ class ChatApp(App):
             retry = data.get("retryAttempt", 0)
             max_retries = data.get("maxRetries", 0)
             if retry > 0:
-                self._show_system_info(f"API error (retry {retry}/{max_retries}): {error_msg}", "warning", event.agent_id)
+                self._show_system_info(
+                    f"API error (retry {retry}/{max_retries}): {error_msg}",
+                    "warning",
+                    event.agent_id,
+                )
             else:
-                self._show_system_info(f"API error: {error_msg}", "error", event.agent_id)
+                self._show_system_info(
+                    f"API error: {error_msg}", "error", event.agent_id
+                )
 
         elif subtype == "compact_boundary":
             content = data.get("content", "Conversation compacted")
@@ -737,9 +806,16 @@ class ChatApp(App):
                 self._show_system_info(str(content), "info", event.agent_id)
 
         # Log all notifications for debugging
-        log.debug("System notification: subtype=%s level=%s data=%s", subtype, level, list(data.keys()))
+        log.debug(
+            "System notification: subtype=%s level=%s data=%s",
+            subtype,
+            level,
+            list(data.keys()),
+        )
 
-    def _show_system_info(self, message: str, severity: str, agent_id: str | None) -> None:
+    def _show_system_info(
+        self, message: str, severity: str, agent_id: str | None
+    ) -> None:
         """Show system info message in chat view (not stored in history)."""
         chat_view = self._get_chat_view(agent_id)
         if not chat_view:
@@ -758,15 +834,16 @@ class ChatApp(App):
         """Show/hide right sidebar and adjust centering based on terminal width."""
         # Show sidebar when wide enough and we have multiple agents, worktrees, or todos
         agent_count = len(self.agent_mgr) if self.agent_mgr else 0
-        has_content = agent_count > 1 or self.agent_sidebar._worktrees or self.todo_panel.todos
+        has_content = (
+            agent_count > 1 or self.agent_sidebar._worktrees or self.todo_panel.todos
+        )
         width = self.size.width
         main = self.query_one("#main", Horizontal)
         input_wrapper = self.query_one("#input-wrapper", Horizontal)
 
         # Check if any agent needs attention (for hamburger color)
         needs_attention = any(
-            a.status == AgentStatus.NEEDS_INPUT
-            for a in self.agents.values()
+            a.status == AgentStatus.NEEDS_INPUT for a in self.agents.values()
         )
 
         if width >= self.SIDEBAR_MIN_WIDTH and has_content:
@@ -858,6 +935,7 @@ class ChatApp(App):
         # Use custom widget for context reports
         if "## Context Usage" in event.content:
             from claudechic.widgets.context_report import ContextReport
+
             widget = ContextReport(event.content)
         else:
             # Fallback to system message for other command output
@@ -936,7 +1014,7 @@ class ChatApp(App):
             try:
                 sidebar = self.right_sidebar
                 # Get click position relative to screen
-                x, y = event.screen_x, event.screen_y
+                x, _ = event.screen_x, event.screen_y
                 # Check if within sidebar bounds
                 sb_x = sidebar.region.x
                 sb_width = sidebar.region.width
@@ -1000,7 +1078,9 @@ class ChatApp(App):
         sys.stderr = open(os.devnull, "w")
         self.exit()
 
-    def run_shell_command(self, cmd: str, shell: str, cwd: str | None, env: dict[str, str]) -> None:
+    def run_shell_command(
+        self, cmd: str, shell: str, cwd: str | None, env: dict[str, str]
+    ) -> None:
         """Run a shell command async with PTY for color support."""
         import pty
         import select
@@ -1014,7 +1094,9 @@ class ChatApp(App):
             return
 
         # Create spinner widget
-        spinner = Spinner(f"Running: {cmd[:50]}..." if len(cmd) > 50 else f"Running: {cmd}")
+        spinner = Spinner(
+            f"Running: {cmd[:50]}..." if len(cmd) > 50 else f"Running: {cmd}"
+        )
         spinner.add_class("shell-spinner")
         chat_view.mount(spinner)
         chat_view.scroll_if_tailing()
@@ -1081,7 +1163,9 @@ class ChatApp(App):
                     await asyncio.sleep(1.0)
                     if not tip_shown:
                         tip_shown = True
-                        self.notify("Tip: Use /shell alone for interactive commands", timeout=5)
+                        self.notify(
+                            "Tip: Use /shell alone for interactive commands", timeout=5
+                        )
 
                 tip_task = asyncio.create_task(show_tip_after_delay())
 
@@ -1123,7 +1207,9 @@ class ChatApp(App):
             picker.append(SessionItem(session_id, preview, msg_count))
         # Select first item and focus for keyboard nav
         if sessions:
-            self.call_after_refresh(lambda: (setattr(picker, 'index', 0), picker.focus()))
+            self.call_after_refresh(
+                lambda: (setattr(picker, "index", 0), picker.focus())
+            )
 
     def _hide_session_picker(self) -> None:
         self._session_picker_active = False
@@ -1145,7 +1231,9 @@ class ChatApp(App):
             sessions = await get_recent_sessions(limit=1, cwd=new_cwd)
             resume_id = sessions[0][0] if sessions else None
 
-            await self._replace_client(self._make_options(cwd=new_cwd, resume=resume_id, agent_name=agent.name))
+            await self._replace_client(
+                self._make_options(cwd=new_cwd, resume=resume_id, agent_name=agent.name)
+            )
 
             # Clear ChatView state
             chat_view = self._chat_views.get(agent.id)
@@ -1186,7 +1274,9 @@ class ChatApp(App):
             return
 
         # Cancel any active prompts
-        for prompt in list(self.query(SelectionPrompt)) + list(self.query(QuestionPrompt)):
+        for prompt in list(self.query(SelectionPrompt)) + list(
+            self.query(QuestionPrompt)
+        ):
             prompt.cancel()
             return
 
@@ -1218,7 +1308,9 @@ class ChatApp(App):
             return
         self._switch_to_agent(event.agent_id)
 
-    def on_agent_tool_widget_go_to_agent(self, event: AgentToolWidget.GoToAgent) -> None:
+    def on_agent_tool_widget_go_to_agent(
+        self, event: AgentToolWidget.GoToAgent
+    ) -> None:
         """Handle 'Go to agent' button click from AgentToolWidget."""
         for agent_id, agent in self.agents.items():
             if agent.name == event.agent_name:
@@ -1229,7 +1321,9 @@ class ChatApp(App):
     def on_worktree_item_selected(self, event: WorktreeItem.Selected) -> None:
         """Handle ghost worktree selection - create an agent there."""
         self._close_sidebar_overlay()
-        self._create_new_agent(event.branch, event.path, worktree=event.branch, auto_resume=True)
+        self._create_new_agent(
+            event.branch, event.path, worktree=event.branch, auto_resume=True
+        )
 
     def on_plan_button_clicked(self, event: PlanButton.Clicked) -> None:
         """Handle plan button click - open plan file in editor."""
@@ -1255,8 +1349,7 @@ class ChatApp(App):
         """Update hamburger button color based on agent attention needs."""
         try:
             needs_attention = any(
-                a.status == AgentStatus.NEEDS_INPUT
-                for a in self.agents.values()
+                a.status == AgentStatus.NEEDS_INPUT for a in self.agents.values()
             )
             if needs_attention:
                 self.hamburger_btn.add_class("needs-attention")
@@ -1325,7 +1418,9 @@ class ChatApp(App):
         # Update sidebar selection
         self.agent_sidebar.set_active(agent_id)
         # Update footer branch for new agent's cwd (async, non-blocking)
-        asyncio.create_task(self.status_footer.refresh_branch(str(agent.cwd) if agent else None))
+        asyncio.create_task(
+            self.status_footer.refresh_branch(str(agent.cwd) if agent else None)
+        )
         self.status_footer.auto_edit = agent.auto_approve_edits if agent else False
         # Update todo panel for new agent
         self.todo_panel.update_todos(agent.todos if agent else [])
@@ -1339,7 +1434,9 @@ class ChatApp(App):
     async def _reconnect_agent(self, agent: "Agent", session_id: str) -> None:
         """Disconnect and reconnect an agent to reload its session."""
         await agent.disconnect()
-        options = self._make_options(cwd=agent.cwd, resume=session_id, agent_name=agent.name)
+        options = self._make_options(
+            cwd=agent.cwd, resume=session_id, agent_name=agent.name
+        )
         await agent.connect(options, resume=session_id)
 
     @work(group="usage", exclusive=True, exit_on_error=False)
@@ -1359,7 +1456,12 @@ class ChatApp(App):
 
     @work(group="new_agent", exclusive=True, exit_on_error=False)
     async def _create_new_agent(
-        self, name: str, cwd: Path, worktree: str | None = None, auto_resume: bool = False, switch_to: bool = True
+        self,
+        name: str,
+        cwd: Path,
+        worktree: str | None = None,
+        auto_resume: bool = False,
+        switch_to: bool = True,
     ) -> None:
         """Create a new agent via AgentManager.
 
@@ -1385,8 +1487,12 @@ class ChatApp(App):
                     resume_id = best[0]
 
             # Create agent via AgentManager (handles SDK connection, UI callbacks)
-            agent = await self.agent_mgr.create(
-                name=name, cwd=cwd, worktree=worktree, resume=resume_id, switch_to=switch_to
+            await self.agent_mgr.create(
+                name=name,
+                cwd=cwd,
+                worktree=worktree,
+                resume=resume_id,
+                switch_to=switch_to,
             )
         except Exception as e:
             self.show_error(f"Failed to create agent '{name}'", e)
@@ -1524,10 +1630,14 @@ class ChatApp(App):
             if is_first_agent:
                 # First agent uses the existing chat view from compose()
                 chat_view = self.query_one("#chat-view", ChatView)
-                chat_view.add_class("chat-view")  # Add class for consistent query behavior
+                chat_view.add_class(
+                    "chat-view"
+                )  # Add class for consistent query behavior
             else:
                 # Additional agents get new chat views
-                chat_view = ChatView(id=f"chat-view-{agent.id}", classes="chat-view hidden")
+                chat_view = ChatView(
+                    id=f"chat-view-{agent.id}", classes="chat-view hidden"
+                )
                 main = self.query_one("#main", Horizontal)
                 main.mount(chat_view, after=self.query_one("#session-picker"))
 
@@ -1652,20 +1762,31 @@ class ChatApp(App):
     ) -> None:
         """Handle text chunk from agent - post Textual Message for UI."""
         self.post_message(
-            StreamChunk(text, new_message=new_message, parent_tool_use_id=parent_tool_use_id, agent_id=agent.id)
+            StreamChunk(
+                text,
+                new_message=new_message,
+                parent_tool_use_id=parent_tool_use_id,
+                agent_id=agent.id,
+            )
         )
 
     def on_tool_use(self, agent: Agent, tool: ToolUse) -> None:
         """Handle tool use from agent - post Textual Message for UI."""
-        from claude_agent_sdk import ToolUseBlock
         block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
-        self.post_message(ToolUseMessage(block, parent_tool_use_id=None, agent_id=agent.id))
+        self.post_message(
+            ToolUseMessage(block, parent_tool_use_id=None, agent_id=agent.id)
+        )
 
     def on_tool_result(self, agent: Agent, tool: ToolUse) -> None:
         """Handle tool result from agent - post Textual Message for UI."""
         from claude_agent_sdk import ToolResultBlock
-        block = ToolResultBlock(tool_use_id=tool.id, content=tool.result or "", is_error=tool.is_error)
-        self.post_message(ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent.id))
+
+        block = ToolResultBlock(
+            tool_use_id=tool.id, content=tool.result or "", is_error=tool.is_error
+        )
+        self.post_message(
+            ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent.id)
+        )
 
     def on_system_message(self, agent: Agent, message: SystemMessage) -> None:
         """Handle system message from agent - post Textual Message for UI."""
@@ -1737,7 +1858,10 @@ class ChatApp(App):
         # "No" option doubles as text input - empty = deny, text = alternative instructions
         text_option = (PermissionChoice.DENY, "No / Do something else...")
 
-        async with self._show_prompt(SelectionPrompt(request.title, options, text_option), agent) as prompt:
+        async with self._show_prompt(
+            SelectionPrompt(request.title, options, text_option), agent
+        ) as prompt:
+
             async def ui_response():
                 result = await prompt.wait()
                 if not request._event.is_set():

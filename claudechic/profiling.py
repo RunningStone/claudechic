@@ -72,9 +72,9 @@ def get_stats_table():
         table.add_row(
             name,
             str(data["count"]),
-            f"{data['total']*1000:.1f}ms",
+            f"{data['total'] * 1000:.1f}ms",
             f"{avg:.2f}ms",
-            f"{data['max']*1000:.2f}ms",
+            f"{data['max'] * 1000:.2f}ms",
         )
     return table
 
@@ -91,6 +91,6 @@ def get_stats_text() -> str:
     for name, data in sorted(_stats.items(), key=lambda x: -x[1]["total"]):
         avg = data["total"] / data["count"] * 1000 if data["count"] else 0
         lines.append(
-            f"{name:<45} {data['count']:>8} {data['total']*1000:>9.1f}ms {avg:>9.2f}ms {data['max']*1000:>9.2f}ms"
+            f"{name:<45} {data['count']:>8} {data['total'] * 1000:>9.1f}ms {avg:>9.2f}ms {data['max'] * 1000:>9.2f}ms"
         )
     return "\n".join(lines)

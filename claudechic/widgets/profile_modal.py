@@ -30,7 +30,7 @@ def _get_sampling_table() -> Table | None:
         padding=(0, 2),
         collapse_padding=True,
         show_header=True,
-        title=f"[dim]CPU Samples (>{stats['threshold']*100:.0f}% threshold, {stats['sample_count']} samples)[/]",
+        title=f"[dim]CPU Samples (>{stats['threshold'] * 100:.0f}% threshold, {stats['sample_count']} samples)[/]",
         title_justify="left",
     )
     table.add_column("Function", style="dim")
@@ -70,7 +70,7 @@ def _get_sampling_text() -> str:
     stats = sampler.get_stats()
     total = profile["count"] or 1
     lines = [
-        f"\nCPU Samples (>{stats['threshold']*100:.0f}% threshold, {stats['sample_count']} samples)",
+        f"\nCPU Samples (>{stats['threshold'] * 100:.0f}% threshold, {stats['sample_count']} samples)",
         "",
     ]
     for _ident, count, desc in flat[:30]:  # More entries for clipboard
@@ -155,20 +155,30 @@ class ProfileModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="profile-container"):
             with Horizontal(id="profile-header"):
-                yield Static("[bold]Profiling Statistics[/]", id="profile-title", markup=True)
+                yield Static(
+                    "[bold]Profiling Statistics[/]", id="profile-title", markup=True
+                )
                 yield Button("\u29c9", id="copy-btn")
             with VerticalScroll(id="profile-scroll"):
                 if _stats:
                     yield Static(get_stats_table(), id="profile-content")
                 else:
-                    yield Static("[dim]No decorator profiling data.[/]", id="profile-content", markup=True)
+                    yield Static(
+                        "[dim]No decorator profiling data.[/]",
+                        id="profile-content",
+                        markup=True,
+                    )
 
                 # Sampling profiler section
                 sampling_table = _get_sampling_table()
                 if sampling_table:
                     yield Static(sampling_table, id="sampling-content")
                 else:
-                    yield Static("[dim]No CPU samples collected (CPU stayed below threshold).[/]", id="sampling-content", markup=True)
+                    yield Static(
+                        "[dim]No CPU samples collected (CPU stayed below threshold).[/]",
+                        id="sampling-content",
+                        markup=True,
+                    )
 
             with Horizontal(id="profile-footer"):
                 yield Button("Close", id="close-btn")

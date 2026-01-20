@@ -202,6 +202,7 @@ class ChatAttachment(Button):
         """Open the file when clicked."""
         import subprocess
         import sys
+
         event.stop()
         try:
             if sys.platform == "darwin":
@@ -219,6 +220,7 @@ class ImageAttachments(Horizontal):
 
     class Removed(Message):
         """Posted when user removes an image."""
+
         def __init__(self, filename: str) -> None:
             self.filename = filename
             super().__init__()
@@ -260,7 +262,11 @@ class ImageAttachments(Horizontal):
                     display_name = f"Screenshot #{screenshot_num}"
                 else:
                     display_name = name
-                btn = Button(f"📎 {display_name} ×", id=f"img-{self._counter}", classes="image-tag")
+                btn = Button(
+                    f"📎 {display_name} ×",
+                    id=f"img-{self._counter}",
+                    classes="image-tag",
+                )
                 btn._image_name = name  # type: ignore[attr-defined]  # Store actual name for removal
                 self.mount(btn)
             self.remove_class("hidden")
@@ -283,7 +289,13 @@ class ChatInput(TextArea):
         Binding("up", "history_prev", "Previous", priority=True, show=False),
         Binding("down", "history_next", "Next", priority=True, show=False),
         Binding("ctrl+a", "select_all", "Select all", priority=True, show=False),
-        Binding("alt+backspace", "delete_word_left", "Delete word", priority=True, show=False),
+        Binding(
+            "alt+backspace",
+            "delete_word_left",
+            "Delete word",
+            priority=True,
+            show=False,
+        ),
     ]
 
     class Submitted(Message):
@@ -305,7 +317,9 @@ class ChatInput(TextArea):
         self._history_index: int = -1
         self._current_input: str = ""
         self._autocomplete = None
-        self._last_image_paste: tuple[str, float] | None = None  # (text, time) for dedup
+        self._last_image_paste: tuple[str, float] | None = (
+            None  # (text, time) for dedup
+        )
 
     async def _on_key(self, event) -> None:  # type: ignore[override]
         """Intercept keys for autocomplete before normal processing."""
@@ -333,7 +347,7 @@ class ChatInput(TextArea):
         # Handle shell-escaped paths (backslash-escaped spaces)
         # Split on unescaped spaces (space not preceded by backslash)
         if "\\ " in text:
-            parts = re.split(r'(?<!\\) ', text)
+            parts = re.split(r"(?<!\\) ", text)
             for part in parts:
                 part = part.replace("\\ ", " ")
                 path = Path(part)

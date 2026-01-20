@@ -5,7 +5,12 @@ import pytest
 from claudechic.app import ChatApp
 from claudechic.widgets import ChatInput, ChatMessage, AgentSidebar, TodoPanel
 from claudechic.widgets.footer import StatusFooter
-from claudechic.messages import StreamChunk, ResponseComplete, ToolUseMessage, ToolResultMessage
+from claudechic.messages import (
+    StreamChunk,
+    ResponseComplete,
+    ToolUseMessage,
+    ToolResultMessage,
+)
 from claude_agent_sdk import ToolUseBlock, ToolResultBlock
 from tests.conftest import wait_for_workers, submit_command
 
@@ -14,7 +19,7 @@ from tests.conftest import wait_for_workers, submit_command
 async def test_app_mounts_basic_widgets(mock_sdk):
     """App mounts all expected widgets on startup."""
     app = ChatApp()
-    async with app.run_test() as pilot:
+    async with app.run_test():
         # Check key widgets exist
         assert app.query_one("#input", ChatInput)
         assert app.query_one("#agent-sidebar", AgentSidebar)
@@ -229,6 +234,7 @@ async def test_double_ctrl_c_quits(mock_sdk):
         # Second quick Ctrl+C would exit (but we can't test actual exit easily)
         # Just verify the mechanism exists
         import time
+
         assert time.time() - app._last_quit_time < 2.0
 
 
@@ -280,16 +286,22 @@ async def test_stream_chunks_interleaved_with_tools(mock_sdk):
         agent_id = app.active_agent_id
 
         # First text chunk
-        app.post_message(StreamChunk("Planning...", new_message=True, agent_id=agent_id))
+        app.post_message(
+            StreamChunk("Planning...", new_message=True, agent_id=agent_id)
+        )
         await pilot.pause()
 
         # Tool use
-        tool_block = ToolUseBlock(id="tool-1", name="Read", input={"file_path": "/test.py"})
+        tool_block = ToolUseBlock(
+            id="tool-1", name="Read", input={"file_path": "/test.py"}
+        )
         app.post_message(ToolUseMessage(tool_block, agent_id=agent_id))
         await pilot.pause()
 
         # Tool result
-        result_block = ToolResultBlock(tool_use_id="tool-1", content="file contents", is_error=False)
+        result_block = ToolResultBlock(
+            tool_use_id="tool-1", content="file contents", is_error=False
+        )
         app.post_message(ToolResultMessage(result_block, agent_id=agent_id))
         await pilot.pause()
 
@@ -320,7 +332,7 @@ async def test_response_complete_enables_input(mock_sdk):
 async def test_sidebar_hidden_when_single_agent(mock_sdk):
     """Right sidebar hidden with single agent and no todos."""
     app = ChatApp()
-    async with app.run_test(size=(100, 40)) as pilot:
+    async with app.run_test(size=(100, 40)):
         sidebar = app.query_one("#right-sidebar")
         # With single agent and no todos, sidebar should be hidden
         assert sidebar.has_class("hidden")
@@ -355,7 +367,9 @@ async def test_command_output_displays(mock_sdk):
 
         # Post a command output message
         agent_id = app.active_agent_id
-        app.post_message(CommandOutputMessage("## Test Output\n\nSome content", agent_id=agent_id))
+        app.post_message(
+            CommandOutputMessage("## Test Output\n\nSome content", agent_id=agent_id)
+        )
         await pilot.pause()
 
         # Should have created a ChatMessage with system-message class
@@ -418,7 +432,7 @@ async def test_system_notification_shows_in_chat(mock_sdk):
         # Create a system message (simulating SDK)
         sdk_msg = SystemMessage(
             subtype="test_notification",
-            data={"content": "Test system message", "level": "info"}
+            data={"content": "Test system message", "level": "info"},
         )
 
         # Post the notification
@@ -450,8 +464,8 @@ async def test_system_notification_api_error(mock_sdk):
                 "level": "error",
                 "error": {"error": {"message": "Rate limited"}},
                 "retryAttempt": 2,
-                "maxRetries": 10
-            }
+                "maxRetries": 10,
+            },
         )
 
         app.post_message(SystemNotification(sdk_msg, agent_id=app.active_agent_id))
@@ -477,7 +491,7 @@ async def test_system_notification_compact_boundary(mock_sdk):
 
         sdk_msg = SystemMessage(
             subtype="compact_boundary",
-            data={"content": "Conversation compacted", "level": "info"}
+            data={"content": "Conversation compacted", "level": "info"},
         )
 
         app.post_message(SystemNotification(sdk_msg, agent_id=app.active_agent_id))
@@ -502,10 +516,7 @@ async def test_system_notification_ignored_subtypes(mock_sdk):
 
         # These subtypes should not create widgets
         for subtype in ["stop_hook_summary", "turn_duration", "local_command"]:
-            sdk_msg = SystemMessage(
-                subtype=subtype,
-                data={"level": "info"}
-            )
+            sdk_msg = SystemMessage(subtype=subtype, data={"level": "info"})
             app.post_message(SystemNotification(sdk_msg, agent_id=app.active_agent_id))
 
         await pilot.pause()
@@ -648,7 +659,6 @@ async def test_hamburger_button_narrow_screen(mock_sdk):
 @pytest.mark.asyncio
 async def test_hamburger_opens_sidebar_overlay(mock_sdk):
     """Clicking hamburger opens sidebar as overlay."""
-    from claudechic.widgets import HamburgerButton
 
     app = ChatApp()
     async with app.run_test(size=(80, 40)) as pilot:
@@ -659,7 +669,6 @@ async def test_hamburger_opens_sidebar_overlay(mock_sdk):
         app._position_right_sidebar()
         await pilot.pause()
 
-        hamburger = app.query_one("#hamburger-btn", HamburgerButton)
         sidebar = app.query_one("#right-sidebar")
 
         # Click hamburger
@@ -674,7 +683,6 @@ async def test_hamburger_opens_sidebar_overlay(mock_sdk):
 @pytest.mark.asyncio
 async def test_escape_closes_sidebar_overlay(mock_sdk):
     """Escape key closes sidebar overlay."""
-    from claudechic.widgets import HamburgerButton
 
     app = ChatApp()
     async with app.run_test(size=(80, 40)) as pilot:
@@ -691,7 +699,9 @@ async def test_escape_closes_sidebar_overlay(mock_sdk):
         await pilot.pause()
 
         sidebar = app.query_one("#right-sidebar")
-        assert not sidebar.has_class("hidden"), "Sidebar should be visible after opening overlay"
+        assert not sidebar.has_class("hidden"), (
+            "Sidebar should be visible after opening overlay"
+        )
         assert app._sidebar_overlay_open, "Overlay state should be True"
 
         # Call action_escape directly (escape key may be consumed by input widget)
@@ -699,5 +709,7 @@ async def test_escape_closes_sidebar_overlay(mock_sdk):
         await pilot.pause()
 
         # Sidebar should be hidden again
-        assert not app._sidebar_overlay_open, "Overlay state should be False after escape"
+        assert not app._sidebar_overlay_open, (
+            "Overlay state should be False after escape"
+        )
         assert sidebar.has_class("hidden"), "Sidebar should be hidden after escape"

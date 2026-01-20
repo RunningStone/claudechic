@@ -72,12 +72,14 @@ class HistorySearch(Widget):
 
     class Selected(Message):
         """Posted when user selects a history entry."""
+
         def __init__(self, text: str) -> None:
             self.text = text
             super().__init__()
 
     class Cancelled(Message):
         """Posted when user cancels search."""
+
         pass
 
     def __init__(self, *args, **kwargs) -> None:
@@ -135,7 +137,9 @@ class HistorySearch(Widget):
 
             # Show position if multiple matches
             if len(self._filtered) > 1:
-                display.update(f"\\[{self._match_index + 1}/{len(self._filtered)}] {text}")
+                display.update(
+                    f"\\[{self._match_index + 1}/{len(self._filtered)}] {text}"
+                )
             else:
                 display.update(text)
         else:

@@ -18,6 +18,7 @@ class HamburgerButton(Widget):
 
     class Clicked(Message):
         """Posted when hamburger is clicked."""
+
         pass
 
     DEFAULT_CSS = """
@@ -61,6 +62,7 @@ class PlanButton(Widget):
 
     class Clicked(Message):
         """Posted when plan button is clicked."""
+
         def __init__(self, plan_path: Path) -> None:
             self.plan_path = plan_path
             super().__init__()
@@ -85,16 +87,20 @@ class PlanButton(Widget):
         self.plan_path = plan_path
 
     def compose(self) -> ComposeResult:
-        yield Static(Text.assemble(("📋", ""), " ", ("Plan", "dim")), classes="plan-label")
+        yield Static(
+            Text.assemble(("📋", ""), " ", ("Plan", "dim")), classes="plan-label"
+        )
 
     def on_click(self) -> None:
         self.post_message(self.Clicked(self.plan_path))
+
 
 class WorktreeItem(Widget):
     """A ghost worktree in the sidebar (not yet an agent)."""
 
     class Selected(Message):
         """Posted when worktree is clicked."""
+
         def __init__(self, branch: str, path: Path) -> None:
             self.branch = branch
             self.path = path
@@ -138,12 +144,14 @@ class AgentItem(Widget):
 
     class Selected(Message):
         """Posted when agent is clicked."""
+
         def __init__(self, agent_id: str) -> None:
             self.agent_id = agent_id
             super().__init__()
 
     class CloseRequested(Message):
         """Posted when close button is clicked."""
+
         def __init__(self, agent_id: str) -> None:
             self.agent_id = agent_id
             super().__init__()
@@ -184,7 +192,9 @@ class AgentItem(Widget):
 
     status: reactive[AgentStatus] = reactive(AgentStatus.IDLE)
 
-    def __init__(self, agent_id: str, display_name: str, status: AgentStatus = AgentStatus.IDLE) -> None:
+    def __init__(
+        self, agent_id: str, display_name: str, status: AgentStatus = AgentStatus.IDLE
+    ) -> None:
         super().__init__()
         self.agent_id = agent_id
         self.display_name = display_name
@@ -252,7 +262,9 @@ class AgentSidebar(Widget):
     def compose(self) -> ComposeResult:
         yield Static("Agents", classes="sidebar-title")
 
-    def add_agent(self, agent_id: str, name: str, status: AgentStatus = AgentStatus.IDLE) -> None:
+    def add_agent(
+        self, agent_id: str, name: str, status: AgentStatus = AgentStatus.IDLE
+    ) -> None:
         """Add an agent to the sidebar."""
         if agent_id in self._agents:
             return

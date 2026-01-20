@@ -27,7 +27,10 @@ from claudechic.features.worktree.git import (
     remove_worktree,
     start_worktree,
 )
-from claudechic.features.worktree.prompts import UncommittedChangesPrompt, WorktreePrompt
+from claudechic.features.worktree.prompts import (
+    UncommittedChangesPrompt,
+    WorktreePrompt,
+)
 
 if TYPE_CHECKING:
     from claudechic.app import ChatApp
@@ -177,7 +180,9 @@ async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
             if choice == "commit":
                 # Ask Claude to commit
                 app._show_thinking(agent.id)
-                app._send_to_agent(agent, "Commit all changes with a descriptive message.")
+                app._send_to_agent(
+                    agent, "Commit all changes with a descriptive message."
+                )
                 # Resolution will continue in on_response_complete_finish
                 return
 
@@ -192,15 +197,18 @@ async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
                 app._show_thinking(agent.id)
                 app._send_to_agent(
                     agent,
-                    f"Fast-forward merge failed: {error}\n\n" + get_finish_prompt(state.info),
-                    display_as="/worktree finish"
+                    f"Fast-forward merge failed: {error}\n\n"
+                    + get_finish_prompt(state.info),
+                    display_as="/worktree finish",
                 )
             return
 
         if action == ResolutionAction.REBASE:
             # Claude handles rebase
             app._show_thinking(agent.id)
-            app._send_to_agent(agent, get_finish_prompt(state.info), display_as="/worktree finish")
+            app._send_to_agent(
+                agent, get_finish_prompt(state.info), display_as="/worktree finish"
+            )
             return
 
         # Unknown action - shouldn't happen
@@ -223,7 +231,10 @@ def _run_cleanup(app: "ChatApp", agent: "Agent") -> None:
     state.last_error = message
 
     if state.cleanup_attempts >= MAX_CLEANUP_ATTEMPTS:
-        app.notify(f"Cleanup failed after {MAX_CLEANUP_ATTEMPTS} attempts: {message}", severity="error")
+        app.notify(
+            f"Cleanup failed after {MAX_CLEANUP_ATTEMPTS} attempts: {message}",
+            severity="error",
+        )
         agent.finish_state = None
         return
 
@@ -231,7 +242,7 @@ def _run_cleanup(app: "ChatApp", agent: "Agent") -> None:
     app._send_to_agent(
         agent,
         get_cleanup_fix_prompt(message, state.info.worktree_dir),
-        display_as=f"[Cleanup attempt {state.cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]"
+        display_as=f"[Cleanup attempt {state.cleanup_attempts}/{MAX_CLEANUP_ATTEMPTS} failed]",
     )
 
 
@@ -292,12 +303,16 @@ def _switch_or_create_worktree(app: "ChatApp", feature_name: str) -> None:
     existing = [wt for wt in list_worktrees() if wt.branch == feature_name]
     if existing:
         wt = existing[0]
-        app._create_new_agent(feature_name, wt.path, worktree=feature_name, auto_resume=True)
+        app._create_new_agent(
+            feature_name, wt.path, worktree=feature_name, auto_resume=True
+        )
     else:
         # Create new worktree
         success, message, new_cwd = start_worktree(feature_name)
         if success and new_cwd:
-            app._create_new_agent(feature_name, new_cwd, worktree=feature_name, auto_resume=False)
+            app._create_new_agent(
+                feature_name, new_cwd, worktree=feature_name, auto_resume=False
+            )
         else:
             app.notify(message, severity="error")
 
@@ -308,7 +323,9 @@ def _close_agents_for_branches(app: "ChatApp", branches: list[str]) -> None:
         agent = next((a for a in app.agents.values() if a.worktree == branch), None)
         if agent and len(app.agents) > 1:
             if app.active_agent_id == agent.id:
-                main = next((a for a in app.agents.values() if a.worktree is None), None)
+                main = next(
+                    (a for a in app.agents.values() if a.worktree is None), None
+                )
                 if main:
                     app._switch_to_agent(main.id)
             app._do_close_agent(agent.id)
@@ -325,7 +342,9 @@ def _handle_cleanup(app: "ChatApp", branches: list[str] | None) -> None:
     # Check if any need confirmation
     needs_confirm = [(b, msg) for b, _, msg, confirm in results if confirm]
     removed = [b for b, success, _, _ in results if success]
-    failed = [(b, msg) for b, success, msg, confirm in results if not success and not confirm]
+    failed = [
+        (b, msg) for b, success, msg, confirm in results if not success and not confirm
+    ]
 
     # Close agents for successfully removed worktrees
     _close_agents_for_branches(app, removed)
@@ -342,7 +361,9 @@ def _handle_cleanup(app: "ChatApp", branches: list[str] | None) -> None:
 
 
 @work(group="cleanup_prompt", exclusive=True, exit_on_error=False)
-async def _run_cleanup_prompt(app: "ChatApp", needs_confirm: list[tuple[str, str]]) -> None:
+async def _run_cleanup_prompt(
+    app: "ChatApp", needs_confirm: list[tuple[str, str]]
+) -> None:
     """Show prompt for confirming worktree removal."""
     from claudechic.widgets import SelectionPrompt, ChatInput
 
@@ -351,7 +372,9 @@ async def _run_cleanup_prompt(app: "ChatApp", needs_confirm: list[tuple[str, str
     options.extend((b, f"Remove {b} ({msg})") for b, msg in needs_confirm)
     options.append(("cancel", "Cancel"))
 
-    async with app._show_prompt(SelectionPrompt("Worktrees with changes or unmerged:", options)) as prompt:
+    async with app._show_prompt(
+        SelectionPrompt("Worktrees with changes or unmerged:", options)
+    ) as prompt:
         prompt.focus()
         selected = await prompt.wait()
 
@@ -365,14 +388,15 @@ async def _run_cleanup_prompt(app: "ChatApp", needs_confirm: list[tuple[str, str
                 success, msg = remove_worktree(wt, force=True)
                 if success:
                     removed.append(branch)
-                app.notify(f"Removed: {branch}" if success else msg, severity="error" if not success else "information")
+                app.notify(
+                    f"Removed: {branch}" if success else msg,
+                    severity="error" if not success else "information",
+                )
         _close_agents_for_branches(app, removed)
     else:
         app.notify("Cleanup cancelled")
 
     app.query_one("#input", ChatInput).focus()
-
-
 
 
 def _show_worktree_modal(app: "ChatApp") -> None:
@@ -385,7 +409,9 @@ def _show_worktree_modal(app: "ChatApp") -> None:
 
 
 @work(group="worktree", exclusive=True, exit_on_error=False)
-async def _wait_for_worktree_selection(app: "ChatApp", prompt: WorktreePrompt, container: Center) -> None:
+async def _wait_for_worktree_selection(
+    app: "ChatApp", prompt: WorktreePrompt, container: Center
+) -> None:
     """Wait for worktree modal selection and act on it."""
     try:
         result = await prompt.wait()

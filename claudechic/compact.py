@@ -211,7 +211,10 @@ def compact_session(
                         info = tool_uses[tool_id]
                         new_block = {
                             **block,
-                            "input": {"_compacted": True, "_original_size": info["input_size"]},
+                            "input": {
+                                "_compacted": True,
+                                "_original_size": info["input_size"],
+                            },
                         }
                         new_content.append(new_block)
                         modified = True
@@ -241,7 +244,9 @@ def compact_session(
                     if tool_id in compact_result_ids:
                         # Get the tool name to use the right compacted output
                         tool_name = tool_uses.get(tool_id, {}).get("name", "unknown")
-                        compacted_output = COMPACTED_RESULTS.get(tool_name, "[compacted]")
+                        compacted_output = COMPACTED_RESULTS.get(
+                            tool_name, "[compacted]"
+                        )
                         new_block = {
                             "type": "tool_result",
                             "tool_use_id": tool_id,
@@ -261,7 +266,9 @@ def compact_session(
                     tool_id = new_content[0].get("tool_use_id")
                     if tool_id in compact_result_ids:
                         tool_name = tool_uses.get(tool_id, {}).get("name", "unknown")
-                        new_msg["toolUseResult"] = COMPACTED_RESULTS.get(tool_name, "[compacted]")
+                        new_msg["toolUseResult"] = COMPACTED_RESULTS.get(
+                            tool_name, "[compacted]"
+                        )
                 compacted_messages.append(new_msg)
             else:
                 compacted_messages.append(m)
@@ -279,9 +286,13 @@ def compact_session(
                 for block in m.get("message", {}).get("content", []):
                     if isinstance(block, dict):
                         if block.get("type") == "text":
-                            breakdown["assistant_text"] += len(block.get("text", "")) / 4
+                            breakdown["assistant_text"] += (
+                                len(block.get("text", "")) / 4
+                            )
                         elif block.get("type") == "tool_use":
-                            breakdown["tool_inputs"] += len(json.dumps(block.get("input", {}))) / 4
+                            breakdown["tool_inputs"] += (
+                                len(json.dumps(block.get("input", {}))) / 4
+                            )
             elif t == "user":
                 content = m.get("message", {}).get("content", [])
                 if isinstance(content, str):
@@ -290,7 +301,9 @@ def compact_session(
                     for block in content:
                         if isinstance(block, dict):
                             if block.get("type") == "tool_result":
-                                breakdown["tool_results"] += len(str(block.get("content", ""))) / 4
+                                breakdown["tool_results"] += (
+                                    len(str(block.get("content", ""))) / 4
+                                )
                             elif block.get("type") == "text":
                                 breakdown["user_text"] += len(block.get("text", "")) / 4
         return {k: int(v) for k, v in breakdown.items()}

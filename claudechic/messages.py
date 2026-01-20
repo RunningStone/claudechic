@@ -2,15 +2,23 @@
 
 from textual.message import Message
 
-from claude_agent_sdk import ToolUseBlock, ToolResultBlock, ResultMessage, SystemMessage as SDKSystemMessage
+from claude_agent_sdk import (
+    ToolUseBlock,
+    ToolResultBlock,
+    ResultMessage,
+    SystemMessage as SDKSystemMessage,
+)
 
 
 class StreamChunk(Message):
     """Message sent when a chunk of text is received from Claude."""
 
     def __init__(
-        self, text: str, new_message: bool = False, parent_tool_use_id: str | None = None,
-        agent_id: str | None = None
+        self,
+        text: str,
+        new_message: bool = False,
+        parent_tool_use_id: str | None = None,
+        agent_id: str | None = None,
     ) -> None:
         self.text = text
         self.new_message = new_message  # Start a new ChatMessage widget
@@ -22,7 +30,9 @@ class StreamChunk(Message):
 class ResponseComplete(Message):
     """Message sent when Claude's response is complete."""
 
-    def __init__(self, result: ResultMessage | None = None, agent_id: str | None = None) -> None:
+    def __init__(
+        self, result: ResultMessage | None = None, agent_id: str | None = None
+    ) -> None:
         self.result = result
         self.agent_id = agent_id
         super().__init__()
@@ -32,8 +42,10 @@ class ToolUseMessage(Message):
     """Message sent when a tool use starts."""
 
     def __init__(
-        self, block: ToolUseBlock, parent_tool_use_id: str | None = None,
-        agent_id: str | None = None
+        self,
+        block: ToolUseBlock,
+        parent_tool_use_id: str | None = None,
+        agent_id: str | None = None,
     ) -> None:
         self.block = block
         self.parent_tool_use_id = parent_tool_use_id
@@ -45,8 +57,10 @@ class ToolResultMessage(Message):
     """Message sent when a tool result arrives."""
 
     def __init__(
-        self, block: ToolResultBlock, parent_tool_use_id: str | None = None,
-        agent_id: str | None = None
+        self,
+        block: ToolResultBlock,
+        parent_tool_use_id: str | None = None,
+        agent_id: str | None = None,
     ) -> None:
         self.block = block
         self.parent_tool_use_id = parent_tool_use_id

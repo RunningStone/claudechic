@@ -94,14 +94,14 @@ def format_result_summary(name: str, content: str, is_error: bool = False) -> st
 
     elif name == ToolName.GREP:
         # Count matches (files or lines)
-        lines = [l for l in content.strip().split("\n") if l.strip()]
+        lines = [line for line in content.strip().split("\n") if line.strip()]
         if not lines or (len(lines) == 1 and "no matches" in lines[0].lower()):
             return "(no matches)"
         return f"({len(lines)} matches)"
 
     elif name == ToolName.GLOB:
         # Count files
-        lines = [l for l in content.strip().split("\n") if l.strip()]
+        lines = [line for line in content.strip().split("\n") if line.strip()]
         if not lines:
             return "(no files)"
         return f"({len(lines)} files)"
@@ -150,7 +150,7 @@ def format_tool_header(name: str, input: dict, cwd: Path | None = None) -> str:
         agent = input.get("subagent_type", "")
         if desc:
             return f"Task: {desc}" + (f" ({agent})" if agent else "")
-        return f"Task" + (f" ({agent})" if agent else "")
+        return "Task" + (f" ({agent})" if agent else "")
     elif name == ToolName.TODO_WRITE:
         todos = input.get("todos", [])
         return f"TodoWrite: {len(todos)} items"

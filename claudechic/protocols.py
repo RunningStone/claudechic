@@ -100,7 +100,4 @@ class PermissionHandler(Protocol):
     Returns: "allow", "allow_all", or "deny"
     """
 
-    async def __call__(
-        self, agent: Agent, request: PermissionRequest
-    ) -> str:
-        ...
+    async def __call__(self, agent: Agent, request: PermissionRequest) -> str: ...

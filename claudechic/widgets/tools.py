@@ -28,7 +28,9 @@ from claudechic.widgets.chat import ChatMessage, Spinner
 log = logging.getLogger(__name__)
 
 # Pattern to strip SDK-injected system reminders from tool results
-SYSTEM_REMINDER_PATTERN = re.compile(r"\n*<system-reminder>.*?</system-reminder>\n*", re.DOTALL)
+SYSTEM_REMINDER_PATTERN = re.compile(
+    r"\n*<system-reminder>.*?</system-reminder>\n*", re.DOTALL
+)
 
 # Pattern to extract plan file path from ExitPlanMode result
 PLAN_PATH_PATTERN = re.compile(r"saved to:\s*(/[^\s]+\.md)")
@@ -38,16 +40,25 @@ def _extract_text_content(content: str | list) -> str:
     """Extract text from ToolResultBlock content (handles both str and MCP list format)."""
     # MCP format: [{"type": "text", "text": "..."}]
     if isinstance(content, list):
-        texts = [item.get("text", "") for item in content if isinstance(item, dict) and item.get("type") == "text"]
+        texts = [
+            item.get("text", "")
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+        ]
         return "\n".join(texts)
     if isinstance(content, str):
         # Handle stringified MCP list format (SDK sometimes returns str repr)
         if content.startswith("[{") and "'text':" in content:
             import ast
+
             try:
                 parsed = ast.literal_eval(content)
                 if isinstance(parsed, list):
-                    texts = [item.get("text", "") for item in parsed if isinstance(item, dict)]
+                    texts = [
+                        item.get("text", "")
+                        for item in parsed
+                        if isinstance(item, dict)
+                    ]
                     return "\n".join(texts)
             except (ValueError, SyntaxError):
                 pass
@@ -68,7 +79,13 @@ class ToolUseWidget(Static):
 
     can_focus = False
 
-    def __init__(self, block: ToolUseBlock, collapsed: bool = False, completed: bool = False, cwd: Path | None = None) -> None:
+    def __init__(
+        self,
+        block: ToolUseBlock,
+        collapsed: bool = False,
+        completed: bool = False,
+        cwd: Path | None = None,
+    ) -> None:
         super().__init__()
         self.block = block
         self.result: ToolResultBlock | bool | None = True if completed else None
@@ -95,7 +112,9 @@ class ToolUseWidget(Static):
                     id="diff-content",
                 )
             else:
-                details = format_tool_details(self.block.name, self.block.input, self._cwd)
+                details = format_tool_details(
+                    self.block.name, self.block.input, self._cwd
+                )
                 yield Markdown(details.rstrip(), id="md-content")
 
     def stop_spinner(self) -> None:
@@ -167,19 +186,21 @@ class ToolUseWidget(Static):
         # Look for "Approved Plan:" section and extract everything after
         if "Approved Plan:" in content:
             idx = content.index("Approved Plan:")
-            plan_text = content[idx + len("Approved Plan:"):].strip()
+            plan_text = content[idx + len("Approved Plan:") :].strip()
             return plan_text if plan_text else None
         # Fallback: look for markdown heading
-        lines = content.split('\n')
+        lines = content.split("\n")
         for i, line in enumerate(lines):
-            if line.startswith('# '):
-                return '\n'.join(lines[i:])
+            if line.startswith("# "):
+                return "\n".join(lines[i:])
         return None
 
     def set_result(self, result: ToolResultBlock) -> None:
         """Update with tool result."""
         self.result = result
-        log.debug(f"Tool result for {self.block.name}: {len(str(result.content or ''))} chars")
+        log.debug(
+            f"Tool result for {self.block.name}: {len(str(result.content or ''))} chars"
+        )
         # Remove spinner
         try:
             self.query_one(Spinner).remove()
@@ -191,8 +212,14 @@ class ToolUseWidget(Static):
                 collapsible.add_class("error")
             # Update title with result summary
             if result.content:
-                content = result.content if isinstance(result.content, str) else str(result.content)
-                summary = format_result_summary(self.block.name, content, result.is_error or False)
+                content = (
+                    result.content
+                    if isinstance(result.content, str)
+                    else str(result.content)
+                )
+                summary = format_result_summary(
+                    self.block.name, content, result.is_error or False
+                )
                 if summary:
                     collapsible.title = f"{self._header} {summary}"
             # Edit uses Static for diff, others use Markdown
@@ -210,16 +237,26 @@ class ToolUseWidget(Static):
                 content = SYSTEM_REMINDER_PATTERN.sub("", content)
                 truncated = len(content) > 2000
                 preview = content[:2000]
-                trunc_chars = f"\n... (truncated, {len(content):,} chars total)" if truncated else ""
+                trunc_chars = (
+                    f"\n... (truncated, {len(content):,} chars total)"
+                    if truncated
+                    else ""
+                )
                 if result.is_error:
                     details += f"\n\n**Error:**\n```\n{preview}{trunc_chars}\n```"
                 elif self.block.name == ToolName.READ:
                     lang = get_lang_from_path(self.block.input.get("file_path", ""))
                     # Replace arrow with space in line number gutter
-                    preview = re.sub(r"^(\s*\d+)→", r"\1  ", preview, flags=re.MULTILINE)
+                    preview = re.sub(
+                        r"^(\s*\d+)→", r"\1  ", preview, flags=re.MULTILINE
+                    )
                     if truncated:
-                        shown = preview.count("\n") + (1 if preview and not preview.endswith("\n") else 0)
-                        total = content.count("\n") + (1 if content and not content.endswith("\n") else 0)
+                        shown = preview.count("\n") + (
+                            1 if preview and not preview.endswith("\n") else 0
+                        )
+                        total = content.count("\n") + (
+                            1 if content and not content.endswith("\n") else 0
+                        )
                         preview += f"\n... ({shown} of {total} lines shown)"
                     details += f"\n\n```{lang}\n{preview}\n```"
                 elif self.block.name in (ToolName.BASH, ToolName.GREP, ToolName.GLOB):
@@ -233,7 +270,9 @@ class ToolUseWidget(Static):
                     plan_match = PLAN_PATH_PATTERN.search(content)
                     if plan_match:
                         self._plan_path = Path(plan_match.group(1))
-                        collapsible.mount(Button("📋 View Plan in Editor", classes="edit-plan-btn"))
+                        collapsible.mount(
+                            Button("📋 View Plan in Editor", classes="edit-plan-btn")
+                        )
                 elif self.block.name == ToolName.ENTER_PLAN_MODE:
                     details = "*Entered plan mode*"
                 else:
@@ -249,7 +288,9 @@ class TaskWidget(Static):
     can_focus = False
     RECENT_EXPANDED = 2  # Keep last N tool uses expanded within task
 
-    def __init__(self, block: ToolUseBlock, collapsed: bool = False, cwd: Path | None = None) -> None:
+    def __init__(
+        self, block: ToolUseBlock, collapsed: bool = False, cwd: Path | None = None
+    ) -> None:
         super().__init__()
         self.block = block
         self.result: ToolResultBlock | None = None
@@ -487,7 +528,9 @@ class AgentToolWidget(Static):
             yield Button(f"Go to {self._agent_name}", classes="go-btn")
 
         elif tool_short == "spawn_worktree":
-            yield Static(f"Creating worktree: {self._agent_name}", classes="agent-header")
+            yield Static(
+                f"Creating worktree: {self._agent_name}", classes="agent-header"
+            )
             if prompt := self.block.input.get("prompt"):
                 preview = prompt[:80] + "..." if len(prompt) > 80 else prompt
                 yield Static(f'"{preview}"', classes="agent-prompt")

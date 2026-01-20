@@ -4,9 +4,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from claudechic.agent import Agent, ImageAttachment, UserContent, AssistantContent, ToolUse
+from claudechic.agent import (
+    Agent,
+    ImageAttachment,
+    UserContent,
+    AssistantContent,
+    ToolUse,
+)
 from claudechic.enums import ToolName
-from claudechic.widgets.chat import ChatMessage, ChatAttachment, ThinkingIndicator, SystemInfo
+from claudechic.widgets.chat import (
+    ChatMessage,
+    ChatAttachment,
+    ThinkingIndicator,
+    SystemInfo,
+)
 from claudechic.widgets.scroll import AutoHideScroll
 from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
 
@@ -48,7 +59,9 @@ class ChatView(AutoHideScroll):
 
         # Widget tracking
         self._current_response: ChatMessage | None = None
-        self._pending_tool_widgets: dict[str, ToolUseWidget | TaskWidget | AgentToolWidget] = {}
+        self._pending_tool_widgets: dict[
+            str, ToolUseWidget | TaskWidget | AgentToolWidget
+        ] = {}
         self._active_task_widgets: dict[str, TaskWidget] = {}
         self._recent_tools: list[ToolUseWidget | TaskWidget | AgentToolWidget] = []
 
@@ -70,7 +83,9 @@ class ChatView(AutoHideScroll):
         for item in self._agent.messages:
             if item.role == "user" and isinstance(item.content, UserContent):
                 self._mount_user_message(item.content.text, item.content.images)
-            elif item.role == "assistant" and isinstance(item.content, AssistantContent):
+            elif item.role == "assistant" and isinstance(
+                item.content, AssistantContent
+            ):
                 self._render_assistant_history(item.content)
 
         self.scroll_end(animate=False)
@@ -107,7 +122,9 @@ class ChatView(AutoHideScroll):
         self._hide_thinking()
         self._current_response = None
 
-    def append_text(self, text: str, new_message: bool, parent_tool_id: str | None) -> None:
+    def append_text(
+        self, text: str, new_message: bool, parent_tool_id: str | None
+    ) -> None:
         """Append streaming text to the view.
 
         Args:
@@ -132,7 +149,9 @@ class ChatView(AutoHideScroll):
         self._current_response.append_content(text)
         self.scroll_if_tailing()
 
-    def append_tool_use(self, tool: ToolUse, block: "ToolUseBlock", parent_tool_id: str | None) -> None:
+    def append_tool_use(
+        self, tool: ToolUse, block: "ToolUseBlock", parent_tool_id: str | None
+    ) -> None:
         """Append a tool use widget to the view.
 
         Args:
@@ -169,7 +188,9 @@ class ChatView(AutoHideScroll):
         self.mount(widget)
         self.scroll_if_tailing()
 
-    def update_tool_result(self, tool_id: str, block: "ToolResultBlock", parent_tool_id: str | None) -> None:
+    def update_tool_result(
+        self, tool_id: str, block: "ToolResultBlock", parent_tool_id: str | None
+    ) -> None:
         """Update a tool widget with its result.
 
         Args:
@@ -226,6 +247,7 @@ class ChatView(AutoHideScroll):
     def _mount_tool_widget(self, tool: ToolUse, completed: bool = False) -> None:
         """Mount a tool widget (for history rendering)."""
         from claude_agent_sdk import ToolUseBlock
+
         block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
         collapsed = tool.name in COLLAPSE_BY_DEFAULT
         cwd = self._agent.cwd if self._agent else None
@@ -235,7 +257,9 @@ class ChatView(AutoHideScroll):
         elif tool.name.startswith("mcp__chic__"):
             widget = AgentToolWidget(block, cwd=cwd)
         else:
-            widget = ToolUseWidget(block, collapsed=collapsed, completed=completed, cwd=cwd)
+            widget = ToolUseWidget(
+                block, collapsed=collapsed, completed=completed, cwd=cwd
+            )
 
         self.mount(widget)
 
@@ -243,4 +267,3 @@ class ChatView(AutoHideScroll):
         """Remove thinking indicator if present."""
         for ind in self.query(ThinkingIndicator):
             ind.remove()
-

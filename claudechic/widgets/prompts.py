@@ -1,10 +1,12 @@
 """Selection and question prompts for user interaction."""
 
 import asyncio
+from collections.abc import Sequence
 from typing import Any
 
 from textual.app import ComposeResult
 from textual.widgets import Static, Label, ListItem
+
 
 class SessionItem(ListItem):
     """A session in the sidebar."""
@@ -178,7 +180,11 @@ class BasePrompt(Static):
 
         # Start typing to enter text mode (if text option exists)
         text_idx = self._text_option_idx()
-        if text_idx is not None and len(event.character or "") == 1 and event.character.isalpha():
+        if (
+            text_idx is not None
+            and len(event.character or "") == 1
+            and event.character.isalpha()
+        ):
             self.selected_idx = text_idx
             self._update_selection()
             self._text_buffer = event.character
@@ -205,7 +211,7 @@ class SelectionPrompt(BasePrompt):
     def __init__(
         self,
         title: str,
-        options: list[tuple[str, str]],
+        options: Sequence[tuple[str, str]],
         text_option: tuple[str, str] | None = None,
     ) -> None:
         """Create selection prompt.
@@ -297,7 +303,9 @@ class QuestionPrompt(BasePrompt):
             classes="prompt-title",
         )
         for i, opt in enumerate(q.get("options", [])):
-            classes = "prompt-option selected" if i == self.selected_idx else "prompt-option"
+            classes = (
+                "prompt-option selected" if i == self.selected_idx else "prompt-option"
+            )
             label = opt.get("label", "?")
             desc = opt.get("description", "")
             text = f"{i + 1}. {label}" + (f" - {desc}" if desc else "")
@@ -307,7 +315,11 @@ class QuestionPrompt(BasePrompt):
         classes = "prompt-option prompt-placeholder"
         if self.selected_idx == other_idx:
             classes += " selected"
-        yield Static(f"{other_idx + 1}. {self._text_option_placeholder()}", classes=classes, id=self._get_option_id(other_idx))
+        yield Static(
+            f"{other_idx + 1}. {self._text_option_placeholder()}",
+            classes=classes,
+            id=self._get_option_id(other_idx),
+        )
 
     def _total_options(self) -> int:
         q = self.questions[self.current_q]

@@ -148,7 +148,9 @@ class Agent:
         self.active_tasks: dict[str, str] = {}  # task_id -> accumulated text
         self.response_had_tools: bool = False
         self._needs_new_message: bool = True  # Start new ChatMessage on next text
-        self._thinking_hidden: bool = False  # Track if thinking indicator was hidden this response
+        self._thinking_hidden: bool = (
+            False  # Track if thinking indicator was hidden this response
+        )
 
         # Per-agent state
         self.pending_images: list[ImageAttachment] = []
@@ -271,9 +273,7 @@ class Agent:
 
         # Flush final assistant content
         if current_assistant is not None:
-            self.messages.append(
-                ChatItem(role="assistant", content=current_assistant)
-            )
+            self.messages.append(ChatItem(role="assistant", content=current_assistant))
 
         log.info(f"Loaded {len(self.messages)} messages from session {self.session_id}")
 
@@ -314,7 +314,12 @@ class Agent:
         # Add user message to history (store display text if provided)
         display_text = display_as or prompt
         self.messages.append(
-            ChatItem(role="user", content=UserContent(text=display_text, images=list(self.pending_images)))
+            ChatItem(
+                role="user",
+                content=UserContent(
+                    text=display_text, images=list(self.pending_images)
+                ),
+            )
         )
 
         # Notify UI to display user message (pass full image info before clearing)
@@ -390,7 +395,9 @@ class Agent:
             raise
         except Exception as e:
             # Check if this is a connection error (SDK process died)
-            is_connection_error = "ConnectionError" in type(e).__name__ or "connection" in str(e).lower()
+            is_connection_error = (
+                "ConnectionError" in type(e).__name__ or "connection" in str(e).lower()
+            )
 
             if self._interrupted:
                 log.info("Suppressed error after interrupt: %s", e)
@@ -500,12 +507,17 @@ class Agent:
     def _handle_command_output(self, content: str) -> None:
         """Handle command output from UserMessage (e.g., /context)."""
         import re
+
         # Extract content from <local-command-stdout>...</local-command-stdout>
-        match = re.search(r"<local-command-stdout>(.*?)</local-command-stdout>", content, re.DOTALL)
+        match = re.search(
+            r"<local-command-stdout>(.*?)</local-command-stdout>", content, re.DOTALL
+        )
         if match and self.observer:
             self.observer.on_command_output(self, match.group(1).strip())
 
-    def _handle_tool_use(self, block: ToolUseBlock, parent_tool_use_id: str | None) -> None:  # noqa: ARG002
+    def _handle_tool_use(
+        self, block: ToolUseBlock, parent_tool_use_id: str | None
+    ) -> None:  # noqa: ARG002
         """Handle tool use start."""
         self._flush_current_text()
         self.response_had_tools = True
@@ -541,7 +553,9 @@ class Agent:
         """Handle tool result."""
         tool = self.pending_tools.pop(block.tool_use_id, None)
         if tool:
-            tool.result = block.content if isinstance(block.content, str) else str(block.content)
+            tool.result = (
+                block.content if isinstance(block.content, str) else str(block.content)
+            )
             tool.is_error = block.is_error or False
             if self.observer:
                 self.observer.on_message_updated(self)
@@ -683,7 +697,11 @@ class Agent:
             content.append(
                 {
                     "type": "image",
-                    "source": {"type": "base64", "media_type": img.media_type, "data": img.base64_data},
+                    "source": {
+                        "type": "base64",
+                        "media_type": img.media_type,
+                        "data": img.base64_data,
+                    },
                 }
             )
         return {

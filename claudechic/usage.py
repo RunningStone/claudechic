@@ -9,6 +9,7 @@ from datetime import datetime
 @dataclass
 class UsageLimit:
     """A single usage limit with utilization percentage and reset time."""
+
     utilization: float  # 0-100
     resets_at: datetime | None
 
@@ -16,6 +17,7 @@ class UsageLimit:
 @dataclass
 class UsageInfo:
     """Usage information from the API."""
+
     five_hour: UsageLimit | None
     seven_day: UsageLimit | None
     seven_day_sonnet: UsageLimit | None
@@ -26,7 +28,13 @@ def get_oauth_token() -> str | None:
     """Get OAuth access token from macOS Keychain."""
     try:
         result = subprocess.run(
-            ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
+            [
+                "security",
+                "find-generic-password",
+                "-s",
+                "Claude Code-credentials",
+                "-w",
+            ],
             capture_output=True,
             text=True,
         )
@@ -62,11 +70,15 @@ async def fetch_usage() -> UsageInfo:
     # Run curl in subprocess to avoid adding httpx/aiohttp dependency
     try:
         proc = await asyncio.create_subprocess_exec(
-            "curl", "-s",
+            "curl",
+            "-s",
             "https://api.anthropic.com/api/oauth/usage",
-            "-H", "Accept: application/json",
-            "-H", f"Authorization: Bearer {token}",
-            "-H", "anthropic-beta: oauth-2025-04-20",
+            "-H",
+            "Accept: application/json",
+            "-H",
+            f"Authorization: Bearer {token}",
+            "-H",
+            "anthropic-beta: oauth-2025-04-20",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

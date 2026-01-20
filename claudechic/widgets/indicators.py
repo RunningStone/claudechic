@@ -47,6 +47,7 @@ class CPUBar(Widget):
     def on_click(self) -> None:
         """Show profile modal on click."""
         from claudechic.widgets.profile_modal import ProfileModal
+
         self.app.push_screen(ProfileModal())
 
 
@@ -70,7 +71,7 @@ class ContextBar(Widget):
             fill_color, text_color = "#cc3333", "white"
         empty_color = "#333333"
         # Center percentage text in bar
-        pct_str = f"{pct*100:.0f}%"
+        pct_str = f"{pct * 100:.0f}%"
         start = (bar_width - len(pct_str)) // 2
         result = Text()
         for i in range(bar_width):
@@ -84,4 +85,7 @@ class ContextBar(Widget):
 
     def on_click(self) -> None:
         """Run /context command on click."""
-        self.app._handle_prompt("/context")
+        from claudechic.app import ChatApp
+
+        if isinstance(self.app, ChatApp):
+            self.app._handle_prompt("/context")

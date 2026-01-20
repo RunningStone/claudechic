@@ -12,7 +12,9 @@ def test_image_attachment_message_building():
 
     # Add a test image
     test_data = base64.b64encode(b"fake image data").decode()
-    agent.pending_images.append(ImageAttachment("/tmp/test.png", "test.png", "image/png", test_data))
+    agent.pending_images.append(
+        ImageAttachment("/tmp/test.png", "test.png", "image/png", test_data)
+    )
 
     # Build message
     msg = agent._build_message_with_images("What is this?")

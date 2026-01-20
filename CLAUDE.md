@@ -224,3 +224,12 @@ uv run pytest tests/ -v
 ```
 
 Tests use `app.interactions` queue to programmatically respond to permission prompts, and `app.completions` queue to wait for response completion. Real SDK required.
+
+## Pre-commit Hooks
+
+```bash
+uv run pre-commit install  # Install hooks (one-time)
+uv run pre-commit run --all-files  # Run manually
+```
+
+Hooks: ruff (lint + fix), ruff-format, pyright. Run automatically on commit.

@@ -26,6 +26,7 @@ class DiffHighlightTheme(HighlightTheme):
     Uses orange as primary accent, saturated blues for structure,
     and avoids red/green that clash with diff backgrounds.
     """
+
     STYLES = {
         Token.Comment: "#888888",  # Brighter gray for visibility
         Token.Error: "#ff6b6b",  # Soft red for errors
@@ -71,11 +72,14 @@ def _highlight_lines(text: str, language: str) -> list[Content]:
     return highlighted.split("\n")
 
 
-def _word_diff_spans(old_line: str, new_line: str) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+def _word_diff_spans(
+    old_line: str, new_line: str
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
     """Compute character spans that changed between two lines.
 
     Returns (old_spans, new_spans) where each span is (start, end) of changed text.
     """
+
     def tokenize(s: str) -> list[tuple[str, int, int]]:
         """Return list of (token, start, end). Splits on whitespace and punctuation."""
         result = []
@@ -96,12 +100,20 @@ def _word_diff_spans(old_line: str, new_line: str) -> tuple[list[tuple[int, int]
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag in ("delete", "replace") and old_tokens:
             start = old_tokens[i1][1] if i1 < len(old_tokens) else len(old_line)
-            end = old_tokens[i2 - 1][2] if i2 > 0 and i2 - 1 < len(old_tokens) else len(old_line)
+            end = (
+                old_tokens[i2 - 1][2]
+                if i2 > 0 and i2 - 1 < len(old_tokens)
+                else len(old_line)
+            )
             if start < end:
                 old_spans.append((start, end))
         if tag in ("insert", "replace") and new_tokens:
             start = new_tokens[j1][1] if j1 < len(new_tokens) else len(new_line)
-            end = new_tokens[j2 - 1][2] if j2 > 0 and j2 - 1 < len(new_tokens) else len(new_line)
+            end = (
+                new_tokens[j2 - 1][2]
+                if j2 > 0 and j2 - 1 < len(new_tokens)
+                else len(new_line)
+            )
             if start < end:
                 new_spans.append((start, end))
 
@@ -211,8 +223,12 @@ class DiffWidget(HorizontalScroll):
 
         def make_gutter(old_num: int | None, new_num: int | None) -> Content:
             """Create two-column gutter: old_line new_line"""
-            old_str = str(old_num).rjust(gutter_width) if old_num else " " * gutter_width
-            new_str = str(new_num).rjust(gutter_width) if new_num else " " * gutter_width
+            old_str = (
+                str(old_num).rjust(gutter_width) if old_num else " " * gutter_width
+            )
+            new_str = (
+                str(new_num).rjust(gutter_width) if new_num else " " * gutter_width
+            )
             return Content.styled(f"{old_str} {new_str} ", "#666666")
 
         parts: list[Content] = []
@@ -230,28 +246,49 @@ class DiffWidget(HorizontalScroll):
                     for di, i in enumerate(range(i1, i2)):
                         j = j1 + di
                         gutter = make_gutter(i + 1, j + 1)
-                        code = old_highlighted[i] if i < len(old_highlighted) else Content("")
-                        line = Content.assemble(gutter, Content("  "), code.stylize("dim", 0, len(code)), Content("\n"))
+                        code = (
+                            old_highlighted[i]
+                            if i < len(old_highlighted)
+                            else Content("")
+                        )
+                        line = Content.assemble(
+                            gutter,
+                            Content("  "),
+                            code.stylize("dim", 0, len(code)),
+                            Content("\n"),
+                        )
                         parts.append(line)
 
                 elif tag == "delete":
                     # Deleted lines - old line number only
                     for i in range(i1, i2):
                         gutter = make_gutter(i + 1, None)
-                        code = old_highlighted[i] if i < len(old_highlighted) else Content("")
+                        code = (
+                            old_highlighted[i]
+                            if i < len(old_highlighted)
+                            else Content("")
+                        )
                         styled_code = _build_line_content(code, f"on {REMOVED_BG}")
                         indicator = Content.styled("- ", f"red on {REMOVED_BG}")
-                        line = Content.assemble(gutter, indicator, styled_code, Content("\n"))
+                        line = Content.assemble(
+                            gutter, indicator, styled_code, Content("\n")
+                        )
                         parts.append(line)
 
                 elif tag == "insert":
                     # Inserted lines - new line number only
                     for j in range(j1, j2):
                         gutter = make_gutter(None, j + 1)
-                        code = new_highlighted[j] if j < len(new_highlighted) else Content("")
+                        code = (
+                            new_highlighted[j]
+                            if j < len(new_highlighted)
+                            else Content("")
+                        )
                         styled_code = _build_line_content(code, f"on {ADDED_BG}")
                         indicator = Content.styled("+ ", f"green on {ADDED_BG}")
-                        line = Content.assemble(gutter, indicator, styled_code, Content("\n"))
+                        line = Content.assemble(
+                            gutter, indicator, styled_code, Content("\n")
+                        )
                         parts.append(line)
 
                 elif tag == "replace":
@@ -263,18 +300,25 @@ class DiffWidget(HorizontalScroll):
                         j = j1 + idx
                         if j < j2:
                             new_line_text = new_lines[j] if j < len(new_lines) else ""
-                            old_spans, _ = _word_diff_spans(old_line_text, new_line_text)
+                            old_spans, _ = _word_diff_spans(
+                                old_line_text, new_line_text
+                            )
                         else:
                             old_spans = []
 
                         gutter = make_gutter(i + 1, None)
-                        code = old_highlighted[i] if i < len(old_highlighted) else Content("")
+                        code = (
+                            old_highlighted[i]
+                            if i < len(old_highlighted)
+                            else Content("")
+                        )
                         styled_code = _build_line_content(
-                            code, f"on {REMOVED_BG}",
-                            old_spans, REMOVED_WORD_STYLE
+                            code, f"on {REMOVED_BG}", old_spans, REMOVED_WORD_STYLE
                         )
                         indicator = Content.styled("- ", f"red on {REMOVED_BG}")
-                        line = Content.assemble(gutter, indicator, styled_code, Content("\n"))
+                        line = Content.assemble(
+                            gutter, indicator, styled_code, Content("\n")
+                        )
                         parts.append(line)
 
                     # Then show all inserted lines (new line numbers)
@@ -284,18 +328,25 @@ class DiffWidget(HorizontalScroll):
                         i = i1 + idx
                         if i < i2:
                             old_line_text = old_lines[i] if i < len(old_lines) else ""
-                            _, new_spans = _word_diff_spans(old_line_text, new_line_text)
+                            _, new_spans = _word_diff_spans(
+                                old_line_text, new_line_text
+                            )
                         else:
                             new_spans = []
 
                         gutter = make_gutter(None, j + 1)
-                        code = new_highlighted[j] if j < len(new_highlighted) else Content("")
+                        code = (
+                            new_highlighted[j]
+                            if j < len(new_highlighted)
+                            else Content("")
+                        )
                         styled_code = _build_line_content(
-                            code, f"on {ADDED_BG}",
-                            new_spans, ADDED_WORD_STYLE
+                            code, f"on {ADDED_BG}", new_spans, ADDED_WORD_STYLE
                         )
                         indicator = Content.styled("+ ", f"green on {ADDED_BG}")
-                        line = Content.assemble(gutter, indicator, styled_code, Content("\n"))
+                        line = Content.assemble(
+                            gutter, indicator, styled_code, Content("\n")
+                        )
                         parts.append(line)
 
         if not parts:

@@ -38,7 +38,7 @@ def get_project_sessions_dir(cwd: Path | None = None) -> Path | None:
 
 def _extract_preview_from_chunk(chunk: bytes) -> str | None:
     """Extract first user message preview from a chunk of session data."""
-    for line in chunk.split(b'\n'):
+    for line in chunk.split(b"\n"):
         if not line.strip():
             continue
         try:
@@ -96,7 +96,9 @@ async def get_recent_sessions(
     # If searching, we need to check more but can stop early
     search_lower = search.lower()
     sessions = []
-    check_limit = len(candidates) if search else limit * 2  # read a few extra in case some fail
+    check_limit = (
+        len(candidates) if search else limit * 2
+    )  # read a few extra in case some fail
 
     for i, (f, mtime, size) in enumerate(candidates[:check_limit]):
         # Yield to event loop every 10 files to stay responsive
@@ -106,7 +108,7 @@ async def get_recent_sessions(
         try:
             # Read only first 16KB - enough to find first user message
             chunk_size = min(16384, size)
-            async with aiofiles.open(f, mode='rb') as fh:
+            async with aiofiles.open(f, mode="rb") as fh:
                 chunk = await fh.read(chunk_size)
 
             preview = _extract_preview_from_chunk(chunk)
@@ -179,14 +181,18 @@ async def load_session_messages(
                             if block.get("type") == "text":
                                 text = block.get("text", "")
                                 if text.strip():
-                                    messages.append({"type": "assistant", "content": text})
+                                    messages.append(
+                                        {"type": "assistant", "content": text}
+                                    )
                             elif block.get("type") == "tool_use":
-                                messages.append({
-                                    "type": "tool_use",
-                                    "name": block.get("name", "?"),
-                                    "input": block.get("input", {}),
-                                    "id": block.get("id", ""),
-                                })
+                                messages.append(
+                                    {
+                                        "type": "tool_use",
+                                        "name": block.get("name", "?"),
+                                        "input": block.get("input", {}),
+                                        "id": block.get("id", ""),
+                                    }
+                                )
     except (json.JSONDecodeError, IOError):
         pass
 
@@ -219,10 +225,10 @@ async def get_plan_path_for_session(
     # Find slug in session file (read first 32KB, slug appears early)
     slug = None
     try:
-        async with aiofiles.open(session_file, mode='rb') as f:
+        async with aiofiles.open(session_file, mode="rb") as f:
             chunk = await f.read(32768)
 
-        for line in chunk.split(b'\n'):
+        for line in chunk.split(b"\n"):
             if b'"slug"' not in line:
                 continue
             try:
@@ -279,12 +285,12 @@ async def get_context_from_session(
 
         # Read last chunk (usually enough to find last usage)
         chunk_size = min(32768, file_size)  # 32KB chunk
-        async with aiofiles.open(session_file, mode='rb') as f:
+        async with aiofiles.open(session_file, mode="rb") as f:
             await f.seek(file_size - chunk_size)
             chunk = await f.read()
 
         # Split into lines, process in reverse
-        lines = chunk.split(b'\n')
+        lines = chunk.split(b"\n")
         for line in reversed(lines):
             if not line.strip():
                 continue

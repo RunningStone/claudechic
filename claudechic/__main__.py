@@ -13,24 +13,32 @@ setup_logging()
 def main():
     parser = argparse.ArgumentParser(description="Claude Chic")
     parser.add_argument(
-        "--version", "-V", action="version", version=f"claudechic {version('claudechic')}"
+        "--version",
+        "-V",
+        action="version",
+        version=f"claudechic {version('claudechic')}",
     )
     parser.add_argument(
         "--resume", "-r", action="store_true", help="Resume the most recent session"
     )
-    parser.add_argument("--session", "-s", type=str, help="Resume a specific session ID")
+    parser.add_argument(
+        "--session", "-s", type=str, help="Resume a specific session ID"
+    )
     parser.add_argument("prompt", nargs="*", help="Initial prompt to send")
     args = parser.parse_args()
 
     initial_prompt = " ".join(args.prompt) if args.prompt else None
 
     # Pass resume flag or specific session ID - actual lookup happens in app
-    resume_id = args.session if args.session else ("__most_recent__" if args.resume else None)
+    resume_id = (
+        args.session if args.session else ("__most_recent__" if args.resume else None)
+    )
 
     # Set terminal window title (before Textual takes over stdout)
     from pathlib import Path
     from rich.console import Console
     from rich.control import Control
+
     Console().control(Control.title(f"Claude Chic · {Path.cwd().name}"))
 
     try:

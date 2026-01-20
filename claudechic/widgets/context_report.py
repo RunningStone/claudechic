@@ -29,17 +29,21 @@ def parse_context_markdown(content: str) -> dict:
 
     # Parse category rows from markdown table
     # | System prompt | 2.9k | 1.5% |
-    for match in re.finditer(r"\|\s*([^|]+?)\s*\|\s*([\d.]+)(k?)\s*\|\s*([\d.]+)%\s*\|", content):
+    for match in re.finditer(
+        r"\|\s*([^|]+?)\s*\|\s*([\d.]+)(k?)\s*\|\s*([\d.]+)%\s*\|", content
+    ):
         name, tokens_raw, suffix, pct_str = match.groups()
         name = name.strip()
         if name in ("Category", "-------"):
             continue
         tokens = int(float(tokens_raw) * (1000 if suffix == "k" else 1))
-        data["categories"].append({
-            "name": name,
-            "tokens": tokens,
-            "percentage": float(pct_str),
-        })
+        data["categories"].append(
+            {
+                "name": name,
+                "tokens": tokens,
+                "percentage": float(pct_str),
+            }
+        )
 
     return data
 
@@ -125,7 +129,9 @@ class ContextReport(Widget):
             theme = self.app.current_theme
             # Theme colors are strings directly, not objects with .hex
             primary = theme.primary if isinstance(theme.primary, str) else "#cc7700"
-            secondary = theme.secondary if isinstance(theme.secondary, str) else "#5599dd"
+            secondary = (
+                theme.secondary if isinstance(theme.secondary, str) else "#5599dd"
+            )
             panel = theme.panel if isinstance(theme.panel, str) else "#333333"
         except Exception:
             primary = "#cc7700"
@@ -133,12 +139,12 @@ class ContextReport(Widget):
             panel = "#333333"
 
         return {
-            "neutral": panel,                         # prompt - dark grey
-            "neutral_alt": self._lighten(panel, 0.1), # memory - slightly lighter
-            "tools": secondary,                       # tools - blue
-            "messages": primary,                      # messages - orange
-            "free": self._lighten(panel, 0.2),        # free - slightly lighter grey
-            "free_alt": self._lighten(panel, 0.15),   # buffer - between panel and free
+            "neutral": panel,  # prompt - dark grey
+            "neutral_alt": self._lighten(panel, 0.1),  # memory - slightly lighter
+            "tools": secondary,  # tools - blue
+            "messages": primary,  # messages - orange
+            "free": self._lighten(panel, 0.2),  # free - slightly lighter grey
+            "free_alt": self._lighten(panel, 0.15),  # buffer - between panel and free
         }
 
     def _lighten(self, color: str, amount: float) -> str:
@@ -152,7 +158,9 @@ class ContextReport(Widget):
         except Exception:
             return color
 
-    def _get_color(self, category_name: str, color_map: dict[str, str] | None = None) -> str:
+    def _get_color(
+        self, category_name: str, color_map: dict[str, str] | None = None
+    ) -> str:
         """Get color for a category."""
         colors = color_map or self._get_color_map()
         color_key = self.CATEGORY_TO_COLOR_KEY.get(category_name, "neutral")
@@ -167,7 +175,11 @@ class ContextReport(Widget):
         model_short = data["model"].replace("claude-", "").replace("-20251101", "")
         used_k = data["tokens_used"] / 1000
         total_k = data["tokens_total"] / 1000
-        pct = (data["tokens_used"] / data["tokens_total"] * 100) if data["tokens_total"] else 0
+        pct = (
+            (data["tokens_used"] / data["tokens_total"] * 100)
+            if data["tokens_total"]
+            else 0
+        )
 
         header_text = f"[dim]{model_short}[/dim] · [bold]{used_k:.0f}k/{total_k:.0f}k ({pct:.0f}%)[/bold]"
         yield Static(header_text, classes="header", markup=True)

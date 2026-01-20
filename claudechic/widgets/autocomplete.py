@@ -24,6 +24,7 @@ from claudechic.shell_complete import complete_command, complete_path, parse_she
 @dataclass
 class TargetState:
     """State of the target TextArea."""
+
     text: str
     cursor_position: int  # Linear position in text
 
@@ -186,7 +187,11 @@ class TextAreaAutoComplete(Widget):
             return
         state = self._get_target_state()
         # Use text up to cursor, or full text if cursor at start (common when setting text directly)
-        text_to_check = state.text[:state.cursor_position] if state.cursor_position > 0 else state.text
+        text_to_check = (
+            state.text[: state.cursor_position]
+            if state.cursor_position > 0
+            else state.text
+        )
 
         # Detect mode
         self._mode = None
@@ -235,7 +240,11 @@ class TextAreaAutoComplete(Widget):
         self._search_timer = None
         # Re-check that we're still in path mode with same trigger
         current_state = self._get_target_state()
-        text_to_check = current_state.text[:current_state.cursor_position] if current_state.cursor_position > 0 else current_state.text
+        text_to_check = (
+            current_state.text[: current_state.cursor_position]
+            if current_state.cursor_position > 0
+            else current_state.text
+        )
         if "@" not in text_to_check:
             self.action_hide()
             return
@@ -249,7 +258,10 @@ class TextAreaAutoComplete(Widget):
         self._search_timer = None
         current_state = self._get_target_state()
         # Verify still in shell mode
-        if not (current_state.text.startswith("!") or current_state.text.startswith("/shell ")):
+        if not (
+            current_state.text.startswith("!")
+            or current_state.text.startswith("/shell ")
+        ):
             self.action_hide()
             return
         self._show_options(current_state)
@@ -277,7 +289,11 @@ class TextAreaAutoComplete(Widget):
             return False
         if option_count == 1:
             first_option = self.option_list.get_option_at_index(0).prompt
-            text = first_option.plain if isinstance(first_option, Text) else str(first_option)
+            text = (
+                first_option.plain
+                if isinstance(first_option, Text)
+                else str(first_option)
+            )
             # For slash commands, compare with the full command
             if self._mode == "slash":
                 return text != search_string.lstrip("/")
@@ -287,13 +303,17 @@ class TextAreaAutoComplete(Widget):
     def _get_search_string(self, state: TargetState) -> str:
         """Get the string to search/filter with."""
         # Use text up to cursor, or full text if cursor at start
-        text_to_check = state.text[:state.cursor_position] if state.cursor_position > 0 else state.text
+        text_to_check = (
+            state.text[: state.cursor_position]
+            if state.cursor_position > 0
+            else state.text
+        )
 
         if self._mode == "slash":
             return text_to_check  # Include the /
         elif self._mode == "path":
             # Return full query after @ for fuzzy file matching
-            return text_to_check[self._trigger_pos + 1:]
+            return text_to_check[self._trigger_pos + 1 :]
         elif self._mode == "shell":
             # Parse shell input to get what we're completing
             _cmd, arg = parse_shell_input(text_to_check)
@@ -312,7 +332,11 @@ class TextAreaAutoComplete(Widget):
 
     def _get_shell_candidates(self, state: TargetState) -> list[DropdownItem]:
         """Get shell completion candidates (commands or paths)."""
-        text = state.text[:state.cursor_position] if state.cursor_position > 0 else state.text
+        text = (
+            state.text[: state.cursor_position]
+            if state.cursor_position > 0
+            else state.text
+        )
         cmd, arg = parse_shell_input(text)
 
         # Get cwd from app's agent if available
@@ -345,7 +369,9 @@ class TextAreaAutoComplete(Widget):
             # Create highlighted content
             content = Content(path)
             match_style = Style.from_rich_style(
-                self.get_component_rich_style("autocomplete--highlight-match", partial=True)
+                self.get_component_rich_style(
+                    "autocomplete--highlight-match", partial=True
+                )
             )
             for idx in indices:
                 if idx < len(path):
@@ -403,7 +429,9 @@ class TextAreaAutoComplete(Widget):
         matches_and_scores.sort(key=itemgetter(1), reverse=True)
         return [m for m, _ in matches_and_scores]
 
-    def _apply_highlights(self, candidate: Content, offsets: tuple[int, ...]) -> Content:
+    def _apply_highlights(
+        self, candidate: Content, offsets: tuple[int, ...]
+    ) -> Content:
         """Highlight matched characters."""
         match_style = Style.from_rich_style(
             self.get_component_rich_style("autocomplete--highlight-match", partial=True)
@@ -418,6 +446,7 @@ class TextAreaAutoComplete(Widget):
         """Position dropdown above input."""
         try:
             from textual.geometry import Offset
+
             # Get where input is on screen
             input_region = self.target.content_region
             # Get current dropdown height
@@ -482,7 +511,11 @@ class TextAreaAutoComplete(Widget):
             return
 
         option = self.option_list.get_option_at_index(option_index)
-        value = option.prompt.plain if isinstance(option.prompt, Text) else str(option.prompt)
+        value = (
+            option.prompt.plain
+            if isinstance(option.prompt, Text)
+            else str(option.prompt)
+        )
         # Strip prefix (emoji + space or $ + space)
         if value.startswith(("⚡ ", "📄 ", "$ ")):
             value = value[2:]
@@ -495,6 +528,7 @@ class TextAreaAutoComplete(Widget):
         def hide_and_reset():
             self._completing = False
             self.action_hide()
+
         self.call_after_refresh(hide_and_reset)
 
     def _apply_completion(self, value: str, state: TargetState) -> None:

@@ -25,7 +25,9 @@ async def get_git_branch(cwd: str | None = None) -> str:
     """Get current git branch name (async)."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "git", "branch", "--show-current",
+            "git",
+            "branch",
+            "--show-current",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
@@ -55,7 +57,9 @@ class StatusFooter(Static):
         with Horizontal(id="footer-content"):
             yield Static("", id="model-label", classes="footer-label")
             yield Static("·", classes="footer-sep")
-            yield AutoEditLabel("Auto-edit: off", id="auto-edit-label", classes="footer-label")
+            yield AutoEditLabel(
+                "Auto-edit: off", id="auto-edit-label", classes="footer-label"
+            )
             yield Static("", id="footer-spacer")
             yield ContextBar(id="context-bar")
             yield CPUBar(id="cpu-bar")

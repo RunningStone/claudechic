@@ -37,6 +37,7 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
 
     if cmd.startswith("/worktree"):
         from claudechic.features.worktree import handle_worktree_command
+
         handle_worktree_command(app, cmd)
         return True
 
@@ -89,14 +90,19 @@ def _handle_agent(app: "ChatApp", command: str) -> bool:
     if len(parts) == 1:
         # In narrow mode, open the sidebar overlay instead of listing
         width = app.size.width
-        has_content = len(app.agents) > 1 or app.agent_sidebar._worktrees or app.todo_panel.todos
+        has_content = (
+            len(app.agents) > 1 or app.agent_sidebar._worktrees or app.todo_panel.todos
+        )
         if width < app.SIDEBAR_MIN_WIDTH and has_content:
             app._sidebar_overlay_open = True
             app._position_right_sidebar()
             return True
 
         # List agents as markdown table
-        lines = ["| # | Agent | Status | Directory |", "|---|-------|--------|-----------|"]
+        lines = [
+            "| # | Agent | Status | Directory |",
+            "|---|-------|--------|-----------|",
+        ]
         for i, (aid, agent) in enumerate(app.agents.items(), 1):
             marker = "▸" if aid == app.active_agent_id else " "
             # Shorten home directory
@@ -139,7 +145,15 @@ def _handle_shell(app: "ChatApp", command: str) -> bool:
     cwd = str(agent.cwd) if agent else None
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     # Force color output, disable pagers for captured output
-    env.update({"FORCE_COLOR": "1", "CLICOLOR_FORCE": "1", "TERM": "xterm-256color", "BAT_PAGER": "", "PAGER": ""})
+    env.update(
+        {
+            "FORCE_COLOR": "1",
+            "CLICOLOR_FORCE": "1",
+            "TERM": "xterm-256color",
+            "BAT_PAGER": "",
+            "PAGER": "",
+        }
+    )
     shell = os.environ.get("SHELL", "/bin/sh")
 
     if cmd and not interactive:
@@ -156,6 +170,7 @@ def _handle_shell(app: "ChatApp", command: str) -> bool:
                 import sys
                 import termios
                 import tty
+
                 print("\nPress any key to continue...", end="", flush=True)
                 fd = sys.stdin.fileno()
                 old = termios.tcgetattr(fd)
@@ -259,7 +274,9 @@ def _handle_compactish(app: "ChatApp", command: str) -> bool:
     aggressive = "--aggressive" in parts or "-a" in parts
     reconnect = "--no-reconnect" not in parts
 
-    result = compact_session(session_id, cwd=agent.cwd, aggressive=aggressive, dry_run=dry_run)
+    result = compact_session(
+        session_id, cwd=agent.cwd, aggressive=aggressive, dry_run=dry_run
+    )
     if "error" in result:
         app.notify(f"Error: {result['error']}", severity="error")
         return True

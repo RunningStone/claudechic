@@ -8,23 +8,26 @@ from pathlib import Path
 
 class FinishPhase(Enum):
     """Phases of the /worktree finish process."""
+
     RESOLUTION = auto()  # Handling uncommitted changes, merging
-    CLEANUP = auto()     # Removing worktree and branch
-    ABORTED = auto()     # User cancelled
+    CLEANUP = auto()  # Removing worktree and branch
+    ABORTED = auto()  # User cancelled
 
 
 class ResolutionAction(Enum):
     """What action is needed in resolution phase."""
-    NONE = auto()              # Nothing to do, go to cleanup
+
+    NONE = auto()  # Nothing to do, go to cleanup
     CLEAN_GITIGNORED = auto()  # Run git clean -fdX
     PROMPT_UNCOMMITTED = auto()  # Ask user: commit/discard/abort
-    FAST_FORWARD = auto()      # git merge --ff-only in main_dir
-    REBASE = auto()            # Claude does rebase
+    FAST_FORWARD = auto()  # git merge --ff-only in main_dir
+    REBASE = auto()  # Claude does rebase
 
 
 @dataclass
 class WorktreeInfo:
     """Info about an existing worktree."""
+
     path: Path
     branch: str
     is_main: bool
@@ -33,6 +36,7 @@ class WorktreeInfo:
 @dataclass
 class FinishInfo:
     """Info needed to finish a worktree."""
+
     branch_name: str
     base_branch: str
     worktree_dir: Path
@@ -45,9 +49,10 @@ class WorktreeStatus:
 
     All fields are gathered via git commands - no Claude involvement.
     """
+
     # Commit status
     commits_ahead: int  # Number of commits beyond base branch
-    is_merged: bool     # Branch already merged into base
+    is_merged: bool  # Branch already merged into base
     can_fast_forward: bool  # Base is ancestor of branch (no rebase needed)
 
     # Working directory status
@@ -73,14 +78,17 @@ class WorktreeStatus:
     @property
     def only_gitignored_untracked(self) -> bool:
         """True if only untracked files are gitignored (safe to auto-clean)."""
-        return (not self.has_uncommitted and
-                not self.untracked_other and
-                bool(self.untracked_gitignored))
+        return (
+            not self.has_uncommitted
+            and not self.untracked_other
+            and bool(self.untracked_gitignored)
+        )
 
 
 @dataclass
 class FinishState:
     """Tracks state of an in-progress /worktree finish."""
+
     info: FinishInfo
     phase: FinishPhase
     status: WorktreeStatus | None = None
@@ -92,7 +100,9 @@ def get_repo_name() -> str:
     """Get the current repository name."""
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True, check=True
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return Path(result.stdout.strip()).name
 
@@ -111,7 +121,9 @@ def list_worktrees() -> list[WorktreeInfo]:
     """List all git worktrees for this repo."""
     result = subprocess.run(
         ["git", "worktree", "list", "--porcelain"],
-        capture_output=True, text=True, check=True
+        capture_output=True,
+        text=True,
+        check=True,
     )
 
     worktrees = []
@@ -169,7 +181,9 @@ def start_worktree(feature_name: str) -> tuple[bool, str, Path | None]:
         # Create the worktree with a new branch
         subprocess.run(
             ["git", "worktree", "add", "-b", feature_name, str(worktree_dir), "HEAD"],
-            check=True, capture_output=True, text=True
+            check=True,
+            capture_output=True,
+            text=True,
         )
 
         return True, f"Created worktree at {worktree_dir}", worktree_dir
@@ -202,11 +216,15 @@ def get_finish_info(cwd: Path | None = None) -> tuple[bool, str, FinishInfo | No
         return False, "Cannot find main worktree.", None
 
     main_dir, base_branch = main_wt
-    return True, "Ready to finish worktree", FinishInfo(
-        branch_name=current_wt.branch,
-        base_branch=base_branch,
-        worktree_dir=current_wt.path,
-        main_dir=main_dir,
+    return (
+        True,
+        "Ready to finish worktree",
+        FinishInfo(
+            branch_name=current_wt.branch,
+            base_branch=base_branch,
+            worktree_dir=current_wt.path,
+            main_dir=main_dir,
+        ),
     )
 
 
@@ -220,7 +238,9 @@ def diagnose_worktree(info: FinishInfo) -> WorktreeStatus:
     # Commits ahead of base
     result = subprocess.run(
         ["git", "rev-list", "--count", f"{info.base_branch}..{info.branch_name}"],
-        cwd=cwd, capture_output=True, text=True
+        cwd=cwd,
+        capture_output=True,
+        text=True,
     )
     commits_ahead = int(result.stdout.strip()) if result.returncode == 0 else 0
 
@@ -232,8 +252,7 @@ def diagnose_worktree(info: FinishInfo) -> WorktreeStatus:
 
     # Uncommitted changes (staged + unstaged)
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=cwd, capture_output=True, text=True
+        ["git", "status", "--porcelain"], cwd=cwd, capture_output=True, text=True
     )
     uncommitted = []
     for line in result.stdout.strip().split("\n"):
@@ -261,8 +280,7 @@ def get_untracked_files(worktree_dir: Path) -> tuple[list[str], list[str]]:
     """
     # Files that would be removed by git clean -fdX (ignored only)
     result = subprocess.run(
-        ["git", "clean", "-fdXn"],
-        cwd=worktree_dir, capture_output=True, text=True
+        ["git", "clean", "-fdXn"], cwd=worktree_dir, capture_output=True, text=True
     )
     ignored_lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
     # Parse "Would remove X" format
@@ -270,8 +288,7 @@ def get_untracked_files(worktree_dir: Path) -> tuple[list[str], list[str]]:
 
     # Files that would be removed by git clean -fd (all untracked)
     result = subprocess.run(
-        ["git", "clean", "-fdn"],
-        cwd=worktree_dir, capture_output=True, text=True
+        ["git", "clean", "-fdn"], cwd=worktree_dir, capture_output=True, text=True
     )
     all_lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
     all_untracked = [line.replace("Would remove ", "") for line in all_lines if line]
@@ -316,8 +333,7 @@ def determine_resolution_action(status: WorktreeStatus) -> ResolutionAction:
 def clean_gitignored_files(worktree_dir: Path) -> tuple[bool, str]:
     """Remove gitignored untracked files. Returns (success, error)."""
     result = subprocess.run(
-        ["git", "clean", "-fdX"],
-        cwd=worktree_dir, capture_output=True, text=True
+        ["git", "clean", "-fdX"], cwd=worktree_dir, capture_output=True, text=True
     )
     if result.returncode != 0:
         return False, result.stderr.strip()
@@ -331,16 +347,14 @@ def discard_all_changes(worktree_dir: Path) -> tuple[bool, str]:
     """
     # Reset staged and unstaged changes
     result = subprocess.run(
-        ["git", "checkout", "."],
-        cwd=worktree_dir, capture_output=True, text=True
+        ["git", "checkout", "."], cwd=worktree_dir, capture_output=True, text=True
     )
     if result.returncode != 0:
         return False, f"checkout failed: {result.stderr.strip()}"
 
     # Remove all untracked files
     result = subprocess.run(
-        ["git", "clean", "-fd"],
-        cwd=worktree_dir, capture_output=True, text=True
+        ["git", "clean", "-fd"], cwd=worktree_dir, capture_output=True, text=True
     )
     if result.returncode != 0:
         return False, f"clean failed: {result.stderr.strip()}"
@@ -356,7 +370,8 @@ def needs_rebase(info: FinishInfo) -> bool:
     """
     result = subprocess.run(
         ["git", "merge-base", "--is-ancestor", info.base_branch, info.branch_name],
-        cwd=info.worktree_dir, capture_output=True
+        cwd=info.worktree_dir,
+        capture_output=True,
     )
     # Exit 0 means base_branch IS an ancestor of branch_name (no rebase needed)
     # Exit 1 means it's NOT an ancestor (rebase needed)
@@ -375,7 +390,9 @@ def fast_forward_merge(info: FinishInfo) -> tuple[bool, str]:
     # Do the merge in main dir
     result = subprocess.run(
         ["git", "merge", "--ff-only", info.branch_name],
-        cwd=info.main_dir, capture_output=True, text=True
+        cwd=info.main_dir,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         return False, result.stderr.strip()
@@ -410,7 +427,9 @@ def get_cleanup_fix_prompt(error: str, worktree_dir: Path) -> str:
     try:
         result = subprocess.run(
             ["git", "status", "--porcelain"],
-            cwd=worktree_dir, capture_output=True, text=True
+            cwd=worktree_dir,
+            capture_output=True,
+            text=True,
         )
         if result.stdout.strip():
             file_list = f"\n\nGit status:\n{result.stdout}"
@@ -418,7 +437,9 @@ def get_cleanup_fix_prompt(error: str, worktree_dir: Path) -> str:
         # Also list untracked files not in .gitignore
         result = subprocess.run(
             ["git", "clean", "-n", "-d"],
-            cwd=worktree_dir, capture_output=True, text=True
+            cwd=worktree_dir,
+            capture_output=True,
+            text=True,
         )
         if result.stdout.strip():
             file_list += f"\n\nUntracked files that would be removed by git clean:\n{result.stdout}"
@@ -453,12 +474,17 @@ def finish_cleanup(info: FinishInfo) -> tuple[bool, str]:
     """
     # Check branch is merged BEFORE removing anything (run from main_dir for correct refs)
     if not is_branch_merged(info.branch_name, info.base_branch, cwd=info.main_dir):
-        return False, f"Branch '{info.branch_name}' is not merged into '{info.base_branch}'"
+        return (
+            False,
+            f"Branch '{info.branch_name}' is not merged into '{info.base_branch}'",
+        )
 
     # Try worktree removal
     result = subprocess.run(
         ["git", "worktree", "remove", str(info.worktree_dir)],
-        cwd=info.main_dir, capture_output=True, text=True
+        cwd=info.main_dir,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         return False, result.stderr.strip()
@@ -466,9 +492,15 @@ def finish_cleanup(info: FinishInfo) -> tuple[bool, str]:
     # Delete branch (should succeed since we verified it's merged)
     result = subprocess.run(
         ["git", "branch", "-d", info.branch_name],
-        cwd=info.main_dir, capture_output=True, text=True
+        cwd=info.main_dir,
+        capture_output=True,
+        text=True,
     )
-    branch_warning = "" if result.returncode == 0 else f" (branch not deleted: {result.stderr.strip()})"
+    branch_warning = (
+        ""
+        if result.returncode == 0
+        else f" (branch not deleted: {result.stderr.strip()})"
+    )
 
     return True, branch_warning
 
@@ -477,16 +509,23 @@ def has_uncommitted_changes(worktree_path: Path) -> bool:
     """Check if a worktree has uncommitted changes."""
     result = subprocess.run(
         ["git", "-C", str(worktree_path), "status", "--porcelain"],
-        capture_output=True, text=True, check=True
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return bool(result.stdout.strip())
 
 
-def is_branch_merged(branch: str, into_branch: str = "main", cwd: Path | None = None) -> bool:
+def is_branch_merged(
+    branch: str, into_branch: str = "main", cwd: Path | None = None
+) -> bool:
     """Check if branch is merged into another branch."""
     result = subprocess.run(
         ["git", "branch", "--merged", into_branch],
-        cwd=cwd, capture_output=True, text=True, check=True
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     merged = [b.strip().lstrip("*+ ") for b in result.stdout.strip().split("\n")]
     return branch in merged
@@ -503,14 +542,18 @@ def remove_worktree(worktree: WorktreeInfo, force: bool = False) -> tuple[bool, 
         delete_flag = "-D" if force else "-d"
         subprocess.run(
             ["git", "branch", delete_flag, worktree.branch],
-            check=True, capture_output=True, text=True
+            check=True,
+            capture_output=True,
+            text=True,
         )
         return True, f"Removed {worktree.branch}"
     except subprocess.CalledProcessError as e:
         return False, f"Failed to remove {worktree.branch}: {e.stderr}"
 
 
-def cleanup_worktrees(branches: list[str] | None = None) -> list[tuple[str, bool, str, bool]]:
+def cleanup_worktrees(
+    branches: list[str] | None = None,
+) -> list[tuple[str, bool, str, bool]]:
     """Clean up worktrees.
 
     Args:

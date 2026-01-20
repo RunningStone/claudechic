@@ -16,4 +16,3 @@ CHIC_THEME = Theme(
     error="#cc3333",  # Red - high usage/errors
     dark=True,
 )
-

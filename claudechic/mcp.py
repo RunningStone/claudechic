@@ -164,7 +164,9 @@ def _make_ask_agent(caller_name: str | None = None):
         except Exception as e:
             return _text_response(f"Error: {e}")
 
-        return _text_response(f"Question sent to '{name}'. They will respond when ready.")
+        return _text_response(
+            f"Question sent to '{name}'. They will respond when ready."
+        )
 
     return ask_agent
 

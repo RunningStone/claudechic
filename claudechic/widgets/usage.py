@@ -25,7 +25,9 @@ class UsageBar(Widget):
 
     BAR_WIDTH = 40
 
-    def __init__(self, label: str, utilization: float, reset_text: str, **kwargs) -> None:
+    def __init__(
+        self, label: str, utilization: float, reset_text: str, **kwargs
+    ) -> None:
         super().__init__(**kwargs)
         self.label = label
         self.utilization = utilization

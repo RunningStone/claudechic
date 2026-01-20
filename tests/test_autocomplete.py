@@ -51,6 +51,7 @@ async def test_slash_command_autocomplete(mock_sdk, tmp_path: Path):
 async def test_path_autocomplete(mock_sdk, tmp_path: Path):
     """Test file path autocomplete with @ trigger."""
     import asyncio
+
     app = ChatApp()
     async with app.run_test(size=(80, 24)) as pilot:
         autocomplete = app.query_one(TextAreaAutoComplete)

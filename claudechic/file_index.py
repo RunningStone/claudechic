@@ -170,7 +170,13 @@ def fuzzy_match_path(query: str, path: str) -> tuple[float, list[int]]:
     # Length penalty for longer paths
     length_penalty = len(path) / 300
 
-    score = base_score + consecutive_bonus + boundary_bonus + filename_bonus - length_penalty
+    score = (
+        base_score
+        + consecutive_bonus
+        + boundary_bonus
+        + filename_bonus
+        - length_penalty
+    )
     return (max(0.01, score), matched_indices)
 
 

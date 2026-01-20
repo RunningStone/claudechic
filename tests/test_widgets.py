@@ -15,6 +15,7 @@ from claudechic.widgets import (
 )
 from claudechic.widgets.todo import TodoItem
 from claudechic.widgets.indicators import ContextBar
+from claudechic.enums import AgentStatus
 from claudechic.widgets.footer import StatusFooter
 
 
@@ -252,14 +253,14 @@ async def test_agent_sidebar_status_updates():
     async with app.run_test():
         sidebar = app.query_one(AgentSidebar)
 
-        sidebar.add_agent("id1", "Agent 1", status="idle")
-        assert sidebar._agents["id1"].status == "idle"
+        sidebar.add_agent("id1", "Agent 1", status=AgentStatus.IDLE)
+        assert sidebar._agents["id1"].status == AgentStatus.IDLE
 
-        sidebar.update_status("id1", "busy")
-        assert sidebar._agents["id1"].status == "busy"
+        sidebar.update_status("id1", AgentStatus.BUSY)
+        assert sidebar._agents["id1"].status == AgentStatus.BUSY
 
-        sidebar.update_status("id1", "needs_input")
-        assert sidebar._agents["id1"].status == "needs_input"
+        sidebar.update_status("id1", AgentStatus.NEEDS_INPUT)
+        assert sidebar._agents["id1"].status == AgentStatus.NEEDS_INPUT
 
 
 @pytest.mark.asyncio
@@ -314,8 +315,16 @@ async def test_todo_panel_updates():
         panel = app.query_one(TodoPanel)
 
         todos = [
-            {"content": "Task 1", "status": "completed", "activeForm": "Completing task 1"},
-            {"content": "Task 2", "status": "in_progress", "activeForm": "Working on task 2"},
+            {
+                "content": "Task 1",
+                "status": "completed",
+                "activeForm": "Completing task 1",
+            },
+            {
+                "content": "Task 2",
+                "status": "in_progress",
+                "activeForm": "Working on task 2",
+            },
             {"content": "Task 3", "status": "pending", "activeForm": "Starting task 3"},
         ]
 
@@ -388,9 +397,17 @@ async def test_history_search_filters():
             yield HistorySearch(id="history")
 
     # Mock history data (most recent first)
-    mock_history = ["fix the bug", "add new feature", "fix another bug", "refactor code"]
+    mock_history = [
+        "fix the bug",
+        "add new feature",
+        "fix another bug",
+        "refactor code",
+    ]
 
-    with patch("claudechic.widgets.history_search.load_global_history", return_value=mock_history):
+    with patch(
+        "claudechic.widgets.history_search.load_global_history",
+        return_value=mock_history,
+    ):
         app = TestApp()
         async with app.run_test() as pilot:
             hs = app.query_one(HistorySearch)
@@ -402,6 +419,7 @@ async def test_history_search_filters():
 
             # Type to filter
             from textual.widgets import Input
+
             inp = hs.query_one("#search-input", Input)
             inp.value = "fix"
             hs.on_input_changed(Input.Changed(inp, "fix"))
