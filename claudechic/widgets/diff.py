@@ -5,7 +5,6 @@ import re
 from functools import lru_cache
 
 from pygments.lexers import get_lexer_by_name
-from pygments.token import Token
 from pygments.util import ClassNotFound
 from textual.content import Content, Span
 from textual.containers import HorizontalScroll
@@ -15,74 +14,25 @@ from textual.widgets import Static
 from claudechic.formatting import get_lang_from_path
 
 
+# Colors - line backgrounds
+REMOVED_BG = "#301010"
+ADDED_BG = "#103010"
+# Word-level change highlights
+REMOVED_WORD_STYLE = "underline on #501818"
+ADDED_WORD_STYLE = "underline on #185018"
+
+
 @lru_cache(maxsize=64)
 def _get_cached_lexer(language: str):
-    """Get a cached Pygments lexer by language name.
-
-    Caching lexers avoids the expensive lexer loading/guessing on every highlight call.
-    The profiler showed ~15% of CPU time was spent in _load_lexers and guess_lexer.
-    """
+    """Cache Pygments lexers to avoid repeated loading (~15% CPU savings)."""
     try:
         return get_lexer_by_name(language, stripnl=False, ensurenl=True, tabsize=8)
     except ClassNotFound:
         return None
 
 
-# Colors - line backgrounds (subtle tint)
-REMOVED_BG = "#200000"
-ADDED_BG = "#002000"
-# Word-level change highlights - subtle background + underline
-REMOVED_WORD_STYLE = "underline on #330808"
-ADDED_WORD_STYLE = "underline on #083308"
-
-
-class DiffHighlightTheme(HighlightTheme):
-    """Syntax highlighting theme for diffs, aligned with chic theme.
-
-    Uses orange as primary accent, saturated blues for structure,
-    and avoids red/green that clash with diff backgrounds.
-    """
-
-    STYLES = {
-        Token.Comment: "#888888",  # Brighter gray for visibility
-        Token.Error: "#ff6b6b",  # Soft red for errors
-        Token.Generic.Strong: "bold",
-        Token.Generic.Emph: "italic",
-        Token.Generic.Error: "#ff6b6b",
-        Token.Generic.Heading: "#ff9922 underline",  # Bright orange
-        Token.Generic.Subheading: "#ff9922",
-        Token.Keyword: "#ff9922",  # Bright orange for keywords
-        Token.Keyword.Constant: "#66bbff bold",  # Vivid blue
-        Token.Keyword.Namespace: "#ff9922",  # Bright orange
-        Token.Keyword.Type: "#66bbff bold",  # Vivid blue
-        Token.Literal.Number: "#ffcc66",  # Bright gold
-        Token.Literal.String.Backtick: "#888888",  # Gray
-        Token.Literal.String: "#77ccff",  # Bright cyan-blue
-        Token.Literal.String.Doc: "#77ccff italic",
-        Token.Literal.String.Double: "#77ccff",
-        Token.Name: "#dddddd",  # Bright base text
-        Token.Name.Attribute: "#ffcc66",  # Bright gold
-        Token.Name.Builtin: "#66bbff",  # Vivid blue
-        Token.Name.Builtin.Pseudo: "#66bbff italic",
-        Token.Name.Class: "#ff9922 bold",  # Bright orange
-        Token.Name.Constant: "#66bbff",  # Vivid blue
-        Token.Name.Decorator: "#ff9922 bold",  # Bright orange
-        Token.Name.Function: "#ffcc66",  # Bright gold
-        Token.Name.Function.Magic: "#ffcc66",
-        Token.Name.Tag: "#ff9922 bold",  # Bright orange
-        Token.Name.Variable: "#88ddff",  # Light cyan
-        Token.Operator: "#dddddd bold",  # Bright base
-        Token.Operator.Word: "#ff9922 bold",  # Bright orange
-        Token.Whitespace: "",
-    }
-
-
 def _highlight_text(text: str, language: str) -> Content:
-    """Syntax highlight text using cached lexer and DiffHighlightTheme.
-
-    Performance-optimized version of textual.highlight.highlight() that
-    reuses cached lexer instances instead of creating new ones each time.
-    """
+    """Syntax highlight text using cached lexer and default HighlightTheme."""
     if not language:
         return Content(text)
 
@@ -90,19 +40,15 @@ def _highlight_text(text: str, language: str) -> Content:
     if lexer is None:
         return Content(text)
 
-    # Normalize line endings
     text = "\n".join(text.splitlines())
-
-    # Build spans from Pygments tokens
     token_start = 0
     spans: list[Span] = []
 
     for token_type, token in lexer.get_tokens(text):
         token_end = token_start + len(token)
-        # Walk up parent chain to find matching style
         current_type = token_type
         while True:
-            if style := DiffHighlightTheme.STYLES.get(current_type):
+            if style := HighlightTheme.STYLES.get(current_type):
                 spans.append(Span(token_start, token_end, style))
                 break
             if (current_type := current_type.parent) is None:
