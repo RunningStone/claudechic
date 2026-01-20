@@ -277,9 +277,11 @@ def format_tool_details(name: str, input: dict, cwd: Path | None = None) -> str:
         offset = input.get("offset")
         limit = input.get("limit")
         details = f"**File:** `{path}`"
-        if offset or limit:
-            end = (offset or 0) + limit if limit else "end"
-            details += f"\nLines: {offset or 0} - {end}"
+        # Only show line range if offset/limit are valid integers
+        if isinstance(offset, int) or isinstance(limit, int):
+            start = offset if isinstance(offset, int) else 0
+            end = start + limit if isinstance(limit, int) else "end"
+            details += f"\nLines: {start} - {end}"
         return details
     elif name == ToolName.BASH:
         cmd = input.get("command", "?")
