@@ -416,9 +416,12 @@ class TextAreaAutoComplete(Widget):
 
         matches_and_scores: list[tuple[DropdownItem, float]] = []
         for candidate in candidates:
-            candidate_string = candidate.value.rstrip("/")  # Don't match trailing /
+            candidate_string = candidate.value.strip("/")  # Strip slashes for matching
             score, offsets = self._fuzzy_search.match(query, candidate_string)
             if score > 0:
+                # Bonus for match starting at position 0
+                if offsets and offsets[0] == 0:
+                    score += 10.0
                 highlighted = self._apply_highlights(candidate.main, tuple(offsets))
                 item = DropdownItem(
                     main=highlighted,
