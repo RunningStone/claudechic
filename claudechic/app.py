@@ -1085,12 +1085,12 @@ class ChatApp(App):
         for agent in self.agents.values():
             if agent.client:
                 try:
-                    await agent.client.interrupt()
+                    # disconnect() terminates the subprocess and waits for it to finish,
+                    # allowing it to flush session files before we exit
+                    await agent.client.disconnect()
                 except Exception:
                     pass  # Best-effort cleanup during shutdown
                 agent.client = None
-        # Brief delay to let SDK hooks complete before stream closes
-        await asyncio.sleep(0.1)
         # Suppress SDK stderr noise during exit (stream closed errors)
         sys.stderr = open(os.devnull, "w")
         self.exit()
