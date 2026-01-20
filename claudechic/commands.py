@@ -25,11 +25,7 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         return _handle_bang(app, cmd[1:].strip())
 
     if cmd == "/clear":
-        chat_view = app._chat_view
-        if chat_view:
-            chat_view.clear()
-            app.notify("Conversation cleared")
-            app._send_to_active_agent(cmd)
+        app._start_new_session()
         return True
 
     if cmd.startswith("/resume"):

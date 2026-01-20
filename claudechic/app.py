@@ -1387,6 +1387,21 @@ class ChatApp(App):
         )
         await agent.connect(options, resume=session_id)
 
+    @work(group="clear", exclusive=True, exit_on_error=False)
+    async def _start_new_session(self) -> None:
+        """Start a fresh session for the current agent."""
+        agent = self._agent
+        if not agent:
+            return
+        chat_view = self._chat_view
+        if chat_view:
+            chat_view.clear()
+        await agent.disconnect()
+        options = self._make_options(cwd=agent.cwd, agent_name=agent.name)
+        await agent.connect(options)
+        self.refresh_context()
+        self.notify("New session started")
+
     @work(group="usage", exclusive=True, exit_on_error=False)
     async def _handle_usage_command(self) -> None:
         """Handle /usage command - show API usage limits."""
