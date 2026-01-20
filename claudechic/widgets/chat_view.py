@@ -80,25 +80,42 @@ class ChatView(AutoHideScroll):
         if not self._agent:
             return
 
+        # Count total tool uses to determine which to collapse
+        # (collapse all except last RECENT_TOOLS_EXPANDED)
+        total_tools = sum(
+            len(item.content.tool_uses)
+            for item in self._agent.messages
+            if item.role == "assistant" and isinstance(item.content, AssistantContent)
+        )
+        collapse_threshold = total_tools - RECENT_TOOLS_EXPANDED
+        tool_index = 0
+
         for item in self._agent.messages:
             if item.role == "user" and isinstance(item.content, UserContent):
                 self._mount_user_message(item.content.text, item.content.images)
             elif item.role == "assistant" and isinstance(
                 item.content, AssistantContent
             ):
-                self._render_assistant_history(item.content)
+                tool_index = self._render_assistant_history(
+                    item.content, tool_index, collapse_threshold
+                )
 
         self.scroll_end(animate=False)
 
-    def _render_assistant_history(self, content: AssistantContent) -> None:
-        """Render an assistant message from history."""
+    def _render_assistant_history(
+        self, content: AssistantContent, tool_index: int, collapse_threshold: int
+    ) -> int:
+        """Render an assistant message from history. Returns updated tool_index."""
         if content.text:
             msg = ChatMessage(content.text)
             msg.add_class("assistant-message")
             self.mount(msg)
 
         for tool in content.tool_uses:
-            self._mount_tool_widget(tool, completed=True)
+            collapse = tool_index < collapse_threshold
+            self._mount_tool_widget(tool, completed=True, collapsed=collapse)
+            tool_index += 1
+        return tool_index
 
     # -----------------------------------------------------------------------
     # Streaming API - called by ChatApp during live response
@@ -244,21 +261,24 @@ class ChatView(AutoHideScroll):
                 display_name = img.filename
             self.mount(ChatAttachment(img.filename, display_name))
 
-    def _mount_tool_widget(self, tool: ToolUse, completed: bool = False) -> None:
+    def _mount_tool_widget(
+        self, tool: ToolUse, completed: bool = False, collapsed: bool = False
+    ) -> None:
         """Mount a tool widget (for history rendering)."""
         from claude_agent_sdk import ToolUseBlock
 
         block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
-        collapsed = tool.name in COLLAPSE_BY_DEFAULT
+        # Collapse if explicitly requested or if tool type defaults to collapsed
+        should_collapse = collapsed or tool.name in COLLAPSE_BY_DEFAULT
         cwd = self._agent.cwd if self._agent else None
 
         if tool.name == ToolName.TASK:
-            widget = TaskWidget(block, collapsed=collapsed, cwd=cwd)
+            widget = TaskWidget(block, collapsed=should_collapse, cwd=cwd)
         elif tool.name.startswith("mcp__chic__"):
             widget = AgentToolWidget(block, cwd=cwd)
         else:
             widget = ToolUseWidget(
-                block, collapsed=collapsed, completed=completed, cwd=cwd
+                block, collapsed=should_collapse, completed=completed, cwd=cwd
             )
 
         self.mount(widget)
