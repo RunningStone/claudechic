@@ -69,9 +69,13 @@ class PointerMixin:
 
     def on_enter(self) -> None:
         set_pointer(self.pointer_style)
+        if hasattr(super(), "on_enter"):
+            super().on_enter()  # type: ignore[misc]
 
     def on_leave(self) -> None:
         set_pointer("default")
+        if hasattr(super(), "on_leave"):
+            super().on_leave()  # type: ignore[misc]
 
 
 class ContainerPointerMixin(PointerMixin):
@@ -82,3 +86,21 @@ class ContainerPointerMixin(PointerMixin):
 
     def on_mouse_move(self) -> None:
         set_pointer(self.pointer_style)
+
+
+class HoverableMixin:
+    """Mixin for widgets that need a .hovered class for CSS styling.
+
+    Adds/removes 'hovered' class on mouse enter/leave/move. Useful when
+    CSS :hover doesn't propagate properly through child widgets.
+    """
+
+    def on_enter(self) -> None:
+        self.add_class("hovered")  # type: ignore[attr-defined]
+
+    def on_leave(self) -> None:
+        self.remove_class("hovered")  # type: ignore[attr-defined]
+        set_pointer("default")
+
+    def on_mouse_move(self) -> None:
+        self.add_class("hovered")  # type: ignore[attr-defined]

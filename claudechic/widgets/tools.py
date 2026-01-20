@@ -25,7 +25,8 @@ from claudechic.formatting import (
     make_relative,
 )
 from claudechic.widgets.diff import DiffWidget
-from claudechic.widgets.chat import ChatMessage, Spinner
+from claudechic.widgets.chat import ChatMessage, Spinner, CopyButton
+from claudechic.cursor import HoverableMixin
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class EditPlanRequested(Message):
         self.plan_path = plan_path
 
 
-class ToolUseWidget(Static):
+class ToolUseWidget(Static, HoverableMixin):
     """A collapsible widget showing a tool use."""
 
     can_focus = False
@@ -96,7 +97,7 @@ class ToolUseWidget(Static):
         self._header = format_tool_header(self.block.name, self.block.input, cwd)
 
     def compose(self) -> ComposeResult:
-        yield Button("⧉", classes="copy-btn")
+        yield CopyButton("⧉", classes="copy-btn")
         if not self.result:
             yield Spinner()
         # Skill with no args: just show header, no collapsible
@@ -371,7 +372,7 @@ class TaskWidget(Static):
             pass  # Widget may not be mounted
 
 
-class ShellOutputWidget(Static):
+class ShellOutputWidget(Static, HoverableMixin):
     """Collapsible widget showing inline shell command output."""
 
     can_focus = False
@@ -393,7 +394,7 @@ class ShellOutputWidget(Static):
             title = title[:57] + "..."
         if self.returncode != 0:
             title += f" (exit {self.returncode})"
-        yield Button("⧉", classes="copy-btn")
+        yield CopyButton("⧉", classes="copy-btn")
         with QuietCollapsible(title=title, collapsed=self._collapsed):
             # Combine stderr + stdout, parse ANSI color codes
             output = "\n".join(filter(None, [self.stderr, self.stdout])).rstrip()

@@ -12,9 +12,21 @@ from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Markdown, TextArea, Static, Button
 
-from claudechic.cursor import PointerMixin
+from claudechic.cursor import PointerMixin, set_pointer
 from claudechic.errors import log_exception
 from claudechic.profiling import profile
+
+
+class CopyButton(Button):
+    """Copy button with hand cursor on hover."""
+
+    def on_enter(self) -> None:
+        set_pointer("pointer")
+        self.add_class("hovered")
+
+    def on_leave(self) -> None:
+        set_pointer("default")
+        self.remove_class("hovered")
 
 
 class Spinner(Static):
@@ -139,8 +151,19 @@ class ChatMessage(Static, PointerMixin):
         self._is_agent = is_agent
         self._stream = None  # Lazy-initialized MarkdownStream
 
+    def on_enter(self) -> None:
+        set_pointer(self.pointer_style)
+        self.add_class("hovered")
+
+    def on_leave(self) -> None:
+        set_pointer("default")
+        self.remove_class("hovered")
+
+    def on_mouse_move(self) -> None:
+        self.add_class("hovered")
+
     def compose(self) -> ComposeResult:
-        yield Button("⧉", id="copy-btn", classes="copy-btn")
+        yield CopyButton("⧉", id="copy-btn", classes="copy-btn")
         if self._is_agent:
             # Wrap in container for nested border effect
             with Vertical(id="agent-inner"):

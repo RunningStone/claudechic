@@ -159,7 +159,7 @@ ToolUseWidget {
     margin: 0;
 }
 
-ToolUseWidget:hover {
+ToolUseWidget:hover, ToolUseWidget.hovered {
     border-left: wide $panel-lighten-2;
     background: $surface;
 }
@@ -187,7 +187,7 @@ ShellOutputWidget {
     margin: 1 0;
 }
 
-ShellOutputWidget:hover {
+ShellOutputWidget:hover, ShellOutputWidget.hovered {
     border-left: wide $warning-lighten-1;
     background: $surface;
 }
@@ -211,7 +211,6 @@ ShellOutputWidget #shell-output {
 
 /* Copy buttons - overlaid, hidden until hover */
 .copy-btn {
-    display: none;
     layer: above;
     dock: right;
     width: 3;
@@ -221,16 +220,19 @@ ShellOutputWidget #shell-output {
     text-align: center;
     background: transparent;
     border: none;
-    color: $text-muted;
+    color: transparent;  /* Hidden by default via transparent color */
 }
 
 ChatMessage:hover .copy-btn,
+ChatMessage.hovered .copy-btn,
 ToolUseWidget:hover .copy-btn,
-ShellOutputWidget:hover .copy-btn {
-    display: block;
+ToolUseWidget.hovered .copy-btn,
+ShellOutputWidget:hover .copy-btn,
+ShellOutputWidget.hovered .copy-btn {
+    color: $text-muted;  /* Visible on hover */
 }
 
-.copy-btn:hover {
+Button.copy-btn:hover {
     color: $primary !important;
     background: transparent !important;
 }
