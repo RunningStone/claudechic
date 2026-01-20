@@ -5,10 +5,12 @@ silently swallowed. All errors are logged to file; optionally displayed in UI.
 """
 
 import logging
+import os
 import traceback
 from pathlib import Path
 
-# Log to file in user's home directory
+# Only log to file in development mode (set CLAUDECHIC_DEBUG=1)
+DEBUG_MODE = os.environ.get("CLAUDECHIC_DEBUG", "").lower() in ("1", "true", "yes")
 LOG_FILE = Path.home() / "claudechic.log"
 
 # Configure module logger
@@ -20,7 +22,12 @@ def setup_logging(level: int = logging.DEBUG) -> None:
 
     Configures the root 'claudechic' logger so all child loggers
     (claudechic.app, claudechic.widgets.*, etc.) inherit the handler.
+
+    Only logs to file if CLAUDECHIC_DEBUG env var is set.
     """
+    if not DEBUG_MODE:
+        return
+
     handler = logging.FileHandler(LOG_FILE, mode="a")
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
