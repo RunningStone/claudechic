@@ -554,6 +554,7 @@ class ChatApp(App):
         """Update context bar from session file (no API call)."""
         agent = self._agent
         if not agent or not agent.session_id:
+            self.context_bar.tokens = 0
             return
         tokens = await get_context_from_session(agent.session_id, cwd=agent.cwd)
         if tokens is not None:
