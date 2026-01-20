@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 from contextlib import contextmanager
 
-_enabled = os.environ.get("CHIC_PROFILE", "").lower() == "true"
+_enabled = os.environ.get("CHIC_PROFILE", "true").lower() != "false"
 _stats: dict[str, dict] = defaultdict(lambda: {"count": 0, "total": 0.0, "max": 0.0})
 
 
@@ -56,21 +56,41 @@ def profile(fn):
     return wrapper
 
 
-def print_stats():
-    """Print collected statistics."""
-    if not _enabled or not _stats:
-        return
-    print("\n" + "=" * 80)
-    print("PROFILING STATISTICS")
-    print("=" * 80)
-    print(f"\n{'Function':<45} {'Calls':>8} {'Total':>10} {'Avg':>10} {'Max':>10}")
-    print("-" * 80)
+def get_stats_table():
+    """Get statistics as a Rich Table (borderless, compact)."""
+    from rich.table import Table
+
+    table = Table(box=None, padding=(0, 4), collapse_padding=True, show_header=True)
+    table.add_column("Function", style="dim")
+    table.add_column("Calls", justify="right")
+    table.add_column("Total", justify="right")
+    table.add_column("Avg", justify="right")
+    table.add_column("Max", justify="right")
+
     for name, data in sorted(_stats.items(), key=lambda x: -x[1]["total"]):
         avg = data["total"] / data["count"] * 1000 if data["count"] else 0
-        print(f"{name:<45} {data['count']:>8} {data['total']*1000:>9.1f}ms {avg:>9.2f}ms {data['max']*1000:>9.2f}ms")
-    print("=" * 80 + "\n")
+        table.add_row(
+            name,
+            str(data["count"]),
+            f"{data['total']*1000:.1f}ms",
+            f"{avg:.2f}ms",
+            f"{data['max']*1000:.2f}ms",
+        )
+    return table
 
 
-if _enabled:
-    import atexit
-    atexit.register(print_stats)
+def get_stats_text() -> str:
+    """Get statistics as plain text for copying."""
+    if not _stats:
+        return "No profiling data collected."
+
+    lines = [
+        f"{'Function':<45} {'Calls':>8} {'Total':>10} {'Avg':>10} {'Max':>10}",
+        "-" * 85,
+    ]
+    for name, data in sorted(_stats.items(), key=lambda x: -x[1]["total"]):
+        avg = data["total"] / data["count"] * 1000 if data["count"] else 0
+        lines.append(
+            f"{name:<45} {data['count']:>8} {data['total']*1000:>9.1f}ms {avg:>9.2f}ms {data['max']*1000:>9.2f}ms"
+        )
+    return "\n".join(lines)

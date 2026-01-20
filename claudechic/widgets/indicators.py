@@ -12,9 +12,10 @@ from claudechic.profiling import profile, timed
 
 
 class CPUBar(Widget):
-    """Display CPU usage."""
+    """Display CPU usage. Click to show profiling stats."""
 
     cpu_pct = reactive(0.0)
+    can_focus = True
 
     def on_mount(self) -> None:
         self._process = psutil.Process()
@@ -42,6 +43,11 @@ class CPUBar(Widget):
         else:
             color = "red"
         return Text.assemble(("CPU ", "dim"), (f"{self.cpu_pct:3.0f}%", color))
+
+    def on_click(self) -> None:
+        """Show profile modal on click."""
+        from claudechic.widgets.profile_modal import ProfileModal
+        self.app.push_screen(ProfileModal())
 
 
 class ContextBar(Widget):

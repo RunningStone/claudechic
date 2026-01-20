@@ -474,6 +474,10 @@ CPUBar {
     content-align: right middle;
 }
 
+CPUBar:hover {
+    background: $panel;
+}
+
 ContextBar {
     width: auto;
     padding: 0 1;

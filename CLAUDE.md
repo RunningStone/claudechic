@@ -53,7 +53,8 @@ claudechic/
     ├── diff.py        # Syntax-highlighted diff widget
     ├── footer.py      # Custom footer with git branch, CPU/context bars
     ├── history_search.py # Reverse history search widget (Ctrl+R)
-    ├── indicators.py  # CPUBar, ContextBar resource monitors
+    ├── indicators.py  # CPUBar (clickable), ContextBar resource monitors
+    ├── profile_modal.py # ProfileModal - shows profiling stats on CPU click
     ├── prompts.py     # SelectionPrompt, QuestionPrompt, SessionItem
     ├── scroll.py      # AutoHideScroll - auto-hiding scrollbar container
     ├── todo.py        # TodoPanel for TodoWrite tool display

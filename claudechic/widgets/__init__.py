@@ -12,6 +12,7 @@ from claudechic.widgets.scroll import AutoHideScroll
 from claudechic.widgets.chat_view import ChatView
 from claudechic.widgets.history_search import HistorySearch
 from claudechic.widgets.usage import UsageReport
+from claudechic.widgets.profile_modal import ProfileModal
 
 __all__ = [
     "CPUBar",
@@ -46,4 +47,5 @@ __all__ = [
     "ChatView",
     "HistorySearch",
     "UsageReport",
+    "ProfileModal",
 ]
