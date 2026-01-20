@@ -160,6 +160,8 @@ class ChatApp(App):
         # Event queues for testing
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
+        # Permission UI serialization - only show one prompt at a time
+        self._permission_lock = asyncio.Lock()
         # File index for fuzzy file search
         self.file_index: FileIndex | None = None
         # Cached widget references (initialized lazily)
@@ -1833,15 +1835,25 @@ class ChatApp(App):
 
         This is called by Agent when it needs user input for a permission.
         Returns a PermissionResponse with choice and optional alternative message.
+
+        Uses a lock to serialize permission prompts - only one shown at a time.
         """
         # Put in interactions queue for testing
         await self.interactions.put(request)
 
-        # Wait until this agent is active before showing prompt (multi-agent only)
-        if len(self.agents) > 1:
-            while agent.id != self.active_agent_id:
-                await asyncio.sleep(0.1)
+        # Serialize permission prompts - acquire lock before showing UI
+        async with self._permission_lock:
+            # Wait until this agent is active before showing prompt (multi-agent only)
+            if len(self.agents) > 1:
+                while agent.id != self.active_agent_id:
+                    await asyncio.sleep(0.1)
 
+            return await self._show_permission_prompt(agent, request)
+
+    async def _show_permission_prompt(
+        self, agent: Agent, request: PermissionRequest
+    ) -> PermissionResponse:
+        """Show the permission prompt UI (called under _permission_lock)."""
         if request.tool_name == ToolName.ASK_USER_QUESTION:
             # Handle question prompts
             questions = request.tool_input.get("questions", [])
