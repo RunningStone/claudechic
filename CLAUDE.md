@@ -31,6 +31,7 @@ claudechic/
 ├── messages.py        # Custom Textual Message types for SDK events
 ├── permissions.py     # PermissionRequest dataclass for tool approval
 ├── profiling.py       # Lightweight profiling utilities (@profile decorator)
+├── sampling.py        # CPU-conditional sampling profiler for high-CPU investigation
 ├── protocols.py       # Observer protocols (AgentObserver, AgentManagerObserver)
 ├── sessions.py        # Session file loading and listing (pure functions)
 ├── styles.tcss        # Textual CSS - visual styling
