@@ -618,19 +618,20 @@ class Agent:
 
         self._set_status(AgentStatus.BUSY)
 
-        log.info(f"Permission result: {result}")
-        if result == PermissionChoice.ALLOW_ALL:
+        log.info(f"Permission result: {result.choice}")
+        if result.choice == PermissionChoice.ALLOW_ALL:
             self._set_auto_edit(True)
             return PermissionResultAllow()
-        elif result == PermissionChoice.ALLOW_SESSION:
+        elif result.choice == PermissionChoice.ALLOW_SESSION:
             self.session_allowed_tools.add(tool_name)
             return PermissionResultAllow()
-        elif result == PermissionChoice.ALLOW:
+        elif result.choice == PermissionChoice.ALLOW:
             return PermissionResultAllow()
-        elif result.startswith(f"{PermissionChoice.DENY}:"):
+        elif result.choice == PermissionChoice.DENY and result.alternative_message:
             # User provided alternative instructions - don't interrupt so model continues
-            message = result[5:]  # Strip "deny:" prefix
-            return PermissionResultDeny(message=message, interrupt=False)
+            return PermissionResultDeny(
+                message=result.alternative_message, interrupt=False
+            )
         else:
             return PermissionResultDeny(message="User denied permission")
 

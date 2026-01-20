@@ -59,7 +59,6 @@ class PermissionChoice(StrEnum):
     ALLOW_ALL = "allow_all"
     ALLOW_SESSION = "allow_session"
     DENY = "deny"
-    # Note: "deny:<message>" is a pattern, not a fixed value
 
 
 class TodoStatus(StrEnum):

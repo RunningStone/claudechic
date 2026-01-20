@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from claude_agent_sdk import ResultMessage, SystemMessage
 
     from claudechic.agent import Agent, ImageAttachment, ToolUse
-    from claudechic.permissions import PermissionRequest
+    from claudechic.permissions import PermissionRequest, PermissionResponse
 
 
 class AgentManagerObserver(Protocol):
@@ -97,7 +97,9 @@ class AgentObserver(Protocol):
 class PermissionHandler(Protocol):
     """Handler for permission UI interactions.
 
-    Returns: "allow", "allow_all", or "deny"
+    Returns a PermissionResponse with the user's choice and optional alternative message.
     """
 
-    async def __call__(self, agent: Agent, request: PermissionRequest) -> str: ...
+    async def __call__(
+        self, agent: Agent, request: PermissionRequest
+    ) -> PermissionResponse: ...

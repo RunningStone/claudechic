@@ -45,7 +45,7 @@ from claudechic.sessions import (
 from claudechic.features.worktree import list_worktrees
 from claudechic.commands import handle_command
 from claudechic.features.worktree.commands import on_response_complete_finish
-from claudechic.permissions import PermissionRequest
+from claudechic.permissions import PermissionRequest, PermissionResponse
 from claudechic.agent import Agent, ImageAttachment, ToolUse
 from claudechic.agent_manager import AgentManager
 from claudechic.enums import AgentStatus, PermissionChoice, ToolName
@@ -1764,11 +1764,11 @@ class ChatApp(App):
 
     async def _handle_agent_permission_ui(
         self, agent: Agent, request: PermissionRequest
-    ) -> str:
+    ) -> PermissionResponse:
         """Handle permission UI for an agent.
 
         This is called by Agent when it needs user input for a permission.
-        Returns "allow", "deny", or "allow_all".
+        Returns a PermissionResponse with choice and optional alternative message.
         """
         # Put in interactions queue for testing
         await self.interactions.put(request)
@@ -1785,11 +1785,11 @@ class ChatApp(App):
                 answers = await prompt.wait()
 
             if not answers:
-                return PermissionChoice.DENY
+                return PermissionResponse(PermissionChoice.DENY)
 
             # Store answers on request for Agent to retrieve
             request._answers = answers  # type: ignore[attr-defined]
-            return PermissionChoice.ALLOW
+            return PermissionResponse(PermissionChoice.ALLOW)
 
         # Regular permission prompt
         if request.tool_name in self.AUTO_EDIT_TOOLS:
@@ -1810,17 +1810,31 @@ class ChatApp(App):
             SelectionPrompt(request.title, options, text_option), agent
         ) as prompt:
 
+            def string_to_result(s: str) -> PermissionResponse:
+                """Convert SelectionPrompt string result to PermissionResponse."""
+                if s.startswith(f"{PermissionChoice.DENY}:"):
+                    # Text input: "deny:some alternative message"
+                    return PermissionResponse(
+                        PermissionChoice.DENY, alternative_message=s[5:]
+                    )
+                # Direct choice
+                try:
+                    choice = PermissionChoice(s)
+                except ValueError:
+                    choice = PermissionChoice.DENY
+                return PermissionResponse(choice)
+
             async def ui_response():
-                result = await prompt.wait()
+                raw = await prompt.wait()
                 if not request._event.is_set():
-                    request.respond(result)
+                    request.respond(string_to_result(raw))
 
             asyncio.create_task(ui_response())
             result = await request.wait()
 
-        if result == PermissionChoice.ALLOW_ALL:
+        if result.choice == PermissionChoice.ALLOW_ALL:
             self.notify("Auto-edit enabled (Shift+Tab to disable)")
-        elif result == PermissionChoice.ALLOW_SESSION:
+        elif result.choice == PermissionChoice.ALLOW_SESSION:
             self.notify(f"{request.tool_name} allowed for this session")
 
         return result
