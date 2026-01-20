@@ -146,10 +146,12 @@ class HistorySearch(Widget):
             display.update("[dim]no match[/dim]")
 
     def action_cancel(self) -> None:
+        """Hide search and post Cancelled message."""
         self.hide()
         self.post_message(self.Cancelled())
 
     def action_select(self) -> None:
+        """Accept current match and post Selected message."""
         match = self._current_match()
         if match:
             self.post_message(self.Selected(match))

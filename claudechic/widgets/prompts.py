@@ -81,7 +81,7 @@ class BasePrompt(Static):
         self.focus()
 
     def cancel(self) -> None:
-        """Cancel this prompt."""
+        """Cancel and dismiss the prompt without a selection."""
         self._resolve(None)
 
     def _select_option(self, idx: int) -> None:

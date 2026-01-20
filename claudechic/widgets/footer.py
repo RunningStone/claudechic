@@ -66,6 +66,7 @@ class StatusFooter(Static):
             yield Static("", id="branch-label", classes="footer-label")
 
     def watch_branch(self, value: str) -> None:
+        """Update branch label when branch changes."""
         try:
             label = self.query_one("#branch-label", Static)
             label.update(f"⎇ {value}" if value else "")
@@ -73,6 +74,7 @@ class StatusFooter(Static):
             pass
 
     def watch_model(self, value: str) -> None:
+        """Update model label when model changes."""
         try:
             label = self.query_one("#model-label", Static)
             label.update(value if value else "")
@@ -80,6 +82,7 @@ class StatusFooter(Static):
             pass
 
     def watch_auto_edit(self, value: bool) -> None:
+        """Update auto-edit label when setting changes."""
         try:
             label = self.query_one("#auto-edit-label", AutoEditLabel)
             label.update("Auto-edit: on" if value else "Auto-edit: off")

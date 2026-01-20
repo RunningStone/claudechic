@@ -399,6 +399,7 @@ class ShellOutputWidget(Static):
                 yield Static(Text.from_ansi(output), id="shell-output")
 
     def get_copyable_content(self) -> str:
+        """Get formatted content for copying to clipboard."""
         parts = [f"$ {self.command}"]
         if self.stdout:
             parts.append(self.stdout)

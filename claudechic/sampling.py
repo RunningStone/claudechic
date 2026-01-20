@@ -172,6 +172,7 @@ class Sampler(threading.Thread):
         self.high_cpu_count = 0
 
     def run(self):
+        """Sample main thread stack at intervals when CPU exceeds threshold."""
         current = create()
         cycle_start = time.time()
         # Prime cpu_percent (first call returns 0)
@@ -201,6 +202,7 @@ class Sampler(threading.Thread):
             time.sleep(self.interval)
 
     def stop(self):
+        """Signal the sampler thread to stop."""
         self.running = False
 
     def get_merged_profile(self) -> dict[str, Any]:

@@ -392,6 +392,7 @@ class ChatInput(TextArea):
         # Normal paste - let parent handle it
 
     def action_submit(self) -> None:
+        """Submit current input or accept autocomplete selection."""
         # If autocomplete is showing, complete instead of submit
         if self._autocomplete and self._autocomplete.display:
             self._autocomplete.handle_key("enter")
@@ -405,6 +406,7 @@ class ChatInput(TextArea):
         self.post_message(self.Submitted(self.text))
 
     def action_newline(self) -> None:
+        """Insert a newline character (Ctrl+J)."""
         self.insert("\n")
 
     def action_history_prev(self) -> None:

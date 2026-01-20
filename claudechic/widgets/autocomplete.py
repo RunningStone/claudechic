@@ -48,6 +48,7 @@ class DropdownItem(Option):
 
     @property
     def value(self) -> str:
+        """Get plain text value of the option (without prefix)."""
         return self.main.plain
 
 
@@ -135,6 +136,7 @@ class TextAreaAutoComplete(Widget):
 
     @property
     def target(self) -> TextArea:
+        """Resolve target widget (accepts selector string or widget instance)."""
         if isinstance(self._target, TextArea):
             return self._target
         return self.screen.query_one(self._target, TextArea)
@@ -579,9 +581,11 @@ class TextAreaAutoComplete(Widget):
             target.move_cursor((0, len(new_text)))
 
     def action_hide(self) -> None:
+        """Hide the autocomplete dropdown."""
         self.styles.display = "none"
 
     def action_show(self) -> None:
+        """Show the autocomplete dropdown."""
         self.styles.display = "block"
 
     def suppress(self) -> None:
