@@ -77,6 +77,7 @@ from claudechic.widgets import (
 from claudechic.widgets.footer import AutoEditLabel, StatusFooter
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
 from claudechic.profiling import profile
+from claudechic.sampling import start_sampler
 
 log = logging.getLogger(__name__)
 
@@ -430,6 +431,9 @@ class ChatApp(App):
         )
 
     async def on_mount(self) -> None:
+        # Start CPU sampling profiler
+        start_sampler()
+
         # Register app for MCP tools
         set_app(self)
 
