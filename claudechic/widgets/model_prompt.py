@@ -37,15 +37,11 @@ class ModelPrompt(BasePrompt):
                 if "·" in desc
                 else m.get("displayName", value)
             )
-            # Show alias in parentheses (e.g., "Opus 4.5 (opus)")
-            alias = f" ({value})" if value and value != "default" else ""
             current = " *" if value == self.current_value else ""
             classes = "prompt-option"
             if i == self.selected_idx:
                 classes += " selected"
-            yield Static(
-                f"{i + 1}. {name}{alias}{current}", classes=classes, id=f"opt-{i}"
-            )
+            yield Static(f"{i + 1}. {name}{current}", classes=classes, id=f"opt-{i}")
 
     def _total_options(self) -> int:
         return len(self.models)
