@@ -13,6 +13,8 @@ class AutoHideScroll(VerticalScroll):
     only when user explicitly scrolls to bottom.
     """
 
+    can_focus = False
+
     DEFAULT_CSS = """
     AutoHideScroll {
         scrollbar-size-vertical: 1;
