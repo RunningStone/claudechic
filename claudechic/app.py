@@ -1104,6 +1104,9 @@ class ChatApp(App):
         sessions = await get_recent_sessions(search=search)
         for session_id, preview, _, msg_count in sessions:
             picker.append(SessionItem(session_id, preview, msg_count))
+        # Select first item and focus for keyboard nav
+        if sessions:
+            self.call_after_refresh(lambda: (setattr(picker, 'index', 0), picker.focus()))
 
     def _hide_session_picker(self) -> None:
         self._session_picker_active = False

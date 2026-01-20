@@ -268,7 +268,7 @@ ShellOutputWidget #shell-output {
 }
 
 #session-picker > SessionItem:hover,
-#session-picker > SessionItem.-selected {
+#session-picker > SessionItem.-highlight {
     background: $surface-darken-1;
     border-left: tall $primary;
 }
