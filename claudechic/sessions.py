@@ -48,7 +48,8 @@ def _extract_preview_from_chunk(chunk: bytes) -> str | None:
                 if isinstance(content, str) and not content.startswith("<"):
                     text = content.replace("\n", " ")
                     return text[:200] + "…" if len(text) > 200 else text
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Skip lines that fail to parse (partial line at chunk boundary)
             continue
     return None
 
@@ -236,7 +237,8 @@ async def get_plan_path_for_session(
                 if "slug" in data:
                     slug = data["slug"]
                     break
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                # Skip lines that fail to parse (partial line at chunk boundary)
                 continue
     except (IOError, OSError):
         return None
@@ -304,7 +306,9 @@ async def get_context_from_session(
                             + usage.get("cache_creation_input_tokens", 0)
                             + usage.get("cache_read_input_tokens", 0)
                         )
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                # Skip lines that fail to parse - expected for partial lines
+                # when reading from middle of file (chunk may split UTF-8 chars)
                 continue
     except (IOError, OSError):
         return None
