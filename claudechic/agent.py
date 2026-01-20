@@ -676,7 +676,9 @@ class Agent:
 
     def _build_message_with_images(self, prompt: str) -> dict[str, Any]:
         """Build SDK message with text and images."""
-        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        content: list[dict[str, Any]] = []
+        if prompt.strip():
+            content.append({"type": "text", "text": prompt})
         for img in self.pending_images:
             content.append(
                 {
