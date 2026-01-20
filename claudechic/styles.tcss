@@ -484,6 +484,14 @@ ContextBar {
     content-align: right middle;
 }
 
+ContextBar:hover {
+    background: $panel;
+}
+
+AutoEditLabel:hover {
+    background: $panel;
+}
+
 /* All prompts inheriting from BasePrompt */
 .base-prompt {
     height: auto;

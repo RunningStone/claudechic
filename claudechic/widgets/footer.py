@@ -4,10 +4,21 @@ import asyncio
 
 from textual.app import ComposeResult
 from textual.reactive import reactive
-from textual.widgets import Static
 from textual.containers import Horizontal
+from textual.message import Message
+from textual.widgets import Static
 
 from claudechic.widgets.indicators import CPUBar, ContextBar
+
+
+class AutoEditLabel(Static):
+    """Clickable auto-edit status label."""
+
+    class Toggled(Message):
+        """Emitted when auto-edit is toggled."""
+
+    def on_click(self) -> None:
+        self.post_message(self.Toggled())
 
 
 async def get_git_branch(cwd: str | None = None) -> str:
@@ -44,7 +55,7 @@ class StatusFooter(Static):
         with Horizontal(id="footer-content"):
             yield Static("", id="model-label", classes="footer-label")
             yield Static("·", classes="footer-sep")
-            yield Static("Auto-edit: off", id="auto-edit-label", classes="footer-label")
+            yield AutoEditLabel("Auto-edit: off", id="auto-edit-label", classes="footer-label")
             yield Static("", id="footer-spacer")
             yield ContextBar(id="context-bar")
             yield CPUBar(id="cpu-bar")
@@ -66,7 +77,7 @@ class StatusFooter(Static):
 
     def watch_auto_edit(self, value: bool) -> None:
         try:
-            label = self.query_one("#auto-edit-label", Static)
+            label = self.query_one("#auto-edit-label", AutoEditLabel)
             label.update("Auto-edit: on" if value else "Auto-edit: off")
             label.set_class(value, "active")
         except Exception:

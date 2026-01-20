@@ -51,10 +51,11 @@ class CPUBar(Widget):
 
 
 class ContextBar(Widget):
-    """Display context usage as a progress bar."""
+    """Display context usage as a progress bar. Click to run /context."""
 
     tokens = reactive(0)
     max_tokens = reactive(MAX_CONTEXT_TOKENS)
+    can_focus = True
 
     def render(self) -> RenderResult:
         pct = min(self.tokens / self.max_tokens, 1.0) if self.max_tokens else 0
@@ -80,3 +81,7 @@ class ContextBar(Widget):
             else:
                 result.append(" ", style=f"on {bg}")
         return result
+
+    def on_click(self) -> None:
+        """Run /context command on click."""
+        self.app._handle_prompt("/context")

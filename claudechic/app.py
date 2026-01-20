@@ -74,7 +74,7 @@ from claudechic.widgets import (
     HamburgerButton,
     EditPlanRequested,
 )
-from claudechic.widgets.footer import StatusFooter
+from claudechic.widgets.footer import AutoEditLabel, StatusFooter
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
 from claudechic.profiling import profile
 
@@ -1228,6 +1228,10 @@ class ChatApp(App):
         """Handle hamburger button click - toggle sidebar overlay."""
         self._sidebar_overlay_open = not self._sidebar_overlay_open
         self._position_right_sidebar()
+
+    def on_auto_edit_label_toggled(self, event: AutoEditLabel.Toggled) -> None:
+        """Handle auto-edit label click - toggle auto-edit mode."""
+        self.action_cycle_permission_mode()
 
     def _close_sidebar_overlay(self) -> None:
         """Close sidebar overlay if open."""
