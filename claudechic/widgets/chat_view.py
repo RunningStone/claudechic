@@ -160,7 +160,7 @@ class ChatView(AutoHideScroll):
             widget = TaskWidget(block, collapsed=collapsed, cwd=cwd)
             self._active_task_widgets[tool.id] = widget
         elif tool.name.startswith("mcp__chic__"):
-            widget = AgentToolWidget(block)
+            widget = AgentToolWidget(block, cwd=cwd)
         else:
             widget = ToolUseWidget(block, collapsed=collapsed, cwd=cwd)
 
@@ -233,7 +233,7 @@ class ChatView(AutoHideScroll):
         if tool.name == ToolName.TASK:
             widget = TaskWidget(block, collapsed=collapsed, cwd=cwd)
         elif tool.name.startswith("mcp__chic__"):
-            widget = AgentToolWidget(block)
+            widget = AgentToolWidget(block, cwd=cwd)
         else:
             widget = ToolUseWidget(block, collapsed=collapsed, completed=completed, cwd=cwd)
 

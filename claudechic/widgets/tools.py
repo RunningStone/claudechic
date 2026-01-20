@@ -34,6 +34,27 @@ SYSTEM_REMINDER_PATTERN = re.compile(r"\n*<system-reminder>.*?</system-reminder>
 PLAN_PATH_PATTERN = re.compile(r"saved to:\s*(/[^\s]+\.md)")
 
 
+def _extract_text_content(content: str | list) -> str:
+    """Extract text from ToolResultBlock content (handles both str and MCP list format)."""
+    # MCP format: [{"type": "text", "text": "..."}]
+    if isinstance(content, list):
+        texts = [item.get("text", "") for item in content if isinstance(item, dict) and item.get("type") == "text"]
+        return "\n".join(texts)
+    if isinstance(content, str):
+        # Handle stringified MCP list format (SDK sometimes returns str repr)
+        if content.startswith("[{") and "'text':" in content:
+            import ast
+            try:
+                parsed = ast.literal_eval(content)
+                if isinstance(parsed, list):
+                    texts = [item.get("text", "") for item in parsed if isinstance(item, dict)]
+                    return "\n".join(texts)
+            except (ValueError, SyntaxError):
+                pass
+        return content
+    return str(content)
+
+
 class EditPlanRequested(Message):
     """Posted when user clicks Edit Plan button."""
 
@@ -369,6 +390,64 @@ class ShellOutputWidget(Static):
         self.remove_class("hovered")
 
 
+class AgentListWidget(Static):
+    """Formatted widget for displaying agent list from list_agents."""
+
+    DEFAULT_CSS = """
+    AgentListWidget {
+        margin: 1 0 0 2;
+    }
+    """
+
+    def __init__(self, content: str, cwd: Path | None = None) -> None:
+        super().__init__()
+        self._content = content
+        self._cwd = cwd or Path.cwd()
+        self._agents: list[tuple[str, str, str]] = []  # (indicator, name, path)
+        self._parse_content()
+
+    def _relative_path(self, path_str: str) -> str:
+        """Make path relative if it's in cwd or parent directory."""
+        try:
+            path = Path(path_str.rstrip())
+            if path == self._cwd:
+                return "."
+            if path.is_relative_to(self._cwd):
+                return str(path.relative_to(self._cwd))
+            if path.parent == self._cwd.parent:
+                return f"../{path.name}"
+            if path.is_relative_to(self._cwd.parent):
+                return f"../{path.relative_to(self._cwd.parent)}"
+        except (ValueError, OSError):
+            pass
+        return path_str
+
+    def _parse_content(self) -> None:
+        """Parse agent list content."""
+        pattern = re.compile(r"^([* ])(\d+)\. (\S+) \[(\w+)\] - (.+)$")
+        for line in self._content.split("\n"):
+            if line.startswith("Agents:") or not line.strip():
+                continue
+            match = pattern.match(line)
+            if match:
+                active, _, name, _status, path = match.groups()
+                indicator = "●" if active == "*" else "○"
+                display_path = self._relative_path(path)
+                self._agents.append((indicator, name, display_path))
+
+    def compose(self) -> ComposeResult:
+        """Render agent list with aligned columns."""
+        if not self._agents:
+            yield Static(self._content, classes="agent-fallback")
+            return
+
+        # Pad names to align paths
+        max_name = max(len(a[1]) for a in self._agents)
+        for indicator, name, path in self._agents:
+            padded = name.ljust(max_name)
+            yield Static(f"{indicator} {padded}  {path}")
+
+
 class AgentToolWidget(Static):
     """Widget for displaying chic agent MCP tool calls (spawn_agent, ask_agent, etc.)."""
 
@@ -405,11 +484,12 @@ class AgentToolWidget(Static):
             super().__init__()
             self.agent_name = agent_name
 
-    def __init__(self, block: ToolUseBlock) -> None:
+    def __init__(self, block: ToolUseBlock, cwd: Path | None = None) -> None:
         super().__init__()
         self.block = block
         self.result: ToolResultBlock | None = None
         self._agent_name = block.input.get("name", "?")
+        self._cwd = cwd
 
     def compose(self) -> ComposeResult:
         tool_short = self.block.name.replace("mcp__chic__", "")
@@ -459,12 +539,12 @@ class AgentToolWidget(Static):
             self.query_one(Spinner).remove()
         except Exception:
             pass
-        # For list_agents, show the result text
+        # For list_agents, render as formatted agent list
         tool_short = self.block.name.replace("mcp__chic__", "")
         if tool_short == "list_agents" and result.content:
-            content = result.content if isinstance(result.content, str) else str(result.content)
+            content = _extract_text_content(result.content)
             content = SYSTEM_REMINDER_PATTERN.sub("", content)
             try:
-                self.mount(Static(content, classes="result-text"))
+                self.mount(AgentListWidget(content, cwd=self._cwd))
             except Exception:
                 pass
