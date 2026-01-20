@@ -568,7 +568,9 @@ class ChatApp(App):
             self._handle_prompt(prompt)
 
     def on_chat_input_submitted(self, event: ChatInput.Submitted) -> None:
-        if not event.text.strip():
+        has_text = bool(event.text.strip())
+        has_images = bool(self._agent and self._agent.pending_images)
+        if not has_text and not has_images:
             return
         self.chat_input.clear()
         self._handle_prompt(event.text)
