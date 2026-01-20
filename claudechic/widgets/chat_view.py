@@ -90,15 +90,16 @@ class ChatView(AutoHideScroll):
         collapse_threshold = total_tools - RECENT_TOOLS_EXPANDED
         tool_index = 0
 
-        for item in self._agent.messages:
-            if item.role == "user" and isinstance(item.content, UserContent):
-                self._mount_user_message(item.content.text, item.content.images)
-            elif item.role == "assistant" and isinstance(
-                item.content, AssistantContent
-            ):
-                tool_index = self._render_assistant_history(
-                    item.content, tool_index, collapse_threshold
-                )
+        with self.app.batch_update():
+            for item in self._agent.messages:
+                if item.role == "user" and isinstance(item.content, UserContent):
+                    self._mount_user_message(item.content.text, item.content.images)
+                elif item.role == "assistant" and isinstance(
+                    item.content, AssistantContent
+                ):
+                    tool_index = self._render_assistant_history(
+                        item.content, tool_index, collapse_threshold
+                    )
 
         self.scroll_end(animate=False)
 
