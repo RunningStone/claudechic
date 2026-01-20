@@ -422,7 +422,13 @@ class TextAreaAutoComplete(Widget):
                 # Bonus for match starting at position 0
                 if offsets and offsets[0] == 0:
                     score += 10.0
-                highlighted = self._apply_highlights(candidate.main, tuple(offsets))
+                # Adjust offsets if main has leading / that was stripped for matching
+                adjusted_offsets = offsets
+                if self._mode == "slash" and candidate.main.plain.startswith("/"):
+                    adjusted_offsets = [o + 1 for o in offsets]
+                highlighted = self._apply_highlights(
+                    candidate.main, tuple(adjusted_offsets)
+                )
                 item = DropdownItem(
                     main=highlighted,
                     prefix=candidate.prefix,
