@@ -158,14 +158,6 @@ class ToolUseWidget(Static):
             if hasattr(self, "_plan_path"):
                 self.post_message(EditPlanRequested(self._plan_path))
 
-    def on_mouse_move(self) -> None:
-        """Track mouse presence for hover effect."""
-        if not self.has_class("hovered"):
-            self.add_class("hovered")
-
-    def on_leave(self) -> None:
-        self.remove_class("hovered")
-
     def _extract_plan_from_result(self, content: str) -> str | None:
         """Extract plan from ExitPlanMode result content.
 
@@ -381,13 +373,6 @@ class ShellOutputWidget(Static):
                 self.app.notify("Copied shell output")
             except Exception as e:
                 self.app.notify(f"Copy failed: {e}", severity="error")
-
-    def on_mouse_move(self) -> None:
-        if not self.has_class("hovered"):
-            self.add_class("hovered")
-
-    def on_leave(self) -> None:
-        self.remove_class("hovered")
 
 
 class AgentListWidget(Static):

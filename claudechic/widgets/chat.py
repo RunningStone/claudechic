@@ -130,16 +130,20 @@ class SystemInfo(Static):
 
 
 class ChatMessage(Static):
-    """A single chat message with copy button."""
+    """A single chat message with copy button.
+
+    Uses Textual's MarkdownStream for efficient incremental rendering.
+    The stream automatically batches updates when writes come faster
+    than rendering can handle (~20/sec threshold).
+    """
 
     can_focus = False
-    DEBOUNCE_MS = 50  # Batch updates every 50ms
 
     def __init__(self, content: str = "", is_agent: bool = False) -> None:
         super().__init__()
         self._content = content.rstrip()
-        self._debounce_timer = None
         self._is_agent = is_agent
+        self._stream = None  # Lazy-initialized MarkdownStream
 
     def compose(self) -> ComposeResult:
         yield Button("⧉", id="copy-btn", classes="copy-btn")
@@ -150,43 +154,33 @@ class ChatMessage(Static):
         else:
             yield Markdown(self._content, id="content")
 
-    def append_content(self, text: str) -> None:
-        """Append text to message content (debounced)."""
-        self._content += text
-        if self._debounce_timer is None:
-            self._debounce_timer = self.set_timer(
-                self.DEBOUNCE_MS / 1000, self._flush_content
-            )
-
-    @profile
-    def _flush_content(self) -> None:
-        """Flush pending content to the Markdown widget."""
-        self._debounce_timer = None
-        try:
-            with timed("ChatMessage._flush.query"):
+    def _get_stream(self):
+        """Get or create the MarkdownStream for this message."""
+        if self._stream is None:
+            try:
                 md = self.query_one("#content", Markdown)
-            with timed("ChatMessage._flush.update"):
-                md.update(self._content.rstrip())
-        except Exception:
-            pass  # Widget not mounted yet
+                self._stream = Markdown.get_stream(md)
+            except Exception:
+                pass  # Widget not mounted yet
+        return self._stream
+
+    def append_content(self, text: str) -> None:
+        """Append text using MarkdownStream for efficient incremental rendering."""
+        self._content += text
+        stream = self._get_stream()
+        if stream:
+            # Schedule async write - MarkdownStream batches internally
+            self.call_later(stream.write, text)
 
     def flush(self) -> None:
-        """Force flush any pending content (call on stream complete)."""
-        if self._debounce_timer:
-            self._debounce_timer.stop()
-            self._debounce_timer = None
-        self._flush_content()
+        """Stop the stream on completion."""
+        if self._stream:
+            self.call_later(self._stream.stop)
+            self._stream = None
 
     def get_raw_content(self) -> str:
         """Get raw content for copying."""
         return self._content
-
-    def on_mouse_move(self) -> None:
-        if not self.has_class("hovered"):
-            self.add_class("hovered")
-
-    def on_leave(self) -> None:
-        self.remove_class("hovered")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "copy-btn":
