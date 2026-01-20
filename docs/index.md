@@ -1,6 +1,10 @@
 # Claude Chic
 
-A stylish terminal UI that wraps the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) in a [Textual](https://textual.textualize.io/) interface.
+Terminal UI that wraps the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) in a [Textual](https://textual.textualize.io/) interface.  Run this:
+
+```bash
+uvx claudechic /welcome
+```
 
 You get the same Claude Code agent, but with a more visually polished and hackable experience:
 
