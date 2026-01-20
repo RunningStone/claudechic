@@ -6,7 +6,9 @@ A stylish terminal UI for Claude Code.
 
 ## What is this?
 
-Claude Chic wraps the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) in a [Textual](https://textual.textualize.io/) interface. You get the same Claude Code agent, but with a more visually polished and hackable experience:
+Claude Chic wraps the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) in a [Textual](https://textual.textualize.io/) interface.
+
+You get the same Claude Code agent, but with a more visually polished and hackable experience:
 
 -  **Pretty** - designed to remove clutter and focus attention
 -  **Hackable** - easily extensible with Python Code
@@ -20,10 +22,10 @@ Also, by putting a layer around the Agent SDK we're able to provide some nice fe
 ## Installation
 
 ```bash
-uv tool install git+https://github.com/mrocklin/claudechic
+uv tool install claudechic --upgrade
 ```
 
-Requires Claude Code with a Max/Pro subscription:
+Use Claude to log in with your subscription:
 
 ```bash
 claude /login
@@ -39,7 +41,7 @@ claudechic
 
 ??? question "Does this replace Claude Code?"
 
-    It replaces the `claude` CLI, but it wraps the same underlying `claude-agent-sdk` that that CLI uses.
+    It replaces the `claude` CLI, but it wraps the same underlying `claude-agent-sdk` that the `claude` CLI uses.
 
     Additionally, you need `claude` to log in and for advanced configuration.
 
@@ -57,9 +59,9 @@ claudechic
 
 ??? question "How does this relate to OpenCode?"
 
-    OpenCode is generally more impressive.  It supports many different models and is way more mature.
+    OpenCode is more impressive and mature.  OpenCode supports many different models and is way more mature.
 
-    OpenCode designed their own Agent logic.  This just reuses Claude Code's logic.  This project is much more thin.
+    OpenCode designed their own Agent logic.  This just reuses Claude Code's logic.  This project is more thin.
 
 ??? question "How do you make money?"
 

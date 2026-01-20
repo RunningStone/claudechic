@@ -91,9 +91,6 @@ development in parallel with a new agent.
 *...do work with Claude...*
 
 !!! user ""
-    Commit
-
-!!! user ""
     /worktree finish
 
 Claude Chic sets up worktrees for you and runs new agents in them.  When you're done, the `/worktree finish` command safely handles the rebase/merge process so you have nice linear history, despite all of the concurrent development you're doing.
@@ -101,6 +98,8 @@ Claude Chic sets up worktrees for you and runs new agents in them.  When you're 
 ## Concurrent development
 
 Used together, agents and worktrees make it trivial to have many ongoing threads of work, all neatly managed for you.  You can start a new thread any time and then leave it for days.  You can bounce between agents as they're busy or idle as you like.
+
+In practice this also helps with agent context, creating many agents, each with a small task avoids context bloat and, anecdotally, may improve agent focus and performance.
 
 ## Example: Deep Review and Many Tasks
 
@@ -141,3 +140,27 @@ will be ready for you.
 use worktrees, but does use multiple agents:*
 
 <script src="https://asciinema.org/a/LqXYSEsLQIHmIEYQ.js" id="asciicast-LqXYSEsLQIHmIEYQ" async="true"></script>
+
+## FAQ
+
+??? question "How does this relate to normal SubAgents or Tasks?"
+
+    Claude normally can launch subagents or tasks for parallel work .  These let Claude delegate work to other claude agents in parallel before bringing their summary back to the main agent.  This helps to parallelize and avoid context bloat.
+
+    Claude Chic's use of agents differs in three ways:
+
+    1.  You can interact with the agents as they do work
+    2.  They can interact with each other
+    3.  You can start and stop agents as you like, rather than always use a broadcast/collect pattern.
+
+    In general Claude Chic gives you access to full agents, while SubAgents are somewhat limited.
+
+??? question "I've heard of Git Worktrees but never used them."
+
+    Yeah, you're in good company.
+
+    Universally this was the answer when doing beta-testing on this project.  People like the idea, but worktrees are sufficiently foreign that no one uses them.  It's ok, you don't need to know how to.  Claude can handle that for you.
+
+??? question "What kinds of multi-agent workflows do you recommend?"
+
+    This is green field.  We encourage you to play and find out.  Common patterns (reviewing, worktrees, parallel research) are in this doc.
