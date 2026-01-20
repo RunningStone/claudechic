@@ -132,30 +132,35 @@ class ChatMessage(Static, PointerMixin):
     """A single chat message with copy button.
 
     Uses Textual's MarkdownStream for efficient incremental rendering.
-    The stream automatically batches updates when writes come faster
-    than rendering can handle (~20/sec threshold).
+    Adds debouncing on top of MarkdownStream's internal batching to reduce
+    the frequency of markdown parsing during fast streaming.
     """
 
     pointer_style = "text"
 
     can_focus = False
 
+    # Debounce settings for streaming text
+    _DEBOUNCE_INTERVAL = 0.05  # 50ms - flush accumulated text at most 20x/sec
+    _DEBOUNCE_MAX_CHARS = 200  # Flush immediately if buffer exceeds this
+
     def __init__(self, content: str = "", is_agent: bool = False) -> None:
         super().__init__()
         self._content = content.rstrip()
         self._is_agent = is_agent
         self._stream = None  # Lazy-initialized MarkdownStream
+        self._pending_text = ""  # Accumulated text waiting to be flushed
+        self._flush_timer = None  # Timer for debounced flush
 
     def on_enter(self) -> None:
         set_pointer(self.pointer_style)
-        self.add_class("hovered")
+        if not self.has_class("hovered"):
+            self.add_class("hovered")
 
     def on_leave(self) -> None:
         set_pointer("default")
-        self.remove_class("hovered")
-
-    def on_mouse_move(self) -> None:
-        self.add_class("hovered")
+        if self.has_class("hovered"):
+            self.remove_class("hovered")
 
     def compose(self) -> ComposeResult:
         yield CopyButton("⧉", id="copy-btn", classes="copy-btn")
@@ -177,15 +182,48 @@ class ChatMessage(Static, PointerMixin):
         return self._stream
 
     def append_content(self, text: str) -> None:
-        """Append text using MarkdownStream for efficient incremental rendering."""
+        """Append text using debounced MarkdownStream for efficient incremental rendering.
+
+        Text is accumulated in a buffer and flushed either:
+        - After _DEBOUNCE_INTERVAL (50ms) of no new text
+        - Immediately if buffer exceeds _DEBOUNCE_MAX_CHARS (200 chars)
+
+        This reduces markdown parsing frequency during fast streaming while
+        maintaining responsive updates.
+        """
         self._content += text
-        stream = self._get_stream()
-        if stream:
-            # Schedule async write - MarkdownStream batches internally
-            self.call_later(stream.write, text)
+        self._pending_text += text
+
+        # Flush immediately if we have a lot of pending text
+        if len(self._pending_text) >= self._DEBOUNCE_MAX_CHARS:
+            self._flush_pending()
+            return
+
+        # Otherwise, schedule a debounced flush
+        if self._flush_timer is None:
+            self._flush_timer = self.set_timer(
+                self._DEBOUNCE_INTERVAL, self._flush_pending
+            )
+
+    def _flush_pending(self) -> None:
+        """Flush accumulated text to the MarkdownStream."""
+        # Cancel any pending timer
+        if self._flush_timer is not None:
+            self._flush_timer.stop()
+            self._flush_timer = None
+
+        # Write accumulated text
+        if self._pending_text:
+            stream = self._get_stream()
+            if stream:
+                self.call_later(stream.write, self._pending_text)
+            self._pending_text = ""
 
     def flush(self) -> None:
-        """Stop the stream on completion."""
+        """Flush any pending text and stop the stream on completion."""
+        # Flush any remaining debounced text first
+        self._flush_pending()
+
         if self._stream:
             self.call_later(self._stream.stop)
             self._stream = None

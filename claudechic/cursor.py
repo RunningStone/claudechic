@@ -80,10 +80,12 @@ class HoverableMixin:
     """
 
     def on_enter(self) -> None:
-        self.add_class("hovered")  # type: ignore[attr-defined]
+        if not self.has_class("hovered"):  # type: ignore[attr-defined]
+            self.add_class("hovered")  # type: ignore[attr-defined]
 
     def on_leave(self) -> None:
-        self.remove_class("hovered")  # type: ignore[attr-defined]
+        if self.has_class("hovered"):  # type: ignore[attr-defined]
+            self.remove_class("hovered")  # type: ignore[attr-defined]
         set_pointer("default")
 
 
@@ -104,8 +106,10 @@ class ClickableMixin:
 
     def on_enter(self) -> None:
         set_pointer("pointer")
-        self.add_class("hovered")  # type: ignore[attr-defined]
+        if not self.has_class("hovered"):  # type: ignore[attr-defined]
+            self.add_class("hovered")  # type: ignore[attr-defined]
 
     def on_leave(self) -> None:
         set_pointer("default")
-        self.remove_class("hovered")  # type: ignore[attr-defined]
+        if self.has_class("hovered"):  # type: ignore[attr-defined]
+            self.remove_class("hovered")  # type: ignore[attr-defined]

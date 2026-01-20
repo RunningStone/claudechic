@@ -2,14 +2,30 @@
 
 import difflib
 import re
+from functools import lru_cache
 
+from pygments.lexers import get_lexer_by_name
 from pygments.token import Token
-from textual.content import Content
+from pygments.util import ClassNotFound
+from textual.content import Content, Span
 from textual.containers import HorizontalScroll
-from textual.highlight import HighlightTheme, highlight
+from textual.highlight import HighlightTheme
 from textual.widgets import Static
 
 from claudechic.formatting import get_lang_from_path
+
+
+@lru_cache(maxsize=64)
+def _get_cached_lexer(language: str):
+    """Get a cached Pygments lexer by language name.
+
+    Caching lexers avoids the expensive lexer loading/guessing on every highlight call.
+    The profiler showed ~15% of CPU time was spent in _load_lexers and guess_lexer.
+    """
+    try:
+        return get_lexer_by_name(language, stripnl=False, ensurenl=True, tabsize=8)
+    except ClassNotFound:
+        return None
 
 
 # Colors - line backgrounds (subtle tint)
@@ -61,15 +77,46 @@ class DiffHighlightTheme(HighlightTheme):
     }
 
 
+def _highlight_text(text: str, language: str) -> Content:
+    """Syntax highlight text using cached lexer and DiffHighlightTheme.
+
+    Performance-optimized version of textual.highlight.highlight() that
+    reuses cached lexer instances instead of creating new ones each time.
+    """
+    if not language:
+        return Content(text)
+
+    lexer = _get_cached_lexer(language)
+    if lexer is None:
+        return Content(text)
+
+    # Normalize line endings
+    text = "\n".join(text.splitlines())
+
+    # Build spans from Pygments tokens
+    token_start = 0
+    spans: list[Span] = []
+
+    for token_type, token in lexer.get_tokens(text):
+        token_end = token_start + len(token)
+        # Walk up parent chain to find matching style
+        current_type = token_type
+        while True:
+            if style := DiffHighlightTheme.STYLES.get(current_type):
+                spans.append(Span(token_start, token_end, style))
+                break
+            if (current_type := current_type.parent) is None:
+                break
+        token_start = token_end
+
+    return Content(text, spans=spans).stylize_before("$text")
+
+
 def _highlight_lines(text: str, language: str) -> list[Content]:
     """Syntax highlight text and split into lines."""
     if not text:
         return []
-    if language:
-        highlighted = highlight(text, language=language, theme=DiffHighlightTheme)
-    else:
-        highlighted = Content(text)
-    return highlighted.split("\n")
+    return _highlight_text(text, language).split("\n")
 
 
 def _word_diff_spans(
