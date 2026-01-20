@@ -7,8 +7,10 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.widgets import Static, Label, ListItem
 
+from claudechic.cursor import PointerMixin
 
-class SessionItem(ListItem):
+
+class SessionItem(ListItem, PointerMixin):
     """A session in the sidebar."""
 
     def __init__(self, session_id: str, preview: str, msg_count: int = 0) -> None:

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 
+from claudechic.cursor import ContainerPointerMixin, PointerMixin
 from claudechic.enums import AgentStatus
 from textual.events import Click
 from textual.message import Message
@@ -13,7 +14,13 @@ from textual.widgets import Static
 from rich.text import Text
 
 
-class HamburgerButton(Widget):
+class PointerStatic(Static, PointerMixin):
+    """Static widget that shows pointer cursor on hover."""
+
+    pass
+
+
+class HamburgerButton(Widget, PointerMixin):
     """Floating hamburger button for narrow screens."""
 
     class Clicked(Message):
@@ -57,7 +64,7 @@ class HamburgerButton(Widget):
         self.post_message(self.Clicked())
 
 
-class PlanButton(Widget):
+class PlanButton(Widget, ContainerPointerMixin):
     """Button to open the current session's plan file."""
 
     class Clicked(Message):
@@ -87,7 +94,7 @@ class PlanButton(Widget):
         self.plan_path = plan_path
 
     def compose(self) -> ComposeResult:
-        yield Static(
+        yield PointerStatic(
             Text.assemble(("📋", ""), " ", ("Plan", "dim")), classes="plan-label"
         )
 
@@ -95,7 +102,7 @@ class PlanButton(Widget):
         self.post_message(self.Clicked(self.plan_path))
 
 
-class WorktreeItem(Widget):
+class WorktreeItem(Widget, ContainerPointerMixin):
     """A ghost worktree in the sidebar (not yet an agent)."""
 
     class Selected(Message):
@@ -133,13 +140,13 @@ class WorktreeItem(Widget):
         if len(name) > 16:
             name = name[:15] + "…"
         label = Text.assemble(("◌", ""), " ", (name, "dim"))
-        yield Static(label, classes="worktree-label")
+        yield PointerStatic(label, classes="worktree-label")
 
     def on_click(self) -> None:
         self.post_message(self.Selected(self.branch, self.path))
 
 
-class AgentItem(Widget):
+class AgentItem(Widget, ContainerPointerMixin):
     """A single agent in the sidebar."""
 
     class Selected(Message):
@@ -201,8 +208,8 @@ class AgentItem(Widget):
         self.status = status
 
     def compose(self) -> ComposeResult:
-        yield Static(self._render_label(), classes="agent-label")
-        yield Static(Text("X"), classes="agent-close")
+        yield PointerStatic(self._render_label(), classes="agent-label")
+        yield PointerStatic(Text("X"), classes="agent-close")
 
     def _render_label(self) -> Text:
         if self.status == AgentStatus.BUSY:
@@ -222,7 +229,7 @@ class AgentItem(Widget):
     def watch_status(self, _status: str) -> None:
         """Update label when status changes."""
         try:
-            label = self.query_one(".agent-label", Static)
+            label = self.query_one(".agent-label", PointerStatic)
             label.update(self._render_label())
         except Exception:
             pass  # Widget may not be mounted yet

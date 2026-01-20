@@ -8,10 +8,11 @@ from textual.containers import Horizontal
 from textual.message import Message
 from textual.widgets import Static
 
+from claudechic.cursor import PointerMixin
 from claudechic.widgets.indicators import CPUBar, ContextBar
 
 
-class AutoEditLabel(Static):
+class AutoEditLabel(Static, PointerMixin):
     """Clickable auto-edit status label."""
 
     class Toggled(Message):

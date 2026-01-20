@@ -7,11 +7,12 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from rich.text import Text
 
+from claudechic.cursor import PointerMixin
 from claudechic.formatting import MAX_CONTEXT_TOKENS
 from claudechic.profiling import profile, timed
 
 
-class CPUBar(Widget):
+class CPUBar(Widget, PointerMixin):
     """Display CPU usage. Click to show profiling stats."""
 
     cpu_pct = reactive(0.0)
@@ -51,7 +52,7 @@ class CPUBar(Widget):
         self.app.push_screen(ProfileModal())
 
 
-class ContextBar(Widget):
+class ContextBar(Widget, PointerMixin):
     """Display context usage as a progress bar. Click to run /context."""
 
     tokens = reactive(0)

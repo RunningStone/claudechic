@@ -12,6 +12,7 @@ from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Markdown, TextArea, Static, Button
 
+from claudechic.cursor import PointerMixin
 from claudechic.errors import log_exception
 from claudechic.profiling import profile
 
@@ -120,13 +121,15 @@ class SystemInfo(Static):
         yield Markdown(self._message, id="content")
 
 
-class ChatMessage(Static):
+class ChatMessage(Static, PointerMixin):
     """A single chat message with copy button.
 
     Uses Textual's MarkdownStream for efficient incremental rendering.
     The stream automatically batches updates when writes come faster
     than rendering can handle (~20/sec threshold).
     """
+
+    pointer_style = "text"
 
     can_focus = False
 
@@ -182,7 +185,7 @@ class ChatMessage(Static):
                 self.app.notify(f"Copy failed: {e}", severity="error")
 
 
-class ChatAttachment(Button):
+class ChatAttachment(Button, PointerMixin):
     """Clickable attachment tag in chat messages - opens file on click."""
 
     def __init__(self, path: str, display_name: str) -> None:
@@ -271,8 +274,10 @@ class ImageAttachments(Horizontal):
             event.stop()
 
 
-class ChatInput(TextArea):
+class ChatInput(TextArea, PointerMixin):
     """Text input that submits on Enter, newline on Shift+Enter, history with Up/Down."""
+
+    pointer_style = "text"
 
     BINDINGS = [
         Binding("enter", "submit", "Send", priority=True, show=False),
