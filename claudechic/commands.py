@@ -65,6 +65,10 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
     if cmd == "/welcome":
         return _handle_welcome(app)
 
+    if cmd == "/help":
+        app.run_worker(_handle_help(app))
+        return True
+
     return False
 
 
@@ -299,3 +303,19 @@ def _handle_compactish(app: "ChatApp", command: str) -> bool:
         app.notify("Session compacted", timeout=3)
 
     return True
+
+
+async def _handle_help(app: "ChatApp") -> None:
+    """Display help information."""
+    from claudechic.help_data import format_help
+    from claudechic.widgets import ChatMessage
+
+    agent = app._agent
+    help_text = await format_help(agent)
+
+    chat_view = app._chat_view
+    if chat_view:
+        msg = ChatMessage(help_text)
+        msg.add_class("system-message")
+        chat_view.mount(msg)
+        chat_view.scroll_if_tailing()

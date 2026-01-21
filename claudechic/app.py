@@ -437,6 +437,7 @@ class ChatApp(App):
         "/usage",
         "/model",
         "/welcome",
+        "/help",
     ]
 
     def compose(self) -> ComposeResult:
