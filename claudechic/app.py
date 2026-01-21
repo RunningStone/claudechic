@@ -48,6 +48,7 @@ from claudechic.permissions import PermissionRequest, PermissionResponse
 from claudechic.agent import Agent, ImageAttachment, ToolUse
 from claudechic.agent_manager import AgentManager
 from claudechic.analytics import capture
+from claudechic.config import get_theme, set_theme
 from claudechic.enums import AgentStatus, PermissionChoice, ToolName
 from claudechic.mcp import set_app, create_chic_server
 from claudechic.file_index import FileIndex
@@ -533,9 +534,9 @@ class ChatApp(App):
 
             await start_server(self, self._remote_port)
 
-        # Register and activate custom theme
+        # Register and activate custom theme (use saved preference or default to chic)
         self.register_theme(CHIC_THEME)
-        self.theme = "chic"
+        self.theme = get_theme() or "chic"
 
         # Initialize AgentManager (new architecture)
         self.agent_mgr = AgentManager(self._make_options)
@@ -557,6 +558,10 @@ class ChatApp(App):
 
         # Connect SDK in background - UI renders while this happens
         self._connect_initial_client()
+
+    def watch_theme(self, theme: str) -> None:
+        """Save theme preference when changed."""
+        set_theme(theme)
 
     @work(exclusive=True, group="connect")
     async def _connect_initial_client(self) -> None:

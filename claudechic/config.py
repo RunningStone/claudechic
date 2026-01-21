@@ -59,3 +59,14 @@ def set_analytics_enabled(enabled: bool) -> None:
     """Enable or disable analytics collection."""
     _load_config()["analytics"]["enabled"] = enabled
     _save_config()
+
+
+def get_theme() -> str | None:
+    """Get saved theme preference, or None if not set."""
+    return _load_config().get("theme")
+
+
+def set_theme(theme: str) -> None:
+    """Save theme preference."""
+    _load_config()["theme"] = theme
+    _save_config()
