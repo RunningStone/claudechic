@@ -1,6 +1,7 @@
 """Entry point for claudechic CLI."""
 
 import argparse
+import os
 from importlib.metadata import version
 
 from claudechic.app import ChatApp
@@ -24,6 +25,12 @@ def main():
     parser.add_argument(
         "--session", "-s", type=str, help="Resume a specific session ID"
     )
+    parser.add_argument(
+        "--remote-port",
+        type=int,
+        default=int(os.environ.get("CLAUDECHIC_REMOTE_PORT", "0")),
+        help="Start HTTP server for remote control on this port",
+    )
     parser.add_argument("prompt", nargs="*", help="Initial prompt to send")
     args = parser.parse_args()
 
@@ -42,7 +49,11 @@ def main():
     Console().control(Control.title(f"Claude Chic · {Path.cwd().name}"))
 
     try:
-        app = ChatApp(resume_session_id=resume_id, initial_prompt=initial_prompt)
+        app = ChatApp(
+            resume_session_id=resume_id,
+            initial_prompt=initial_prompt,
+            remote_port=args.remote_port,
+        )
         app.run()
     except (KeyboardInterrupt, SystemExit):
         pass

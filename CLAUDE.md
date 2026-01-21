@@ -12,6 +12,16 @@ uv run claudechic -s <uuid>    # Resume specific session
 
 Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login`).
 
+## Remote Testing
+
+For live testing by AI agents, run with remote control enabled:
+
+```bash
+./scripts/claudechic-remote 9999
+```
+
+This starts an HTTP server on port 9999 with endpoints for sending messages, taking screenshots, and checking state. See [.ai-docs/remote-testing.md](.ai-docs/remote-testing.md) for full API documentation.
+
 ## File Map
 
 ```
@@ -29,6 +39,7 @@ claudechic/
 ├── history.py         # Global history loading from ~/.claude/history.jsonl
 ├── mcp.py             # In-process MCP server for agent control tools
 ├── messages.py        # Custom Textual Message types for SDK events
+├── remote.py          # HTTP server for remote control (live testing)
 ├── permissions.py     # PermissionRequest dataclass for tool approval
 ├── profiling.py       # Lightweight profiling utilities (@profile decorator)
 ├── sampling.py        # CPU-conditional sampling profiler for high-CPU investigation

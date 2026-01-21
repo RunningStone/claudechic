@@ -147,7 +147,10 @@ class ChatApp(App):
     CENTERED_SIDEBAR_WIDTH = 140  # Above this, center chat while showing sidebar
 
     def __init__(
-        self, resume_session_id: str | None = None, initial_prompt: str | None = None
+        self,
+        resume_session_id: str | None = None,
+        initial_prompt: str | None = None,
+        remote_port: int = 0,
     ) -> None:
         super().__init__()
         # AgentManager is the single source of truth for agents
@@ -155,6 +158,7 @@ class ChatApp(App):
 
         self._resume_on_start = resume_session_id
         self._initial_prompt = initial_prompt
+        self._remote_port = remote_port
         self._session_picker_active = False
         # Event queues for testing
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
@@ -494,6 +498,12 @@ class ChatApp(App):
 
         # Register app for MCP tools
         set_app(self)
+
+        # Start remote control server if requested
+        if self._remote_port:
+            from claudechic.remote import start_server
+
+            await start_server(self, self._remote_port)
 
         # Register and activate custom theme
         self.register_theme(CHIC_THEME)
