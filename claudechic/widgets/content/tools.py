@@ -25,7 +25,8 @@ from claudechic.formatting import (
     make_relative,
 )
 from claudechic.widgets.content.diff import DiffWidget
-from claudechic.widgets.content.message import ChatMessage, Spinner
+from claudechic.widgets.content.message import ChatMessage
+from claudechic.widgets.primitives.spinner import Spinner
 from claudechic.widgets.base.copyable import CopyButton, CopyableMixin
 from claudechic.widgets.base.cursor import HoverableMixin
 

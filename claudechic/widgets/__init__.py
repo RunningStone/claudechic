@@ -10,10 +10,16 @@ from claudechic.widgets.base import (
     PointerMixin,
     CopyButton,
     CopyableMixin,
+    ToolWidget,
 )
 
 # Primitives
-from claudechic.widgets.primitives import Button, QuietCollapsible, AutoHideScroll
+from claudechic.widgets.primitives import (
+    Button,
+    QuietCollapsible,
+    AutoHideScroll,
+    Spinner,
+)
 
 # Content widgets
 from claudechic.widgets.content import (
@@ -24,7 +30,6 @@ from claudechic.widgets.content import (
     ErrorMessage,
     SystemInfo,
     ChatAttachment,
-    Spinner,
     ToolUseWidget,
     TaskWidget,
     AgentToolWidget,
@@ -61,7 +66,10 @@ from claudechic.widgets.layout import (
 )
 
 # Report widgets
-from claudechic.widgets.reports import UsageReport, ProfileModal
+from claudechic.widgets.reports import UsageReport
+
+# Modal screens
+from claudechic.widgets.modals import ProfileModal, ProcessModal
 
 # Prompts (still in top-level prompts.py)
 from claudechic.widgets.prompts import (
@@ -81,10 +89,12 @@ __all__ = [
     "PointerMixin",
     "CopyButton",
     "CopyableMixin",
+    "ToolWidget",
     # Primitives
     "Button",
     "QuietCollapsible",
     "AutoHideScroll",
+    "Spinner",
     # Content
     "ChatMessage",
     "ChatInput",
@@ -93,7 +103,6 @@ __all__ = [
     "ErrorMessage",
     "SystemInfo",
     "ChatAttachment",
-    "Spinner",
     "ToolUseWidget",
     "TaskWidget",
     "AgentToolWidget",
@@ -126,7 +135,9 @@ __all__ = [
     "BackgroundProcess",
     # Reports
     "UsageReport",
+    # Modals
     "ProfileModal",
+    "ProcessModal",
     # Prompts
     "BasePrompt",
     "SelectionPrompt",

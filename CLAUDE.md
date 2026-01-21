@@ -54,16 +54,20 @@ claudechic/
 │       ├── __init__.py   # Public API (list_worktrees, handle_worktree_command)
 │       ├── commands.py   # /worktree command handlers
 │       └── git.py        # Git worktree operations
+├── processes.py       # BackgroundProcess dataclass, child process detection
 └── widgets/
     ├── __init__.py    # Re-exports all widgets for backward compat
     ├── prompts.py     # All prompt widgets (Selection, Question, Model, Worktree)
-    ├── base/          # Mixins and base classes
+    ├── base/          # Mixins, protocols, and base classes
     │   ├── cursor.py  # PointerMixin, HoverableMixin, ClickableMixin
-    │   └── copyable.py # CopyableMixin, CopyButton
+    │   ├── copyable.py # CopyableMixin, CopyButton
+    │   ├── clickable.py # ClickableLabel base class
+    │   └── tool_protocol.py # ToolWidget protocol
     ├── primitives/    # Low-level building blocks
     │   ├── button.py  # Button with click handling
     │   ├── collapsible.py # QuietCollapsible
-    │   └── scroll.py  # AutoHideScroll
+    │   ├── scroll.py  # AutoHideScroll
+    │   └── spinner.py # Animated spinner
     ├── content/       # Content display widgets
     │   ├── message.py # ChatMessage, ChatInput, ThinkingIndicator
     │   ├── tools.py   # ToolUseWidget, TaskWidget, AgentToolWidget
@@ -75,12 +79,13 @@ claudechic/
     ├── layout/        # Structural/container widgets
     │   ├── chat_view.py # ChatView - renders agent messages
     │   ├── sidebar.py # AgentSidebar, AgentItem, WorktreeItem
-    │   ├── footer.py  # StatusFooter, ClickableLabel
-    │   ├── indicators.py # CPUBar, ContextBar, ProcessIndicator
-    │   └── processes.py # ProcessPanel, BackgroundProcess
-    └── reports/       # Modal screens and reports
-        ├── context.py # ContextReport - visual 2D grid
-        ├── usage.py   # UsageReport, UsageBar
+    │   ├── footer.py  # StatusFooter, AutoEditLabel, ModelLabel
+    │   ├── indicators.py # IndicatorWidget, CPUBar, ContextBar, ProcessIndicator
+    │   └── processes.py # ProcessPanel, ProcessItem
+    ├── reports/       # In-page report widgets
+    │   ├── context.py # ContextReport - visual 2D grid
+    │   └── usage.py   # UsageReport, UsageBar
+    └── modals/        # Modal screen overlays
         ├── profile.py # ProfileModal - profiling stats
         └── process_modal.py # ProcessModal
 

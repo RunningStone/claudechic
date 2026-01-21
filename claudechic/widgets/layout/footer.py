@@ -8,18 +8,9 @@ from textual.reactive import reactive
 from textual.containers import Horizontal
 from textual.widgets import Static
 
-from claudechic.widgets.base.cursor import ClickableMixin
+from claudechic.widgets.base.clickable import ClickableLabel
 from claudechic.widgets.layout.indicators import CPUBar, ContextBar, ProcessIndicator
-from claudechic.widgets.layout.processes import BackgroundProcess
-
-
-class ClickableLabel(Static, ClickableMixin):
-    """A static label that is clickable with pointer cursor.
-
-    Override on_click() to handle clicks, or listen for custom messages.
-    """
-
-    pass
+from claudechic.processes import BackgroundProcess
 
 
 class AutoEditLabel(ClickableLabel):

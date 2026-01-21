@@ -8,8 +8,8 @@ from claudechic.widgets.layout.sidebar import (
     PlanButton,
     HamburgerButton,
 )
+from claudechic.widgets.base.clickable import ClickableLabel
 from claudechic.widgets.layout.footer import (
-    ClickableLabel,
     AutoEditLabel,
     ModelLabel,
     StatusFooter,
@@ -23,8 +23,8 @@ from claudechic.widgets.layout.indicators import (
 from claudechic.widgets.layout.processes import (
     ProcessPanel,
     ProcessItem,
-    BackgroundProcess,
 )
+from claudechic.processes import BackgroundProcess
 
 __all__ = [
     "ChatView",

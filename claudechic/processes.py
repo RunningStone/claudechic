@@ -1,11 +1,19 @@
-"""Background process detection for Claude agents."""
+"""Background process tracking and detection for Claude agents."""
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
 
 import psutil
 
-from claudechic.widgets.layout.processes import BackgroundProcess
+
+@dataclass
+class BackgroundProcess:
+    """A background process being tracked."""
+
+    pid: int
+    command: str  # Short description of the command
+    start_time: datetime
 
 
 def _extract_command(cmdline: list[str]) -> str | None:

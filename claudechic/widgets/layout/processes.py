@@ -1,21 +1,11 @@
 """Process panel widget for displaying background processes."""
 
-from dataclasses import dataclass
-from datetime import datetime
-
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Static
 
-
-@dataclass
-class BackgroundProcess:
-    """A background process being tracked."""
-
-    pid: int
-    command: str  # Short description of the command
-    start_time: datetime
+from claudechic.processes import BackgroundProcess
 
 
 class ProcessItem(Static):

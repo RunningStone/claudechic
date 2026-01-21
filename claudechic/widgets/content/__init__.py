@@ -8,7 +8,6 @@ from claudechic.widgets.content.message import (
     ErrorMessage,
     SystemInfo,
     ChatAttachment,
-    Spinner,
 )
 from claudechic.widgets.content.tools import (
     ToolUseWidget,
@@ -29,7 +28,6 @@ __all__ = [
     "ErrorMessage",
     "SystemInfo",
     "ChatAttachment",
-    "Spinner",
     "ToolUseWidget",
     "TaskWidget",
     "AgentToolWidget",
