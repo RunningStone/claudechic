@@ -261,3 +261,9 @@ uv run pre-commit run --all-files  # Run manually
 ```
 
 Hooks: ruff (lint + fix), ruff-format, pyright. Run automatically on commit.
+
+## GitHub
+
+- **Repo:** https://github.com/mrocklin/claudechic
+- **CLI:** `gh` is installed and authenticated as `mrocklin-ai`
+- Use `gh issue list/view`, `gh pr list/view/create`, etc. for GitHub operations
