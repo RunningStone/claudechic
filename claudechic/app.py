@@ -125,7 +125,6 @@ class ChatApp(App):
             "shift+tab", "cycle_permission_mode", "Auto-edit", priority=True, show=False
         ),
         Binding("escape", "escape", "Cancel", show=False),
-        Binding("ctrl+n", "new_agent", "New Agent", priority=True, show=False),
         Binding("ctrl+r", "history_search", "History", priority=True, show=False),
         # Agent switching: ctrl+1 through ctrl+9
         *[

@@ -352,6 +352,17 @@ class ChatInput(TextArea, PointerMixin):
             priority=True,
             show=False,
         ),
+        # Readline/emacs bindings (override Textual defaults where needed)
+        Binding("ctrl+f", "cursor_right", "Forward char", priority=True, show=False),
+        Binding("ctrl+b", "cursor_left", "Backward char", priority=True, show=False),
+        Binding("ctrl+p", "cursor_up", "Previous line", priority=True, show=False),
+        Binding("ctrl+n", "cursor_down", "Next line", priority=True, show=False),
+        Binding(
+            "alt+f", "cursor_word_right", "Forward word", priority=True, show=False
+        ),
+        Binding(
+            "alt+b", "cursor_word_left", "Backward word", priority=True, show=False
+        ),
     ]
 
     class Submitted(Message):
