@@ -53,3 +53,9 @@ def get_analytics_enabled() -> bool:
 def get_analytics_id() -> str:
     """Get the anonymous analytics ID, generating if needed."""
     return _load_config()["analytics"]["id"]
+
+
+def set_analytics_enabled(enabled: bool) -> None:
+    """Enable or disable analytics collection."""
+    _load_config()["analytics"]["enabled"] = enabled
+    _save_config()

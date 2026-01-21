@@ -87,6 +87,9 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         _handle_processes(app)
         return True
 
+    if cmd.startswith("/analytics"):
+        return _handle_analytics(app, cmd)
+
     return False
 
 
@@ -374,3 +377,32 @@ def _handle_processes(app: "ChatApp") -> None:
     else:
         processes = []
     app.push_screen(ProcessModal(processes))
+
+
+def _handle_analytics(app: "ChatApp", command: str) -> bool:
+    """Handle /analytics commands: opt-in, opt-out."""
+    from claudechic.config import (
+        get_analytics_enabled,
+        get_analytics_id,
+        set_analytics_enabled,
+    )
+
+    parts = command.split()
+    subcommand = parts[1] if len(parts) > 1 else ""
+
+    if subcommand == "opt-in":
+        set_analytics_enabled(True)
+        app.notify("Analytics enabled")
+        return True
+
+    if subcommand == "opt-out":
+        set_analytics_enabled(False)
+        app.notify("Analytics disabled")
+        return True
+
+    # Show current status
+    enabled = get_analytics_enabled()
+    user_id = get_analytics_id()
+    status = "enabled" if enabled else "disabled"
+    app.notify(f"Analytics {status}, ID: {user_id[:8]}...")
+    return True
