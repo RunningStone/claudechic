@@ -73,7 +73,8 @@ class PlanButton(Button):
     PlanButton {
         height: 3;
         min-height: 3;
-        padding: 1 1 1 2;
+        padding: 0 1 0 2;
+        content-align: left middle;
         dock: bottom;
     }
     PlanButton:hover {
