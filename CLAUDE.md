@@ -53,25 +53,36 @@ claudechic/
 │   └── worktree/
 │       ├── __init__.py   # Public API (list_worktrees, handle_worktree_command)
 │       ├── commands.py   # /worktree command handlers
-│       ├── git.py        # Git worktree operations
-│       └── prompts.py    # WorktreePrompt widget
+│       └── git.py        # Git worktree operations
 └── widgets/
-    ├── __init__.py    # Re-exports all widgets
-    ├── agents.py      # AgentSidebar, AgentItem for multi-agent UI
-    ├── autocomplete.py # Autocomplete for slash commands and file paths
-    ├── chat.py        # ChatMessage, ChatInput, ThinkingIndicator
-    ├── chat_view.py   # ChatView - renders agent messages, handles streaming
-    ├── context_report.py # ContextReport - visual 2D grid for /context
-    ├── diff.py        # Syntax-highlighted diff widget
-    ├── footer.py      # Custom footer with git branch, CPU/context bars
-    ├── history_search.py # Reverse history search widget (Ctrl+R)
-    ├── indicators.py  # CPUBar (clickable), ContextBar resource monitors
-    ├── profile_modal.py # ProfileModal - shows profiling stats on CPU click
-    ├── prompts.py     # SelectionPrompt, QuestionPrompt, SessionItem
-    ├── scroll.py      # AutoHideScroll - auto-hiding scrollbar container
-    ├── todo.py        # TodoPanel for TodoWrite tool display
-    ├── tools.py       # ToolUseWidget, TaskWidget, AgentToolWidget
-    └── usage.py       # UsageReport, UsageBar for /usage command
+    ├── __init__.py    # Re-exports all widgets for backward compat
+    ├── prompts.py     # All prompt widgets (Selection, Question, Model, Worktree)
+    ├── base/          # Mixins and base classes
+    │   ├── cursor.py  # PointerMixin, HoverableMixin, ClickableMixin
+    │   └── copyable.py # CopyableMixin, CopyButton
+    ├── primitives/    # Low-level building blocks
+    │   ├── button.py  # Button with click handling
+    │   ├── collapsible.py # QuietCollapsible
+    │   └── scroll.py  # AutoHideScroll
+    ├── content/       # Content display widgets
+    │   ├── message.py # ChatMessage, ChatInput, ThinkingIndicator
+    │   ├── tools.py   # ToolUseWidget, TaskWidget, AgentToolWidget
+    │   ├── diff.py    # Syntax-highlighted diff widget
+    │   └── todo.py    # TodoPanel, TodoWidget
+    ├── input/         # User input widgets
+    │   ├── autocomplete.py # TextAreaAutoComplete
+    │   └── history_search.py # HistorySearch (Ctrl+R)
+    ├── layout/        # Structural/container widgets
+    │   ├── chat_view.py # ChatView - renders agent messages
+    │   ├── sidebar.py # AgentSidebar, AgentItem, WorktreeItem
+    │   ├── footer.py  # StatusFooter, ClickableLabel
+    │   ├── indicators.py # CPUBar, ContextBar, ProcessIndicator
+    │   └── processes.py # ProcessPanel, BackgroundProcess
+    └── reports/       # Modal screens and reports
+        ├── context.py # ContextReport - visual 2D grid
+        ├── usage.py   # UsageReport, UsageBar
+        ├── profile.py # ProfileModal - profiling stats
+        └── process_modal.py # ProcessModal
 
 tests/
 ├── __init__.py        # Package marker
