@@ -5,23 +5,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from textual.app import ComposeResult
-from textual.widgets import Static, Label, ListItem
-
-from claudechic.widgets.base.cursor import PointerMixin
-
-
-class SessionItem(ListItem, PointerMixin):
-    """A session in the sidebar."""
-
-    def __init__(self, session_id: str, preview: str, msg_count: int = 0) -> None:
-        super().__init__()
-        self.session_id = session_id
-        self.preview = preview
-        self.msg_count = msg_count
-
-    def compose(self) -> ComposeResult:
-        yield Label(self.preview, classes="session-preview")
-        yield Label(f"({self.msg_count} msgs)", classes="session-meta")
+from textual.widgets import Static
 
 
 class BasePrompt(Static):

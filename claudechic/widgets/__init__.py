@@ -52,7 +52,7 @@ from claudechic.widgets.layout import (
     WorktreeItem,
     PlanButton,
     HamburgerButton,
-    ClickableLabel,
+    SessionItem,
     AutoEditLabel,
     ModelLabel,
     StatusFooter,
@@ -62,21 +62,25 @@ from claudechic.widgets.layout import (
     ProcessIndicator,
     ProcessPanel,
     ProcessItem,
-    BackgroundProcess,
 )
 
+# Base re-exports (ClickableLabel used by layout widgets)
+from claudechic.widgets.base import ClickableLabel
+
+# Data classes (re-exported for convenience)
+from claudechic.processes import BackgroundProcess
+
 # Report widgets
-from claudechic.widgets.reports import UsageReport
+from claudechic.widgets.reports import UsageReport, ContextReport
 
 # Modal screens
 from claudechic.widgets.modals import ProfileModal, ProcessModal
 
-# Prompts (still in top-level prompts.py)
+# Prompts
 from claudechic.widgets.prompts import (
     BasePrompt,
     SelectionPrompt,
     QuestionPrompt,
-    SessionItem,
     ModelPrompt,
     WorktreePrompt,
     UncommittedChangesPrompt,
@@ -120,6 +124,7 @@ __all__ = [
     "AgentItem",
     "AgentSidebar",
     "WorktreeItem",
+    "SessionItem",
     "PlanButton",
     "HamburgerButton",
     "ClickableLabel",
@@ -135,6 +140,7 @@ __all__ = [
     "BackgroundProcess",
     # Reports
     "UsageReport",
+    "ContextReport",
     # Modals
     "ProfileModal",
     "ProcessModal",
@@ -142,7 +148,6 @@ __all__ = [
     "BasePrompt",
     "SelectionPrompt",
     "QuestionPrompt",
-    "SessionItem",
     "ModelPrompt",
     "WorktreePrompt",
     "UncommittedChangesPrompt",

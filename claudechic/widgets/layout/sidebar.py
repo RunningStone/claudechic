@@ -7,12 +7,26 @@ from textual.events import Click
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Static
+from textual.widgets import Static, Label, ListItem
 from rich.text import Text
 
 from claudechic.enums import AgentStatus
-from claudechic.widgets.base.cursor import ClickableMixin
+from claudechic.widgets.base.cursor import ClickableMixin, PointerMixin
 from claudechic.widgets.primitives.button import Button
+
+
+class SessionItem(ListItem, PointerMixin):
+    """A session in the session picker sidebar."""
+
+    def __init__(self, session_id: str, preview: str, msg_count: int = 0) -> None:
+        super().__init__()
+        self.session_id = session_id
+        self.preview = preview
+        self.msg_count = msg_count
+
+    def compose(self) -> ComposeResult:
+        yield Label(self.preview, classes="session-preview")
+        yield Label(f"({self.msg_count} msgs)", classes="session-meta")
 
 
 class HamburgerButton(Button):
