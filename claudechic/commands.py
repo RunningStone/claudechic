@@ -176,7 +176,9 @@ def _handle_agent(app: "ChatApp", command: str) -> bool:
             f"Invalid model '{model}'. Use: opus, sonnet, haiku", severity="error"
         )
         return True
-    app._create_new_agent(name, cwd or Path.cwd(), model=model)
+    # Default to current agent's cwd, fallback to app's cwd
+    default_cwd = app._agent.cwd if app._agent else Path.cwd()
+    app._create_new_agent(name, cwd or default_cwd, model=model)
     return True
 
 
