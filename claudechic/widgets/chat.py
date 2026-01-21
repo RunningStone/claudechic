@@ -156,15 +156,9 @@ class ChatMessage(Static, PointerMixin):
 
     def on_enter(self) -> None:
         set_pointer(self.pointer_style)
-        # Skip expensive class changes during streaming
-        if not self._is_streaming() and not self.has_class("hovered"):
-            self.add_class("hovered")
 
     def on_leave(self) -> None:
         set_pointer("default")
-        # Skip expensive class changes during streaming
-        if not self._is_streaming() and self.has_class("hovered"):
-            self.remove_class("hovered")
 
     def compose(self) -> ComposeResult:
         yield CopyButton("⧉", id="copy-btn", classes="copy-btn")

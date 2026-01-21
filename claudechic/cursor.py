@@ -1,12 +1,15 @@
-"""Mouse cursor and hover mixins for Textual widgets.
+"""Mouse cursor mixins for Textual widgets.
 
-Provides three mixins for different use cases:
-- ClickableMixin: Hand cursor + .hovered class (for buttons)
+Provides three mixins:
+- ClickableMixin: Hand cursor on hover (for buttons)
 - PointerMixin: Configurable cursor style (for text areas)
-- HoverableMixin: Just .hovered class (for hover effects without cursor)
+- HoverableMixin: Resets cursor on leave
 
 Uses OSC 22 escape sequences supported by modern terminals
 (Ghostty, Kitty, WezTerm, foot). Unsupported terminals ignore the sequence.
+
+Note: For hover visual effects, use CSS :hover pseudo-class instead of
+adding/removing classes - much more efficient (no DOM style recalc).
 """
 
 import os
@@ -73,27 +76,20 @@ class PointerMixin:
 
 
 class HoverableMixin:
-    """Mixin for widgets that need a .hovered class for CSS styling.
+    """Mixin that resets cursor to default on mouse leave.
 
-    Adds/removes 'hovered' class on mouse enter/leave. Useful when
-    CSS :hover doesn't propagate properly through child widgets.
+    Use CSS :hover pseudo-class for visual styling (efficient).
     """
 
-    def on_enter(self) -> None:
-        if not self.has_class("hovered"):  # type: ignore[attr-defined]
-            self.add_class("hovered")  # type: ignore[attr-defined]
-
     def on_leave(self) -> None:
-        if self.has_class("hovered"):  # type: ignore[attr-defined]
-            self.remove_class("hovered")  # type: ignore[attr-defined]
         set_pointer("default")
 
 
 class ClickableMixin:
-    """Mixin for clickable widgets with hand cursor and hover state.
+    """Mixin for clickable widgets with hand cursor.
 
-    Combines pointer cursor with .hovered class. Use for buttons and
-    clickable containers.
+    Shows pointer cursor on hover. Use CSS :hover for visual styling
+    instead of .hovered class (much more efficient).
 
     Example:
         class MyButton(Static, ClickableMixin):
@@ -106,10 +102,6 @@ class ClickableMixin:
 
     def on_enter(self) -> None:
         set_pointer("pointer")
-        if not self.has_class("hovered"):  # type: ignore[attr-defined]
-            self.add_class("hovered")  # type: ignore[attr-defined]
 
     def on_leave(self) -> None:
         set_pointer("default")
-        if self.has_class("hovered"):  # type: ignore[attr-defined]
-            self.remove_class("hovered")  # type: ignore[attr-defined]
