@@ -70,7 +70,7 @@ from claudechic.widgets import (
     AgentItem,
     WorktreeItem,
     ChatView,
-    PlanButton,
+    PlanItem,
     HamburgerButton,
     EditPlanRequested,
 )
@@ -1284,8 +1284,8 @@ class ChatApp(App):
             event.branch, event.path, worktree=event.branch, auto_resume=True
         )
 
-    def on_plan_button_plan_requested(self, event: PlanButton.PlanRequested) -> None:
-        """Handle plan button press - open plan file in editor."""
+    def on_plan_item_plan_requested(self, event: PlanItem.PlanRequested) -> None:
+        """Handle plan item click - open plan file in editor."""
         editor = os.environ.get("EDITOR", "vi")
         handle_command(self, f"/shell -i {editor} {event.plan_path}")
 
