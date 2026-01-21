@@ -15,6 +15,33 @@ from claudechic.widgets.base.cursor import ClickableMixin, PointerMixin
 from claudechic.widgets.primitives.button import Button
 
 
+class SidebarSection(Widget):
+    """Base component for sidebar sections with a title and items."""
+
+    DEFAULT_CSS = """
+    SidebarSection {
+        width: 100%;
+        height: auto;
+        padding: 0;
+    }
+    SidebarSection .section-title {
+        color: $text-muted;
+        text-style: bold;
+        padding: 1 1 1 1;
+    }
+    SidebarSection.hidden {
+        display: none;
+    }
+    """
+
+    def __init__(self, title: str, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._title = title
+
+    def compose(self) -> ComposeResult:
+        yield Static(self._title, classes="section-title")
+
+
 class SessionItem(ListItem, PointerMixin):
     """A session in the session picker sidebar."""
 
@@ -73,25 +100,22 @@ class HamburgerButton(Button):
         self.post_message(self.SidebarToggled())
 
 
-class PlanButton(Button):
-    """Button to open the current session's plan file."""
+class PlanItem(Widget, ClickableMixin):
+    """Clickable plan item that opens the plan file."""
 
     class PlanRequested(Message):
-        """Posted when plan button is pressed to open the plan."""
+        """Posted when plan item is clicked."""
 
         def __init__(self, plan_path: Path) -> None:
             self.plan_path = plan_path
             super().__init__()
 
     DEFAULT_CSS = """
-    PlanButton {
-        height: 3;
-        min-height: 3;
+    PlanItem {
+        height: 1;
         padding: 0 1 0 2;
-        content-align: left middle;
-        dock: bottom;
     }
-    PlanButton:hover {
+    PlanItem:hover {
         background: $surface-lighten-1;
     }
     """
@@ -101,10 +125,43 @@ class PlanButton(Button):
         self.plan_path = plan_path
 
     def render(self) -> Text:
-        return Text.assemble(("📋", ""), " ", ("Plan", "dim"))
+        name = self.plan_path.name
+        if len(name) > 18:
+            name = name[:17] + "…"
+        return Text.assemble(("📋", ""), " ", (name, ""))
 
     def on_click(self, event) -> None:
         self.post_message(self.PlanRequested(self.plan_path))
+
+
+class PlanSection(SidebarSection):
+    """Sidebar section for plan files."""
+
+    DEFAULT_CSS = """
+    PlanSection {
+        border-top: solid $panel;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__("Plan")
+        self._plan_item: PlanItem | None = None
+
+    def set_plan(self, plan_path: Path | None) -> None:
+        """Show or hide the plan."""
+        if plan_path:
+            if self._plan_item is None:
+                self._plan_item = PlanItem(plan_path)
+                self.mount(self._plan_item)
+            else:
+                self._plan_item.plan_path = plan_path
+                self._plan_item.refresh()
+            self.remove_class("hidden")
+        else:
+            if self._plan_item is not None:
+                self._plan_item.remove()
+                self._plan_item = None
+            self.add_class("hidden")
 
 
 class WorktreeItem(Widget, ClickableMixin):
@@ -275,7 +332,7 @@ class AgentSidebar(Widget):
         super().__init__(*args, **kwargs)
         self._agents: dict[str, AgentItem] = {}
         self._worktrees: dict[str, WorktreeItem] = {}  # branch -> item
-        self._plan_button: PlanButton | None = None
+        self._plan_section: PlanSection | None = None
 
     def compose(self) -> ComposeResult:
         yield Static("Agents", classes="sidebar-title")
@@ -348,15 +405,13 @@ class AgentSidebar(Widget):
             self._update_compact_mode()
 
     def set_plan(self, plan_path: Path | None) -> None:
-        """Show or hide the plan button."""
+        """Show or hide the plan section."""
         if plan_path:
-            if self._plan_button is None:
-                self._plan_button = PlanButton(plan_path)
-                self._plan_button.id = "plan-button"
-                self.mount(self._plan_button)
-            else:
-                self._plan_button.plan_path = plan_path
+            if self._plan_section is None:
+                self._plan_section = PlanSection()
+                self._plan_section.id = "plan-section"
+                self.mount(self._plan_section)
+            self._plan_section.set_plan(plan_path)
         else:
-            if self._plan_button is not None:
-                self._plan_button.remove()
-                self._plan_button = None
+            if self._plan_section is not None:
+                self._plan_section.set_plan(None)
