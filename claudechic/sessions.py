@@ -129,7 +129,12 @@ async def get_recent_sessions(
             if search and search_lower not in preview.lower():
                 continue
 
-            msg_count = sum(1 for line in content.split(b"\n") if line.startswith(b"{"))
+            # Count user messages - matches Claude's message count
+            msg_count = sum(
+                1
+                for line in content.split(b"\n")
+                if b'"type":"user"' in line or b'"type": "user"' in line
+            )
             sessions.append((f.stem, preview, mtime, msg_count))
 
             # Early exit if we have enough and not searching
