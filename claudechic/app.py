@@ -655,7 +655,7 @@ class ChatApp(App):
 
         # Set session_id and load history
         agent.session_id = session_id
-        await agent.load_history(limit=50, cwd=cwd)
+        await agent.load_history(cwd=cwd)
 
         # Re-render ChatView from Agent.messages
         chat_view = self._chat_views.get(agent.id)

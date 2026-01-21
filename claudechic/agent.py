@@ -226,7 +226,7 @@ class Agent:
                 pass
             self.client = None
 
-    async def load_history(self, limit: int = 50, cwd: Path | None = None) -> None:
+    async def load_history(self, cwd: Path | None = None) -> None:
         """Load message history from session file into self.messages.
 
         This populates Agent.messages from the persisted session,
@@ -234,7 +234,6 @@ class Agent:
         Call ChatView._render_full() after this to update UI.
 
         Args:
-            limit: Maximum number of messages to load
             cwd: Working directory for session lookup (defaults to self.cwd)
         """
         from claudechic.sessions import load_session_messages
@@ -243,9 +242,7 @@ class Agent:
             return
 
         self.messages.clear()
-        raw_messages = await load_session_messages(
-            self.session_id, limit=limit, cwd=cwd or self.cwd
-        )
+        raw_messages = await load_session_messages(self.session_id, cwd=cwd or self.cwd)
 
         current_assistant: AssistantContent | None = None
 

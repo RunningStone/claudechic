@@ -147,10 +147,8 @@ async def get_recent_sessions(
     return sessions[:limit]
 
 
-async def load_session_messages(
-    session_id: str, limit: int = 10, cwd: Path | None = None
-) -> list[dict]:
-    """Load recent messages from a session file.
+async def load_session_messages(session_id: str, cwd: Path | None = None) -> list[dict]:
+    """Load all messages from a session file.
 
     Returns list of message dicts with 'type' key:
     - user: {'type': 'user', 'content': str}
@@ -198,7 +196,7 @@ async def load_session_messages(
     except (json.JSONDecodeError, IOError):
         pass
 
-    return messages[-limit:]
+    return messages
 
 
 async def get_plan_path_for_session(
