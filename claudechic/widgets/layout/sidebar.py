@@ -15,6 +15,34 @@ from claudechic.widgets.base.cursor import ClickableMixin, PointerMixin
 from claudechic.widgets.primitives.button import Button
 
 
+class SidebarItem(Widget, ClickableMixin):
+    """Base class for clickable sidebar items."""
+
+    DEFAULT_CSS = """
+    SidebarItem {
+        height: 3;
+        min-height: 3;
+        padding: 1 1 1 2;
+    }
+    SidebarItem.compact {
+        height: 1;
+        min-height: 1;
+        padding: 0 1 0 2;
+    }
+    SidebarItem:hover {
+        background: $surface-lighten-1;
+    }
+    """
+
+    max_name_length: int = 16
+
+    def truncate_name(self, name: str) -> str:
+        """Truncate name with ellipsis if too long."""
+        if len(name) > self.max_name_length:
+            return name[: self.max_name_length - 1] + "…"
+        return name
+
+
 class SidebarSection(Widget):
     """Base component for sidebar sections with a title and items."""
 
@@ -100,7 +128,7 @@ class HamburgerButton(Button):
         self.post_message(self.SidebarToggled())
 
 
-class PlanItem(Widget, ClickableMixin):
+class PlanItem(SidebarItem):
     """Clickable plan item that opens the plan file."""
 
     class PlanRequested(Message):
@@ -110,24 +138,14 @@ class PlanItem(Widget, ClickableMixin):
             self.plan_path = plan_path
             super().__init__()
 
-    DEFAULT_CSS = """
-    PlanItem {
-        height: 1;
-        padding: 0 1 0 2;
-    }
-    PlanItem:hover {
-        background: $surface-lighten-1;
-    }
-    """
+    max_name_length: int = 18
 
     def __init__(self, plan_path: Path) -> None:
         super().__init__()
         self.plan_path = plan_path
 
     def render(self) -> Text:
-        name = self.plan_path.name
-        if len(name) > 18:
-            name = name[:17] + "…"
+        name = self.truncate_name(self.plan_path.name)
         return Text.assemble(("📋", ""), " ", (name, ""))
 
     def on_click(self, event) -> None:
@@ -143,8 +161,8 @@ class PlanSection(SidebarSection):
     }
     """
 
-    def __init__(self) -> None:
-        super().__init__("Plan")
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__("Plan", *args, **kwargs)
         self._plan_item: PlanItem | None = None
 
     def set_plan(self, plan_path: Path | None) -> None:
@@ -164,7 +182,7 @@ class PlanSection(SidebarSection):
             self.add_class("hidden")
 
 
-class WorktreeItem(Widget, ClickableMixin):
+class WorktreeItem(SidebarItem):
     """A ghost worktree in the sidebar (not yet an agent)."""
 
     class Selected(Message):
@@ -175,38 +193,20 @@ class WorktreeItem(Widget, ClickableMixin):
             self.path = path
             super().__init__()
 
-    DEFAULT_CSS = """
-    WorktreeItem {
-        height: 3;
-        min-height: 3;
-        padding: 1 1 1 2;
-    }
-    WorktreeItem.compact {
-        height: 1;
-        min-height: 1;
-        padding: 0 1 0 2;
-    }
-    WorktreeItem:hover {
-        background: $surface-lighten-1;
-    }
-    """
-
     def __init__(self, branch: str, path: Path) -> None:
         super().__init__()
         self.branch = branch
         self.path = path
 
     def render(self) -> Text:
-        name = self.branch
-        if len(name) > 16:
-            name = name[:15] + "…"
+        name = self.truncate_name(self.branch)
         return Text.assemble(("◌", ""), " ", (name, "dim"))
 
     def on_click(self, event) -> None:
         self.post_message(self.Selected(self.branch, self.path))
 
 
-class AgentItem(Widget, ClickableMixin):
+class AgentItem(SidebarItem):
     """A single agent in the sidebar."""
 
     class Selected(Message):
@@ -225,16 +225,7 @@ class AgentItem(Widget, ClickableMixin):
 
     DEFAULT_CSS = """
     AgentItem {
-        height: 3;
-        padding: 1 1 1 2;
         layout: horizontal;
-    }
-    AgentItem.compact {
-        height: 1;
-        padding: 0 1 0 2;
-    }
-    AgentItem:hover {
-        background: $surface-lighten-1;
     }
     AgentItem.active {
         padding: 1 1 1 1;
@@ -265,6 +256,8 @@ class AgentItem(Widget, ClickableMixin):
     }
     """
 
+    max_name_length: int = 14
+
     status: reactive[AgentStatus] = reactive(AgentStatus.IDLE)
 
     def __init__(
@@ -289,9 +282,7 @@ class AgentItem(Widget, ClickableMixin):
         else:
             indicator = "\u25cb"
             style = "dim"
-        name = self.display_name
-        if len(name) > 14:
-            name = name[:13] + "…"
+        name = self.truncate_name(self.display_name)
         return Text.assemble((indicator, style), " ", (name, ""))
 
     def watch_status(self, _status: str) -> None:
@@ -311,31 +302,13 @@ class AgentItem(Widget, ClickableMixin):
             self.post_message(self.Selected(self.agent_id))
 
 
-class AgentSidebar(Widget):
-    """Sidebar showing all agents with status indicators."""
-
-    DEFAULT_CSS = """
-    AgentSidebar {
-        width: 24;
-        height: auto;
-        padding: 0;
-        overflow-y: auto;
-    }
-    AgentSidebar .sidebar-title {
-        color: $text-muted;
-        text-style: bold;
-        padding: 1 1 1 1;
-    }
-    """
+class AgentSection(SidebarSection):
+    """Sidebar section showing all agents with status indicators."""
 
     def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__("Agents", *args, **kwargs)
         self._agents: dict[str, AgentItem] = {}
         self._worktrees: dict[str, WorktreeItem] = {}  # branch -> item
-        self._plan_section: PlanSection | None = None
-
-    def compose(self) -> ComposeResult:
-        yield Static("Agents", classes="sidebar-title")
 
     def _update_compact_mode(self) -> None:
         """Apply compact mode when there are many items."""
@@ -403,15 +376,3 @@ class AgentSidebar(Widget):
             self._worktrees[branch].remove()
             del self._worktrees[branch]
             self._update_compact_mode()
-
-    def set_plan(self, plan_path: Path | None) -> None:
-        """Show or hide the plan section."""
-        if plan_path:
-            if self._plan_section is None:
-                self._plan_section = PlanSection()
-                self._plan_section.id = "plan-section"
-                self.mount(self._plan_section)
-            self._plan_section.set_plan(plan_path)
-        else:
-            if self._plan_section is not None:
-                self._plan_section.set_plan(None)

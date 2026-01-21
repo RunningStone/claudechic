@@ -113,7 +113,7 @@ def _handle_agent(app: "ChatApp", command: str) -> bool:
         # In narrow mode, open the sidebar overlay instead of listing
         width = app.size.width
         has_content = (
-            len(app.agents) > 1 or app.agent_sidebar._worktrees or app.todo_panel.todos
+            len(app.agents) > 1 or app.agent_section._worktrees or app.todo_panel.todos
         )
         if width < app.SIDEBAR_MIN_WIDTH and has_content:
             app._sidebar_overlay_open = True

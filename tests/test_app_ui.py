@@ -6,7 +6,7 @@ from claudechic.app import ChatApp
 from claudechic.widgets import (
     ChatInput,
     ChatMessage,
-    AgentSidebar,
+    AgentSection,
     TodoPanel,
     StatusFooter,
 )
@@ -26,7 +26,7 @@ async def test_app_mounts_basic_widgets(mock_sdk):
     async with app.run_test():
         # Check key widgets exist
         assert app.query_one("#input", ChatInput)
-        assert app.query_one("#agent-sidebar", AgentSidebar)
+        assert app.query_one("#agent-section", AgentSection)
         assert app.query_one("#todo-panel", TodoPanel)
         assert app.query_one(StatusFooter)
 
@@ -182,7 +182,7 @@ async def test_sidebar_agent_selection(mock_sdk):
         await submit_command(app, pilot, "/agent sidebar-test")
         await wait_for_workers(app)
 
-        sidebar = app.query_one("#agent-sidebar", AgentSidebar)
+        sidebar = app.query_one("#agent-section", AgentSection)
         agent_ids = list(app.agents.keys())
 
         # Second agent should be active (just created)

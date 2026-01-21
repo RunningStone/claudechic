@@ -66,11 +66,12 @@ from claudechic.widgets import (
     SessionItem,
     TextAreaAutoComplete,
     HistorySearch,
-    AgentSidebar,
+    AgentSection,
     AgentItem,
     WorktreeItem,
     ChatView,
     PlanItem,
+    PlanSection,
     HamburgerButton,
     EditPlanRequested,
 )
@@ -168,7 +169,8 @@ class ChatApp(App):
         # File index for fuzzy file search
         self.file_index: FileIndex | None = None
         # Cached widget references (initialized lazily)
-        self._agent_sidebar: AgentSidebar | None = None
+        self._agent_section: AgentSection | None = None
+        self._plan_section: PlanSection | None = None
         self._todo_panel: TodoPanel | None = None
         self._process_panel: ProcessPanel | None = None
         self._context_bar: ContextBar | None = None
@@ -259,10 +261,16 @@ class ChatApp(App):
 
     # Cached widget accessors (lazy init on first access)
     @property
-    def agent_sidebar(self) -> AgentSidebar:
-        if self._agent_sidebar is None:
-            self._agent_sidebar = self.query_one("#agent-sidebar", AgentSidebar)
-        return self._agent_sidebar
+    def agent_section(self) -> AgentSection:
+        if self._agent_section is None:
+            self._agent_section = self.query_one("#agent-section", AgentSection)
+        return self._agent_section
+
+    @property
+    def plan_section(self) -> PlanSection:
+        if self._plan_section is None:
+            self._plan_section = self.query_one("#plan-section", PlanSection)
+        return self._plan_section
 
     @property
     def todo_panel(self) -> TodoPanel:
@@ -321,7 +329,7 @@ class ChatApp(App):
             return
         agent.status = status
         try:
-            self.agent_sidebar.update_status(agent.id, status)
+            self.agent_section.update_status(agent.id, status)
         except Exception:
             pass  # Sidebar not mounted yet
 
@@ -455,7 +463,8 @@ class ChatApp(App):
             yield ListView(id="session-picker", classes="hidden")
             yield ChatView(id="chat-view")
             with Vertical(id="right-sidebar", classes="hidden"):
-                yield AgentSidebar(id="agent-sidebar")
+                yield AgentSection(id="agent-section")
+                yield PlanSection(id="plan-section", classes="hidden")
                 yield TodoPanel(id="todo-panel")
                 yield ProcessPanel(id="process-panel", classes="hidden")
         with Horizontal(id="input-wrapper"):
@@ -841,7 +850,7 @@ class ChatApp(App):
         # Show sidebar when wide enough and we have multiple agents, worktrees, or todos
         agent_count = len(self.agent_mgr) if self.agent_mgr else 0
         has_content = (
-            agent_count > 1 or self.agent_sidebar._worktrees or self.todo_panel.todos
+            agent_count > 1 or self.agent_section._worktrees or self.todo_panel.todos
         )
         width = self.size.width
         main = self.query_one("#main", Horizontal)
@@ -1218,7 +1227,7 @@ class ChatApp(App):
         agent.plan_path = plan_path
         # Update sidebar if this is still the active agent
         if self._agent and self._agent.id == agent.id:
-            self.agent_sidebar.set_plan(plan_path)
+            self.plan_section.set_plan(plan_path)
 
     def action_escape(self) -> None:
         """Handle Escape: cancel picker, dismiss prompts, close overlay, or interrupt agent."""
@@ -1343,7 +1352,7 @@ class ChatApp(App):
                 continue  # Skip main worktree
             if wt.branch in agent_names:
                 continue  # Already have an agent
-            self.agent_sidebar.add_worktree(wt.branch, wt.path)
+            self.agent_section.add_worktree(wt.branch, wt.path)
 
     def on_agent_item_close_requested(self, event: AgentItem.CloseRequested) -> None:
         """Handle close button click on agent item."""
@@ -1386,7 +1395,7 @@ class ChatApp(App):
             else:
                 self.input_container.remove_class("hidden")
             # Update sidebar selection
-            self.agent_sidebar.set_active(agent_id)
+            self.agent_section.set_active(agent_id)
             # Update footer
             self.status_footer.auto_edit = agent.auto_approve_edits if agent else False
             self._update_footer_model(agent.model if agent else None)
@@ -1395,7 +1404,7 @@ class ChatApp(App):
             # Update context bar for new agent
             self.refresh_context()
             # Update plan button for new agent (use cached plan_path)
-            self.agent_sidebar.set_plan(agent.plan_path if agent else None)
+            self.plan_section.set_plan(agent.plan_path if agent else None)
             self._position_right_sidebar()
 
         # These happen outside batch (async/focus)
@@ -1686,7 +1695,7 @@ class ChatApp(App):
 
             # Add to sidebar
             try:
-                self.agent_sidebar.add_agent(agent.id, agent.name)
+                self.agent_section.add_agent(agent.id, agent.name)
             except Exception:
                 log.debug(f"Sidebar not mounted for agent {agent.id}")
 
@@ -1712,7 +1721,7 @@ class ChatApp(App):
 
         # Update sidebar
         try:
-            self.agent_sidebar.set_active(new_agent.id)
+            self.agent_section.set_active(new_agent.id)
         except Exception:
             pass
 
@@ -1730,7 +1739,7 @@ class ChatApp(App):
         """Handle agent closure from AgentManager."""
         log.info(f"Agent closed: {agent_id}")
         try:
-            self.agent_sidebar.remove_agent(agent_id)
+            self.agent_section.remove_agent(agent_id)
         except Exception:
             pass
         self._position_right_sidebar()
@@ -1738,7 +1747,7 @@ class ChatApp(App):
     def on_status_changed(self, agent: Agent) -> None:
         """Handle agent status change."""
         try:
-            self.agent_sidebar.update_status(agent.id, agent.status)
+            self.agent_section.update_status(agent.id, agent.status)
             # Update hamburger color if any agent needs attention
             self._update_hamburger_attention()
         except Exception:

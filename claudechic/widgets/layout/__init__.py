@@ -3,11 +3,12 @@
 from claudechic.widgets.layout.chat_view import ChatView
 from claudechic.widgets.layout.sidebar import (
     AgentItem,
-    AgentSidebar,
+    AgentSection,
     WorktreeItem,
     PlanItem,
     PlanSection,
     SidebarSection,
+    SidebarItem,
     HamburgerButton,
     SessionItem,
 )
@@ -30,11 +31,12 @@ from claudechic.widgets.layout.processes import (
 __all__ = [
     "ChatView",
     "AgentItem",
-    "AgentSidebar",
+    "AgentSection",
     "WorktreeItem",
     "PlanItem",
     "PlanSection",
     "SidebarSection",
+    "SidebarItem",
     "HamburgerButton",
     "SessionItem",
     "AutoEditLabel",

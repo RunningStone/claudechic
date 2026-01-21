@@ -10,7 +10,8 @@ from claudechic.widgets import (
     ThinkingIndicator,
     SelectionPrompt,
     QuestionPrompt,
-    AgentSidebar,
+    AgentSection,
+    PlanSection,
     TodoPanel,
     ProcessPanel,
     BackgroundProcess,
@@ -263,84 +264,83 @@ async def test_question_prompt_multi_question():
 
 
 @pytest.mark.asyncio
-async def test_agent_sidebar_add_remove():
+async def test_agent_section_add_remove():
     """Can add and remove agents."""
-    app = WidgetTestApp(lambda: AgentSidebar(id="sidebar"))
+    app = WidgetTestApp(lambda: AgentSection(id="agents"))
     async with app.run_test():
-        sidebar = app.query_one(AgentSidebar)
+        section = app.query_one(AgentSection)
 
         # Add agents
-        sidebar.add_agent("id1", "Agent 1")
-        sidebar.add_agent("id2", "Agent 2")
+        section.add_agent("id1", "Agent 1")
+        section.add_agent("id2", "Agent 2")
 
-        assert "id1" in sidebar._agents
-        assert "id2" in sidebar._agents
-        assert len(sidebar._agents) == 2
+        assert "id1" in section._agents
+        assert "id2" in section._agents
+        assert len(section._agents) == 2
 
         # Remove one
-        sidebar.remove_agent("id1")
-        assert "id1" not in sidebar._agents
-        assert len(sidebar._agents) == 1
+        section.remove_agent("id1")
+        assert "id1" not in section._agents
+        assert len(section._agents) == 1
 
 
 @pytest.mark.asyncio
-async def test_agent_sidebar_active_selection():
+async def test_agent_section_active_selection():
     """set_active updates visual state."""
-    app = WidgetTestApp(lambda: AgentSidebar(id="sidebar"))
+    app = WidgetTestApp(lambda: AgentSection(id="agents"))
     async with app.run_test():
-        sidebar = app.query_one(AgentSidebar)
+        section = app.query_one(AgentSection)
 
-        sidebar.add_agent("id1", "Agent 1")
-        sidebar.add_agent("id2", "Agent 2")
+        section.add_agent("id1", "Agent 1")
+        section.add_agent("id2", "Agent 2")
 
-        sidebar.set_active("id1")
-        assert sidebar._agents["id1"].has_class("active")
-        assert not sidebar._agents["id2"].has_class("active")
+        section.set_active("id1")
+        assert section._agents["id1"].has_class("active")
+        assert not section._agents["id2"].has_class("active")
 
-        sidebar.set_active("id2")
-        assert not sidebar._agents["id1"].has_class("active")
-        assert sidebar._agents["id2"].has_class("active")
+        section.set_active("id2")
+        assert not section._agents["id1"].has_class("active")
+        assert section._agents["id2"].has_class("active")
 
 
 @pytest.mark.asyncio
-async def test_agent_sidebar_status_updates():
+async def test_agent_section_status_updates():
     """update_status changes indicator."""
-    app = WidgetTestApp(lambda: AgentSidebar(id="sidebar"))
+    app = WidgetTestApp(lambda: AgentSection(id="agents"))
     async with app.run_test():
-        sidebar = app.query_one(AgentSidebar)
+        section = app.query_one(AgentSection)
 
-        sidebar.add_agent("id1", "Agent 1", status=AgentStatus.IDLE)
-        assert sidebar._agents["id1"].status == AgentStatus.IDLE
+        section.add_agent("id1", "Agent 1", status=AgentStatus.IDLE)
+        assert section._agents["id1"].status == AgentStatus.IDLE
 
-        sidebar.update_status("id1", AgentStatus.BUSY)
-        assert sidebar._agents["id1"].status == AgentStatus.BUSY
+        section.update_status("id1", AgentStatus.BUSY)
+        assert section._agents["id1"].status == AgentStatus.BUSY
 
-        sidebar.update_status("id1", AgentStatus.NEEDS_INPUT)
-        assert sidebar._agents["id1"].status == AgentStatus.NEEDS_INPUT
+        section.update_status("id1", AgentStatus.NEEDS_INPUT)
+        assert section._agents["id1"].status == AgentStatus.NEEDS_INPUT
 
 
 @pytest.mark.asyncio
-async def test_agent_sidebar_plan_section():
-    """set_plan shows/hides plan section."""
+async def test_plan_section():
+    """PlanSection set_plan shows/hides plan item."""
     from pathlib import Path
 
-    app = WidgetTestApp(lambda: AgentSidebar(id="sidebar"))
+    app = WidgetTestApp(lambda: PlanSection(id="plan"))
     async with app.run_test():
-        sidebar = app.query_one(AgentSidebar)
+        section = app.query_one(PlanSection)
 
-        # Initially no plan section
-        assert sidebar._plan_section is None
+        # Initially no plan item
+        assert section._plan_item is None
 
-        # Set plan creates section with item
+        # Set plan creates item
         plan_path = Path("/tmp/test-plan.md")
-        sidebar.set_plan(plan_path)
-        assert sidebar._plan_section is not None
-        assert sidebar._plan_section._plan_item is not None
-        assert sidebar._plan_section._plan_item.plan_path == plan_path
+        section.set_plan(plan_path)
+        assert section._plan_item is not None
+        assert section._plan_item.plan_path == plan_path
 
         # Clear plan hides section
-        sidebar.set_plan(None)
-        assert sidebar._plan_section.has_class("hidden")
+        section.set_plan(None)
+        assert section.has_class("hidden")
 
 
 @pytest.mark.asyncio
