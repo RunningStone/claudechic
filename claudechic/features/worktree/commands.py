@@ -27,7 +27,7 @@ from claudechic.features.worktree.git import (
     remove_worktree,
     start_worktree,
 )
-from claudechic.features.worktree.prompts import (
+from claudechic.widgets.prompts import (
     UncommittedChangesPrompt,
     WorktreePrompt,
 )

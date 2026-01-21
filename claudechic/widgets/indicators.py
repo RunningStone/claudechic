@@ -4,19 +4,29 @@ import psutil
 
 from textual.app import RenderResult
 from textual.reactive import reactive
+from textual.widgets import Static
 from rich.text import Text
 
-from claudechic.widgets.button import Button
+from claudechic.cursor import ClickableMixin
 from claudechic.formatting import MAX_CONTEXT_TOKENS
 from claudechic.profiling import profile, timed
 from claudechic.widgets.processes import BackgroundProcess
 
 
-class CPUBar(Button):
+class IndicatorWidget(Static, ClickableMixin):
+    """Base class for clickable indicator widgets in the footer.
+
+    Inherits from Static (for render()) and ClickableMixin (for pointer cursor).
+    Override on_click() to handle click events.
+    """
+
+    can_focus = True
+
+
+class CPUBar(IndicatorWidget):
     """Display CPU usage. Click to show profiling stats."""
 
     cpu_pct = reactive(0.0)
-    can_focus = True
 
     def on_mount(self) -> None:
         self._process = psutil.Process()
@@ -52,12 +62,11 @@ class CPUBar(Button):
         self.app.push_screen(ProfileModal())
 
 
-class ContextBar(Button):
+class ContextBar(IndicatorWidget):
     """Display context usage as a progress bar. Click to run /context."""
 
     tokens = reactive(0)
     max_tokens = reactive(MAX_CONTEXT_TOKENS)
-    can_focus = True
 
     def render(self) -> RenderResult:
         pct = min(self.tokens / self.max_tokens, 1.0) if self.max_tokens else 0
@@ -92,7 +101,7 @@ class ContextBar(Button):
             self.app._handle_prompt("/context")
 
 
-class ProcessIndicator(Button):
+class ProcessIndicator(IndicatorWidget):
     """Display count of background processes. Click to show details."""
 
     DEFAULT_CSS = """
@@ -109,7 +118,6 @@ class ProcessIndicator(Button):
     """
 
     count = reactive(0)
-    can_focus = True
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

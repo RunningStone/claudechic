@@ -75,7 +75,7 @@ from claudechic.widgets import (
     EditPlanRequested,
 )
 from claudechic.widgets.footer import AutoEditLabel, ModelLabel, StatusFooter
-from claudechic.widgets.model_prompt import ModelPrompt
+from claudechic.widgets.prompts import ModelPrompt
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
 from claudechic.profiling import profile
 from claudechic.sampling import start_sampler
@@ -1284,22 +1284,26 @@ class ChatApp(App):
             event.branch, event.path, worktree=event.branch, auto_resume=True
         )
 
-    def on_plan_button_clicked(self, event: PlanButton.Clicked) -> None:
-        """Handle plan button click - open plan file in editor."""
+    def on_plan_button_plan_requested(self, event: PlanButton.PlanRequested) -> None:
+        """Handle plan button press - open plan file in editor."""
         editor = os.environ.get("EDITOR", "vi")
         handle_command(self, f"/shell -i {editor} {event.plan_path}")
 
-    def on_hamburger_button_clicked(self, event: HamburgerButton.Clicked) -> None:
-        """Handle hamburger button click - toggle sidebar overlay."""
+    def on_hamburger_button_sidebar_toggled(
+        self, event: HamburgerButton.SidebarToggled
+    ) -> None:
+        """Handle hamburger button press - toggle sidebar overlay."""
         self._sidebar_overlay_open = not self._sidebar_overlay_open
         self._position_right_sidebar()
 
     def on_auto_edit_label_toggled(self, event: AutoEditLabel.Toggled) -> None:
-        """Handle auto-edit label click - toggle auto-edit mode."""
+        """Handle auto-edit label press - toggle auto-edit mode."""
         self.action_cycle_permission_mode()
 
-    def on_model_label_clicked(self, event: ModelLabel.Clicked) -> None:
-        """Handle model label click - open model selector."""
+    def on_model_label_model_change_requested(
+        self, event: ModelLabel.ModelChangeRequested
+    ) -> None:
+        """Handle model label press - open model selector."""
         self._handle_model_prompt()
 
     def _close_sidebar_overlay(self) -> None:

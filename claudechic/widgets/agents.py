@@ -18,8 +18,8 @@ from claudechic.widgets.button import Button
 class HamburgerButton(Button):
     """Floating hamburger button for narrow screens."""
 
-    class Clicked(Message):
-        """Posted when hamburger is clicked."""
+    class SidebarToggled(Message):
+        """Posted when hamburger is pressed to toggle sidebar."""
 
         pass
 
@@ -56,14 +56,14 @@ class HamburgerButton(Button):
         return "Agents"
 
     def on_click(self, event) -> None:
-        self.post_message(self.Clicked())
+        self.post_message(self.SidebarToggled())
 
 
 class PlanButton(Button):
     """Button to open the current session's plan file."""
 
-    class Clicked(Message):
-        """Posted when plan button is clicked."""
+    class PlanRequested(Message):
+        """Posted when plan button is pressed to open the plan."""
 
         def __init__(self, plan_path: Path) -> None:
             self.plan_path = plan_path
@@ -90,7 +90,7 @@ class PlanButton(Button):
         return Text.assemble(("📋", ""), " ", ("Plan", "dim"))
 
     def on_click(self, event) -> None:
-        self.post_message(self.Clicked(self.plan_path))
+        self.post_message(self.PlanRequested(self.plan_path))
 
 
 class WorktreeItem(Widget, ClickableMixin):

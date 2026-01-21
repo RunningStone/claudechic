@@ -2,7 +2,8 @@
 
 from claudechic.cursor import ClickableMixin
 from claudechic.widgets.button import Button
-from claudechic.widgets.indicators import CPUBar, ContextBar
+from claudechic.widgets.copyable import CopyButton, CopyableMixin
+from claudechic.widgets.indicators import CPUBar, ContextBar, IndicatorWidget
 from claudechic.widgets.chat import (
     ChatMessage,
     ChatInput,
@@ -29,8 +30,10 @@ from claudechic.widgets.prompts import (
     SelectionPrompt,
     QuestionPrompt,
     SessionItem,
+    ModelPrompt,
+    WorktreePrompt,
+    UncommittedChangesPrompt,
 )
-from claudechic.widgets.model_prompt import ModelPrompt
 from claudechic.widgets.autocomplete import TextAreaAutoComplete
 from claudechic.widgets.agents import (
     AgentItem,
@@ -45,12 +48,16 @@ from claudechic.widgets.collapsible import QuietCollapsible
 from claudechic.widgets.history_search import HistorySearch
 from claudechic.widgets.usage import UsageReport
 from claudechic.widgets.profile_modal import ProfileModal
+from claudechic.widgets.footer import ClickableLabel, StatusFooter
 
 __all__ = [
     "Button",
+    "CopyButton",
+    "CopyableMixin",
     "ClickableMixin",
     "CPUBar",
     "ContextBar",
+    "IndicatorWidget",
     "ChatMessage",
     "ChatInput",
     "ChatAttachment",
@@ -85,7 +92,11 @@ __all__ = [
     "UsageReport",
     "ProfileModal",
     "ModelPrompt",
+    "WorktreePrompt",
+    "UncommittedChangesPrompt",
     "ProcessPanel",
     "ProcessItem",
     "BackgroundProcess",
+    "ClickableLabel",
+    "StatusFooter",
 ]

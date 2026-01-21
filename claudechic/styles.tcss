@@ -2,9 +2,18 @@
  *
  * CSS POLICY:
  * -----------
- * Widgets use DEFAULT_CSS for co-located styles (Tailwind-style).
- * This file contains app-level layout and shared styles.
- * Use theme variables ($primary, $surface, etc.) - avoid hardcoded hex colors.
+ * DEFAULT_CSS (inline): Use for structural styles that are essential to the widget
+ *   - Dimensions (width, height, min-width)
+ *   - Layout properties (padding, margin for structure)
+ *   - Display modes (display: none for hidden states)
+ *
+ * styles.tcss (this file): Use for visual/thematic styles
+ *   - Colors (use theme variables: $primary, $surface, etc.)
+ *   - Borders for visual grouping
+ *   - Hover effects and interactive states
+ *   - App-level layout coordination
+ *
+ * Avoid hardcoded hex colors - use theme variables.
  *
  * Visual language: All content blocks use left border bars to indicate type.
  * - User messages: vibrant orange border ($primary)

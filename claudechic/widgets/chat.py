@@ -14,12 +14,7 @@ from claudechic.cursor import PointerMixin, set_pointer
 from claudechic.errors import log_exception
 from claudechic.profiling import profile
 from claudechic.widgets.button import Button
-
-
-class CopyButton(Button):
-    """Copy button with hand cursor on hover."""
-
-    pass
+from claudechic.widgets.copyable import CopyButton, CopyableMixin
 
 
 class Spinner(Static):
@@ -126,7 +121,7 @@ class SystemInfo(Static):
         yield Markdown(self._message, id="content")
 
 
-class ChatMessage(Static, PointerMixin):
+class ChatMessage(Static, PointerMixin, CopyableMixin):
     """A single chat message with copy button.
 
     Uses Textual's MarkdownStream for efficient incremental rendering.
@@ -226,19 +221,15 @@ class ChatMessage(Static, PointerMixin):
             self.call_later(self._stream.stop)
             self._stream = None
 
-    def get_raw_content(self) -> str:
+    def get_copyable_content(self) -> str:
         """Get raw content for copying."""
         return self._content
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "copy-btn":
-            try:
-                import pyperclip
+    # Alias for backwards compatibility
+    get_raw_content = get_copyable_content
 
-                pyperclip.copy(self.get_raw_content())
-                self.app.notify("Copied to clipboard")
-            except Exception as e:
-                self.app.notify(f"Copy failed: {e}", severity="error")
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.handle_copy_button(event)
 
 
 class ChatAttachment(Button):

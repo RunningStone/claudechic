@@ -8,12 +8,21 @@ from textual.reactive import reactive
 from textual.containers import Horizontal
 from textual.widgets import Static
 
-from claudechic.widgets.button import Button
+from claudechic.cursor import ClickableMixin
 from claudechic.widgets.indicators import CPUBar, ContextBar, ProcessIndicator
 from claudechic.widgets.processes import BackgroundProcess
 
 
-class AutoEditLabel(Button):
+class ClickableLabel(Static, ClickableMixin):
+    """A static label that is clickable with pointer cursor.
+
+    Override on_click() to handle clicks, or listen for custom messages.
+    """
+
+    pass
+
+
+class AutoEditLabel(ClickableLabel):
     """Clickable auto-edit status label."""
 
     class Toggled(Message):
@@ -23,14 +32,14 @@ class AutoEditLabel(Button):
         self.post_message(self.Toggled())
 
 
-class ModelLabel(Button):
+class ModelLabel(ClickableLabel):
     """Clickable model label."""
 
-    class Clicked(Message):
-        """Emitted when model label is clicked."""
+    class ModelChangeRequested(Message):
+        """Emitted when user wants to change the model."""
 
     def on_click(self, event) -> None:
-        self.post_message(self.Clicked())
+        self.post_message(self.ModelChangeRequested())
 
 
 async def get_git_branch(cwd: str | None = None) -> str:

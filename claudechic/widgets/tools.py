@@ -26,7 +26,8 @@ from claudechic.formatting import (
     make_relative,
 )
 from claudechic.widgets.diff import DiffWidget
-from claudechic.widgets.chat import ChatMessage, Spinner, CopyButton
+from claudechic.widgets.chat import ChatMessage, Spinner
+from claudechic.widgets.copyable import CopyButton, CopyableMixin
 from claudechic.cursor import HoverableMixin
 
 log = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ class EditPlanRequested(Message):
         self.plan_path = plan_path
 
 
-class ToolUseWidget(Static, HoverableMixin):
+class ToolUseWidget(Static, HoverableMixin, CopyableMixin):
     """A collapsible widget showing a tool use."""
 
     can_focus = False
@@ -169,16 +170,9 @@ class ToolUseWidget(Static, HoverableMixin):
         return "\n\n".join(parts)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if "copy-btn" in event.button.classes:
-            event.stop()
-            try:
-                import pyperclip
-
-                pyperclip.copy(self.get_copyable_content())
-                self.app.notify("Copied tool output")
-            except Exception as e:
-                self.app.notify(f"Copy failed: {e}", severity="error")
-        elif "edit-plan-btn" in event.button.classes:
+        if self.handle_copy_button(event):
+            return
+        if "edit-plan-btn" in event.button.classes:
             event.stop()
             if hasattr(self, "_plan_path"):
                 self.post_message(EditPlanRequested(self._plan_path))
@@ -375,7 +369,7 @@ class TaskWidget(Static):
             pass  # Widget may not be mounted
 
 
-class ShellOutputWidget(Static, HoverableMixin):
+class ShellOutputWidget(Static, HoverableMixin, CopyableMixin):
     """Collapsible widget showing inline shell command output."""
 
     can_focus = False
@@ -414,15 +408,7 @@ class ShellOutputWidget(Static, HoverableMixin):
         return "\n".join(parts)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if "copy-btn" in event.button.classes:
-            event.stop()
-            try:
-                import pyperclip
-
-                pyperclip.copy(self.get_copyable_content())
-                self.app.notify("Copied shell output")
-            except Exception as e:
-                self.app.notify(f"Copy failed: {e}", severity="error")
+        self.handle_copy_button(event)
 
 
 class AgentListWidget(Static):
