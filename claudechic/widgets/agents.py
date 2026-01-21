@@ -233,7 +233,7 @@ class AgentSidebar(Widget):
     DEFAULT_CSS = """
     AgentSidebar {
         width: 24;
-        height: 100%;
+        height: auto;
         padding: 0;
         overflow-y: auto;
     }

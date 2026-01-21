@@ -744,21 +744,6 @@ class ChatApp(App):
         if not agent or not chat_view:
             return
 
-        # TodoWrite gets special handling - update sidebar panel and/or inline widget
-        if event.block.name == "TodoWrite":
-            todos = event.block.input.get("todos", [])
-            agent.todos = todos  # Store on agent for switching
-            self.todo_panel.update_todos(todos)
-            self._position_right_sidebar()
-            # Also update inline widget if exists, or create if narrow
-            existing = self.query(TodoWidget)
-            if existing:
-                existing[0].update_todos(todos)
-            elif self.size.width < self.SIDEBAR_MIN_WIDTH:
-                chat_view.mount(TodoWidget(todos))
-            self._show_thinking(event.agent_id)
-            return
-
         # Create ToolUse data object for ChatView
         tool = ToolUse(
             id=event.block.id, name=event.block.name, input=event.block.input
@@ -1768,10 +1753,13 @@ class ChatApp(App):
     def on_todos_updated(self, agent: Agent) -> None:
         """Handle agent todos update."""
         if self.agent_mgr and agent.id == self.agent_mgr.active_id:
-            try:
-                self.todo_panel.update_todos(agent.todos)
-            except Exception:
-                pass
+            self.todo_panel.update_todos(agent.todos)
+            self._position_right_sidebar()
+            # Add inline widget to chat stream
+            chat_view = self._get_chat_view(agent.id)
+            if chat_view:
+                chat_view.mount(TodoWidget(agent.todos))
+                chat_view.scroll_if_tailing()
 
     def on_text_chunk(
         self, agent: Agent, text: str, new_message: bool, parent_tool_use_id: str | None
