@@ -110,6 +110,11 @@ class WorktreeItem(Widget, ClickableMixin):
         min-height: 3;
         padding: 1 1 1 2;
     }
+    WorktreeItem.compact {
+        height: 1;
+        min-height: 1;
+        padding: 0 1 0 2;
+    }
     WorktreeItem:hover {
         background: $surface-lighten-1;
     }
@@ -153,6 +158,10 @@ class AgentItem(Widget, ClickableMixin):
         padding: 1 1 1 2;
         layout: horizontal;
     }
+    AgentItem.compact {
+        height: 1;
+        padding: 0 1 0 2;
+    }
     AgentItem:hover {
         background: $surface-lighten-1;
     }
@@ -160,6 +169,9 @@ class AgentItem(Widget, ClickableMixin):
         padding: 1 1 1 1;
         border-left: wide $primary;
         background: $surface;
+    }
+    AgentItem.active.compact {
+        padding: 0 1 0 1;
     }
     AgentItem .agent-label {
         width: 1fr;
@@ -254,6 +266,15 @@ class AgentSidebar(Widget):
     def compose(self) -> ComposeResult:
         yield Static("Agents", classes="sidebar-title")
 
+    def _update_compact_mode(self) -> None:
+        """Apply compact mode when there are many items."""
+        total = len(self._agents) + len(self._worktrees)
+        compact = total > 6
+        for item in self._agents.values():
+            item.set_class(compact, "compact")
+        for item in self._worktrees.values():
+            item.set_class(compact, "compact")
+
     def add_agent(
         self, agent_id: str, name: str, status: AgentStatus = AgentStatus.IDLE
     ) -> None:
@@ -269,12 +290,14 @@ class AgentSidebar(Widget):
         item.id = f"agent-{agent_id.replace('/', '-')}"
         self._agents[agent_id] = item
         self.mount(item)
+        self._update_compact_mode()
 
     def remove_agent(self, agent_id: str) -> None:
         """Remove an agent from the sidebar."""
         if agent_id in self._agents:
             self._agents[agent_id].remove()
             del self._agents[agent_id]
+            self._update_compact_mode()
 
     def set_active(self, agent_id: str) -> None:
         """Mark an agent as active (selected)."""
@@ -301,12 +324,14 @@ class AgentSidebar(Widget):
         item.id = f"worktree-{branch}"
         self._worktrees[branch] = item
         self.mount(item)
+        self._update_compact_mode()
 
     def remove_worktree(self, branch: str) -> None:
         """Remove a ghost worktree from the sidebar."""
         if branch in self._worktrees:
             self._worktrees[branch].remove()
             del self._worktrees[branch]
+            self._update_compact_mode()
 
     def set_plan(self, plan_path: Path | None) -> None:
         """Show or hide the plan button."""
