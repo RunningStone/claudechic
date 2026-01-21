@@ -12,6 +12,9 @@ Start claudechic with the auto-restart wrapper:
 
 This runs claudechic with `--remote-port 9999` and auto-restarts when the app exits.
 
+Ask the user if they would like to do this so that they can follow along, but
+offer to do it yourself too in case they don't want to.
+
 ## API Endpoints
 
 All endpoints are on `http://localhost:9999`.
@@ -56,16 +59,21 @@ Response:
 ```
 
 ### GET /screen_text
-Get the current screen content as plain text (extracted from SVG).
+Get the current screen content as plain text, preserving 2D layout.
 
 ```bash
-curl -s localhost:9999/screen_text | python3 -m json.tool
+curl -s localhost:9999/screen_text | python3 -c "import sys,json; print(json.load(sys.stdin)['text'])"
 ```
 
-Response:
-```json
-{"text": "Claude Chic\nAgents\n...\nYour message\n...\nResponse\n..."}
+Query params:
+- `compact` - If `false`, include blank lines. Default: `true` (removes blank lines to save tokens).
+
+```bash
+# Full layout with all blank lines
+curl -s "localhost:9999/screen_text?compact=false"
 ```
+
+Prefer this to getting a screenshot at first. It's easier to iterate with plain text and preserves column alignment (sidebar, main content, footer).
 
 ### GET /screenshot
 Save a screenshot. Returns the file path.
@@ -104,6 +112,8 @@ Wait ~2 seconds for restart, then verify:
 ```bash
 sleep 2 && curl -s localhost:9999/status
 ```
+
+Use this when you want to restart the application.  Don't restart the `./scripts/claudechic-remote 9999` server, just send an exit signal and wait a moment.
 
 ## Common Test Patterns
 
@@ -146,6 +156,20 @@ sleep 2
 curl -s localhost:9999/status  # Verify new agent ID
 ```
 
+## Spawning New Instances
+
+On macOS, you can spawn new claudechic instances in separate Terminal windows using osascript:
+
+```bash
+# Spawn a new instance on port 9998 (use absolute path to script)
+osascript -e "tell application \"Terminal\" to do script \"$(pwd)/scripts/claudechic-remote 9998\""
+
+# Wait for startup, then verify
+sleep 4 && curl -s localhost:9998/status
+```
+
+**Important**: Use the absolute path to the script. Running `uv run claudechic` directly will use whatever directory the terminal opens in (usually home), which may not have the latest code.
+
 ## Tips
 
 1. **Always wait for idle** after sending messages before checking output
@@ -153,3 +177,4 @@ curl -s localhost:9999/status  # Verify new agent ID
 3. **PNG screenshots** may have font rendering issues on some systems; SVG is always accurate
 4. **Agent IDs change** on restart - use this to verify restart worked
 5. **Timeout on wait_idle** defaults to 30s; increase for long operations
+6. **Spawning instances**: Use absolute paths to avoid running stale code from wrong directories

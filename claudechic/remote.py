@@ -13,10 +13,11 @@ Start with --remote-port flag or CLAUDECHIC_REMOTE_PORT env var.
 from __future__ import annotations
 
 import asyncio
-import html
+import io
 import logging
-import re
 from pathlib import Path
+
+from rich.console import Console
 from typing import TYPE_CHECKING
 
 from aiohttp import web
@@ -122,21 +123,39 @@ async def handle_send(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
-async def handle_screen_text(request: web.Request) -> web.Response:  # noqa: ARG001
+async def handle_screen_text(request: web.Request) -> web.Response:
     """Get current screen content as plain text.
 
-    Returns the full screen rendered as text, preserving layout.
+    Returns the full screen rendered as text, preserving 2D layout.
+    Uses the same rendering pipeline as export_screenshot but outputs plain text.
+
+    Query params:
+        compact: If "false", include blank lines (default: true, removes blank lines)
     """
+    compact = request.query.get("compact", "true").lower() != "false"
     if _app is None:
         return web.json_response({"error": "App not initialized"}, status=500)
 
     try:
-        # Export SVG and extract text content
-        svg = _app.export_screenshot()
-        svg_no_style = re.sub(r"<style>.*?</style>", "", svg, flags=re.DOTALL)
-        texts = re.findall(r">([^<]+)<", svg_no_style)
-        lines = [html.unescape(t.replace("&#160;", " ")) for t in texts if t.strip()]
-        return web.json_response({"text": "\n".join(lines)})
+        width, height = _app.size
+        console = Console(
+            width=width,
+            height=height,
+            file=io.StringIO(),
+            force_terminal=True,
+            color_system="truecolor",
+            record=True,
+            legacy_windows=False,
+            safe_box=False,
+        )
+        screen_render = _app.screen._compositor.render_update(
+            full=True, screen_stack=_app._background_screens
+        )
+        console.print(screen_render)
+        text = console.export_text(clear=True, styles=False)
+        if compact:
+            text = "\n".join(line for line in text.splitlines() if line.strip())
+        return web.json_response({"text": text})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
