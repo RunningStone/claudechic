@@ -9,9 +9,11 @@ from textual.containers import Center
 from textual import work
 
 from claudechic.features.worktree.git import (
+    FinishInfo,
     FinishPhase,
     FinishState,
     ResolutionAction,
+    WorktreeInfo,
     WorktreeStatus,
     clean_gitignored_files,
     cleanup_worktrees,
@@ -59,6 +61,8 @@ def handle_worktree_command(app: "ChatApp", command: str) -> None:
     elif subcommand == "cleanup":
         branches = parts[2].split() if len(parts) > 2 else None
         _handle_cleanup(app, branches)
+    elif subcommand == "discard":
+        _handle_discard(app)
     else:
         _switch_or_create_worktree(app, subcommand)
 
@@ -329,6 +333,71 @@ def _close_agents_for_branches(app: "ChatApp", branches: list[str]) -> None:
                 if main:
                     app._switch_to_agent(main.id)
             app._do_close_agent(agent.id)
+
+
+def _handle_discard(app: "ChatApp") -> None:
+    """Handle /worktree discard command - discard current worktree entirely."""
+    success, message, info = get_finish_info(app.sdk_cwd)
+    if not success or info is None:
+        app.notify(message, severity="error")
+        return
+
+    status = diagnose_worktree(info)
+
+    # Check if there's anything to warn about
+    has_commits = status.commits_ahead > 0 and not status.is_merged
+    has_changes = status.has_uncommitted or status.untracked_other
+
+    if has_commits or has_changes:
+        _run_discard_prompt(app, info, status)
+    else:
+        _do_discard(app, info)
+
+
+def _do_discard(app: "ChatApp", info: FinishInfo) -> None:
+    """Force remove worktree and branch."""
+    wt = WorktreeInfo(path=info.worktree_dir, branch=info.branch_name, is_main=False)
+    success, msg = remove_worktree(wt, force=True)
+    if success:
+        app.notify(f"Discarded {info.branch_name}")
+        _close_agents_for_branches(app, [info.branch_name])
+    else:
+        app.notify(msg, severity="error")
+
+
+@work(group="discard_prompt", exclusive=True, exit_on_error=False)
+async def _run_discard_prompt(
+    app: "ChatApp", info: FinishInfo, status: WorktreeStatus
+) -> None:
+    """Prompt user to confirm discarding a worktree with commits/changes."""
+    from claudechic.widgets import SelectionPrompt, ChatInput
+
+    warnings = []
+    if status.commits_ahead > 0 and not status.is_merged:
+        warnings.append(f"{status.commits_ahead} unmerged commits")
+    if status.has_uncommitted:
+        warnings.append(f"{len(status.uncommitted_files)} uncommitted changes")
+    if status.untracked_other:
+        warnings.append(f"{len(status.untracked_other)} untracked files")
+
+    warning_text = ", ".join(warnings)
+    options = [
+        ("discard", f"Discard anyway ({warning_text})"),
+        ("cancel", "Cancel"),
+    ]
+
+    async with app._show_prompt(
+        SelectionPrompt(f"Discard {info.branch_name}?", options)
+    ) as prompt:
+        prompt.focus()
+        selected = await prompt.wait()
+
+    app.query_one("#input", ChatInput).focus()
+
+    if selected == "discard":
+        _do_discard(app, info)
+    else:
+        app.notify("Discard cancelled")
 
 
 def _handle_cleanup(app: "ChatApp", branches: list[str] | None) -> None:
