@@ -115,6 +115,7 @@ class AgentManager:
         worktree: str | None = None,
         resume: str | None = None,
         switch_to: bool = True,
+        model: str | None = None,
     ) -> Agent:
         """Create and connect a new agent.
 
@@ -124,17 +125,21 @@ class AgentManager:
             worktree: Git worktree branch name if applicable
             resume: Session ID to resume
             switch_to: Whether to make this the active agent
+            model: Model override (None = SDK default)
 
         Returns:
             The created agent (connected and ready)
         """
         agent = Agent(name=name, cwd=cwd, worktree=worktree)
+        agent.model = model
 
         # Wire callbacks
         self._wire_agent_callbacks(agent)
 
         # Create options and connect
-        options = self._options_factory(cwd=cwd, resume=resume, agent_name=agent.name)
+        options = self._options_factory(
+            cwd=cwd, resume=resume, agent_name=agent.name, model=model
+        )
         await agent.connect(options, resume=resume)
 
         # Register agent

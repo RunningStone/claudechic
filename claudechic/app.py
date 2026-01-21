@@ -185,8 +185,6 @@ class ChatApp(App):
         # Sidebar overlay state (for narrow screens)
         self._sidebar_overlay_open = False
         self._hamburger_btn: HamburgerButton | None = None
-        # Selected model (None = SDK default)
-        self.selected_model: str | None = None
         # Available models from SDK (populated in _update_slash_commands)
         self._available_models: list[dict] = []
 
@@ -474,6 +472,7 @@ class ChatApp(App):
         cwd: Path | None = None,
         resume: str | None = None,
         agent_name: str | None = None,
+        model: str | None = None,
     ) -> ClaudeAgentOptions:
         """Create SDK options with common settings.
 
@@ -486,7 +485,7 @@ class ChatApp(App):
             setting_sources=["user", "project", "local"],
             cwd=cwd,
             resume=resume,
-            model=self.selected_model,
+            model=model,
             mcp_servers={"chic": create_chic_server(caller_name=agent_name)},
             include_partial_messages=True,
             stderr=self._handle_sdk_stderr,
@@ -549,7 +548,7 @@ class ChatApp(App):
 
         # Connect the agent to SDK
         options = self._make_options(
-            cwd=agent.cwd, resume=resume, agent_name=agent.name
+            cwd=agent.cwd, resume=resume, agent_name=agent.name, model=agent.model
         )
         try:
             await agent.connect(options, resume=resume)
@@ -587,27 +586,9 @@ class ChatApp(App):
                 models = info["models"]
                 if isinstance(models, list) and models:
                     self._available_models = models
-                    # Find active model - either user-selected or SDK default
-                    active = models[0]
-                    for m in models:
-                        # If user selected a model, find it
-                        if (
-                            self.selected_model
-                            and m.get("value") == self.selected_model
-                        ):
-                            active = m
-                            break
-                        # Otherwise use the one marked 'default' by SDK
-                        if m.get("value") == "default":
-                            active = m
-                    # Extract short name from description like "Opus 4.5 · ..."
-                    desc = active.get("description", "")
-                    model_name = (
-                        desc.split("·")[0].strip()
-                        if "·" in desc
-                        else active.get("displayName", "")
-                    )
-                    self.status_footer.model = model_name
+                    # Update footer with current agent's model
+                    agent = self._agent
+                    self._update_footer_model(agent.model if agent else None)
         except Exception as e:
             log.warning(f"Failed to fetch SDK commands: {e}")
         self.refresh_context()
@@ -1192,7 +1173,12 @@ class ChatApp(App):
             resume_id = sessions[0][0] if sessions else None
 
             await self._replace_client(
-                self._make_options(cwd=new_cwd, resume=resume_id, agent_name=agent.name)
+                self._make_options(
+                    cwd=new_cwd,
+                    resume=resume_id,
+                    agent_name=agent.name,
+                    model=agent.model,
+                )
             )
 
             # Clear ChatView state
@@ -1386,6 +1372,7 @@ class ChatApp(App):
             self.status_footer.refresh_branch(str(agent.cwd) if agent else None)
         )
         self.status_footer.auto_edit = agent.auto_approve_edits if agent else False
+        self._update_footer_model(agent.model if agent else None)
         # Update todo panel for new agent
         self.todo_panel.update_todos(agent.todos if agent else [])
         # Update context bar for new agent
@@ -1399,7 +1386,7 @@ class ChatApp(App):
         """Disconnect and reconnect an agent to reload its session."""
         await agent.disconnect()
         options = self._make_options(
-            cwd=agent.cwd, resume=session_id, agent_name=agent.name
+            cwd=agent.cwd, resume=session_id, agent_name=agent.name, model=agent.model
         )
         await agent.connect(options, resume=session_id)
 
@@ -1413,7 +1400,9 @@ class ChatApp(App):
         if chat_view:
             chat_view.clear()
         await agent.disconnect()
-        options = self._make_options(cwd=agent.cwd, agent_name=agent.name)
+        options = self._make_options(
+            cwd=agent.cwd, agent_name=agent.name, model=agent.model
+        )
         await agent.connect(options)
         self.refresh_context()
         self.notify("New session started")
@@ -1433,16 +1422,40 @@ class ChatApp(App):
         chat_view.mount(widget)
         chat_view.scroll_if_tailing()
 
+    @work(group="model_switch", exclusive=True, exit_on_error=False)
+    async def _set_agent_model(self, model: str) -> None:
+        """Set model for active agent and reconnect."""
+        agent = self._agent
+        if not agent:
+            self.notify("No active agent", severity="warning")
+            return
+        if model == agent.model:
+            return
+        agent.model = model
+        self._update_footer_model(model)
+        if agent.client:
+            self.notify(f"Switching to {model}...")
+            await agent.disconnect()
+            options = self._make_options(
+                cwd=agent.cwd, agent_name=agent.name, model=model
+            )
+            await agent.connect(options)
+
     @work(group="model_prompt", exclusive=True, exit_on_error=False)
     async def _handle_model_prompt(self) -> None:
-        """Show model selection prompt and handle result."""
+        """Show model selection prompt and handle result for active agent."""
         from textual.containers import Center
+
+        agent = self._agent
+        if not agent:
+            self.notify("No active agent", severity="warning")
+            return
 
         if not self._available_models:
             self.notify("No models available", severity="warning")
             return
 
-        prompt = ModelPrompt(self._available_models, current_value=self.selected_model)
+        prompt = ModelPrompt(self._available_models, current_value=agent.model)
         container = Center(prompt, id="model-modal")
         self.mount(container)
 
@@ -1451,17 +1464,8 @@ class ChatApp(App):
         finally:
             container.remove()
 
-        if result and result != self.selected_model:
-            self.selected_model = result
-            # Reconnect active agent with new model
-            agent = self._agent
-            if agent and agent.client:
-                self.notify(f"Switching to {result}...")
-                await agent.disconnect()
-                options = self._make_options(cwd=agent.cwd, agent_name=agent.name)
-                await agent.connect(options)
-                # Refresh model display
-                await self._update_slash_commands()
+        if result and result != agent.model:
+            self._set_agent_model(result)
 
     @work(group="new_agent", exclusive=True, exit_on_error=False)
     async def _create_new_agent(
@@ -1471,6 +1475,7 @@ class ChatApp(App):
         worktree: str | None = None,
         auto_resume: bool = False,
         switch_to: bool = True,
+        model: str | None = None,
     ) -> None:
         """Create a new agent via AgentManager.
 
@@ -1480,6 +1485,7 @@ class ChatApp(App):
             worktree: Git worktree branch name if applicable
             auto_resume: Try to resume session with most messages in cwd
             switch_to: Whether to switch to the new agent (default True)
+            model: Model override (None = SDK default)
         """
         if self.agent_mgr is None:
             self.notify("Agent manager not initialized", severity="error")
@@ -1502,6 +1508,7 @@ class ChatApp(App):
                 worktree=worktree,
                 resume=resume_id,
                 switch_to=switch_to,
+                model=model,
             )
         except Exception as e:
             self.show_error(f"Failed to create agent '{name}'", e)
@@ -1690,6 +1697,7 @@ class ChatApp(App):
         # Update footer
         self._update_footer_auto_edit()
         self._update_footer_cwd(new_agent.cwd)
+        self._update_footer_model(new_agent.model)
 
         # Update todo panel
         self.todo_panel.update_todos(new_agent.todos)
@@ -1921,3 +1929,25 @@ class ChatApp(App):
             asyncio.create_task(self.status_footer.refresh_branch(str(cwd)))
         except Exception:
             pass
+
+    def _update_footer_model(self, model: str | None) -> None:
+        """Update footer to show agent's model."""
+        if not self._available_models:
+            # No model info yet - show raw value or empty
+            self.status_footer.model = model.capitalize() if model else ""
+            return
+        # Find matching model, or default if model is None
+        active = self._available_models[0]
+        for m in self._available_models:
+            if model and m.get("value") == model:
+                active = m
+                break
+            if not model and m.get("value") == "default":
+                active = m
+                break
+        # Extract short name from description like "Opus 4.5 · ..."
+        desc = active.get("description", "")
+        model_name = (
+            desc.split("·")[0].strip() if "·" in desc else active.get("displayName", "")
+        )
+        self.status_footer.model = model_name

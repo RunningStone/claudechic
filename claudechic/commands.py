@@ -54,8 +54,22 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         app._handle_usage_command()
         return True
 
-    if cmd == "/model":
-        app._handle_model_prompt()
+    if cmd == "/model" or cmd.startswith("/model "):
+        parts = cmd.split(maxsplit=1)
+        if len(parts) == 1:
+            # No argument - show prompt
+            app._handle_model_prompt()
+        else:
+            # Direct model selection: /model sonnet
+            model = parts[1].lower()
+            valid_models = {"opus", "sonnet", "haiku"}
+            if model not in valid_models:
+                app.notify(
+                    f"Invalid model '{model}'. Use: opus, sonnet, haiku",
+                    severity="error",
+                )
+            else:
+                app._set_agent_model(model)
         return True
 
     if cmd == "/exit":
@@ -127,10 +141,35 @@ def _handle_agent(app: "ChatApp", command: str) -> bool:
         app._close_agent(target)
         return True
 
-    # Create new agent
+    # Check if agent with this name exists - switch to it
     name = subcommand
-    path = Path(parts[2]) if len(parts) > 2 else Path.cwd()
-    app._create_new_agent(name, path)
+    existing = app.agent_mgr.find_by_name(name) if app.agent_mgr else None
+    if existing:
+        app._switch_to_agent(existing.id)
+        return True
+
+    # Create new agent - parse optional --model flag (supports --model=x or --model x)
+    cwd: Path | None = None
+    model = None
+    valid_models = {"opus", "sonnet", "haiku"}
+    args = parts[2:]
+    i = 0
+    while i < len(args):
+        part = args[i]
+        if part.startswith("--model="):
+            model = part[8:].lower()
+        elif part == "--model" and i + 1 < len(args):
+            model = args[i + 1].lower()
+            i += 1
+        elif not part.startswith("-") and cwd is None:
+            cwd = Path(part)
+        i += 1
+    if model and model not in valid_models:
+        app.notify(
+            f"Invalid model '{model}'. Use: opus, sonnet, haiku", severity="error"
+        )
+        return True
+    app._create_new_agent(name, cwd or Path.cwd(), model=model)
     return True
 
 

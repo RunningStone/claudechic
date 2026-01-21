@@ -79,7 +79,11 @@ async def handle_screenshot(request: web.Request) -> web.Response:
 
 
 async def handle_send(request: web.Request) -> web.Response:
-    """Send a message to the active agent. Body: {"text": "message"}"""
+    """Send a message or command to the active agent. Body: {"text": "message"}
+
+    If text starts with / or !, it's treated as a command.
+    Otherwise it's sent to the agent as a prompt.
+    """
     if _app is None:
         return web.json_response({"error": "App not initialized"}, status=500)
 
@@ -93,13 +97,25 @@ async def handle_send(request: web.Request) -> web.Response:
     if not text:
         return web.json_response({"error": "No text provided"}, status=400)
 
-    # Use the app's send method
+    # Check for slash/bang commands
+    stripped = text.strip()
+    if stripped.startswith("/") or stripped.startswith("!"):
+        from claudechic.commands import handle_command as do_command
+
+        try:
+            handled = do_command(_app, text)
+            return web.json_response(
+                {"status": "executed" if handled else "not_handled", "command": text}
+            )
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+    # Send to active agent
     agent = _app._agent
     if agent is None:
         return web.json_response({"error": "No active agent"}, status=400)
 
     try:
-        # Send to active agent (fire-and-forget, callbacks handle response)
         _app._send_to_active_agent(text)
         return web.json_response({"status": "sent", "text": text[:100]})
     except Exception as e:
