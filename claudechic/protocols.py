@@ -22,7 +22,7 @@ class AgentManagerObserver(Protocol):
         """Called when the active agent changes."""
         ...
 
-    def on_agent_closed(self, agent_id: str) -> None:
+    def on_agent_closed(self, agent_id: str, message_count: int) -> None:
         """Called when an agent is closed."""
         ...
 

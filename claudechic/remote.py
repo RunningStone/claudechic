@@ -221,7 +221,7 @@ async def handle_exit(request: web.Request) -> web.Response:  # noqa: ARG001
     async def do_exit():
         await asyncio.sleep(0.1)  # Let response complete
         if _app:
-            _app.exit()
+            await _app._cleanup_and_exit()
 
     asyncio.create_task(do_exit())
     return web.json_response({"status": "exiting"})

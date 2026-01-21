@@ -47,6 +47,7 @@ from claudechic.features.worktree.commands import on_response_complete_finish
 from claudechic.permissions import PermissionRequest, PermissionResponse
 from claudechic.agent import Agent, ImageAttachment, ToolUse
 from claudechic.agent_manager import AgentManager
+from claudechic.analytics import capture
 from claudechic.enums import AgentStatus, PermissionChoice, ToolName
 from claudechic.mcp import set_app, create_chic_server
 from claudechic.file_index import FileIndex
@@ -182,6 +183,9 @@ class ChatApp(App):
         self._shell_process: asyncio.subprocess.Process | None = None
         # Agent-to-UI mappings (Agent has no UI references)
         self._chat_views: dict[str, ChatView] = {}  # agent_id -> ChatView
+        self._agent_metadata: dict[
+            str, dict
+        ] = {}  # agent_id -> {created_at, same_directory}
         self._active_prompts: dict[
             str, Any
         ] = {}  # agent_id -> SelectionPrompt/QuestionPrompt
@@ -510,6 +514,10 @@ class ChatApp(App):
         )
 
     async def on_mount(self) -> None:
+        # Track app start
+        self._app_start_time = time.time()
+        self.run_worker(capture("app_started", resumed=bool(self._resume_on_start)))
+
         # Start CPU sampling profiler
         start_sampler()
 
@@ -1080,6 +1088,10 @@ class ChatApp(App):
 
     async def _cleanup_and_exit(self) -> None:
         """Disconnect all agents and exit."""
+        # Track app close with session duration
+        duration = time.time() - getattr(self, "_app_start_time", time.time())
+        await capture("app_closed", duration_seconds=int(duration))
+
         for agent in self.agents.values():
             if agent.client:
                 try:
@@ -1671,6 +1683,14 @@ class ChatApp(App):
         """Handle new agent creation from AgentManager."""
         log.info(f"New agent created: {agent.name} (id={agent.id})")
 
+        # Track analytics (same_directory = agent cwd matches app starting cwd)
+        same_directory = agent.cwd == Path.cwd()
+        self._agent_metadata[agent.id] = {
+            "created_at": time.time(),
+            "same_directory": same_directory,
+        }
+        self.run_worker(capture("agent_created", same_directory=same_directory))
+
         try:
             # Create chat view for the agent
             is_first_agent = len(self.agent_mgr.agents) == 1 if self.agent_mgr else True
@@ -1735,9 +1755,23 @@ class ChatApp(App):
         self.refresh_context()
         self._position_right_sidebar()
 
-    def on_agent_closed(self, agent_id: str) -> None:
+    def on_agent_closed(self, agent_id: str, message_count: int = 0) -> None:
         """Handle agent closure from AgentManager."""
         log.info(f"Agent closed: {agent_id}")
+
+        # Track analytics
+        metadata = self._agent_metadata.pop(agent_id, {})
+        duration = time.time() - metadata.get("created_at", time.time())
+        same_directory = metadata.get("same_directory", True)
+        self.run_worker(
+            capture(
+                "agent_closed",
+                duration_seconds=int(duration),
+                same_directory=same_directory,
+                message_count=message_count,
+            )
+        )
+
         try:
             self.agent_section.remove_agent(agent_id)
         except Exception:
