@@ -262,6 +262,7 @@ Button.copy-btn:hover {
 
 /* Chat views - both initial and dynamically created */
 #chat-view, .chat-view {
+    layout: stream;
     width: 1fr;
     max-width: 100;
     padding: 1 1;
