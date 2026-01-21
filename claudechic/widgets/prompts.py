@@ -7,7 +7,7 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.widgets import Static, Label, ListItem
 
-from claudechic.cursor import PointerMixin
+from claudechic.widgets.base.cursor import PointerMixin
 
 
 class SessionItem(ListItem, PointerMixin):

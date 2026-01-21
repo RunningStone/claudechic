@@ -10,7 +10,7 @@ from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button
 
-from claudechic.widgets.processes import BackgroundProcess
+from claudechic.widgets.layout.processes import BackgroundProcess
 
 
 def _format_duration(start_time: datetime) -> str:

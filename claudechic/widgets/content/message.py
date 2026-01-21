@@ -10,11 +10,11 @@ from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Markdown, TextArea, Static
 
-from claudechic.cursor import PointerMixin, set_pointer
+from claudechic.widgets.base.cursor import PointerMixin, set_pointer
 from claudechic.errors import log_exception
 from claudechic.profiling import profile
-from claudechic.widgets.button import Button
-from claudechic.widgets.copyable import CopyButton, CopyableMixin
+from claudechic.widgets.primitives.button import Button
+from claudechic.widgets.base.copyable import CopyButton, CopyableMixin
 
 
 class Spinner(Static):

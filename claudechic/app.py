@@ -74,7 +74,7 @@ from claudechic.widgets import (
     HamburgerButton,
     EditPlanRequested,
 )
-from claudechic.widgets.footer import AutoEditLabel, ModelLabel, StatusFooter
+from claudechic.widgets.layout.footer import AutoEditLabel, ModelLabel, StatusFooter
 from claudechic.widgets.prompts import ModelPrompt
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
 from claudechic.profiling import profile
@@ -940,7 +940,7 @@ class ChatApp(App):
 
         # Use custom widget for context reports
         if "## Context Usage" in event.content:
-            from claudechic.widgets.context_report import ContextReport
+            from claudechic.widgets.reports.context import ContextReport
 
             widget = ContextReport(event.content)
         else:
@@ -1090,7 +1090,7 @@ class ChatApp(App):
         """Run a shell command async with PTY for color support."""
         from claudechic.shell_runner import run_in_pty
         from claudechic.widgets import ShellOutputWidget
-        from claudechic.widgets.chat import Spinner
+        from claudechic.widgets.content.message import Spinner
 
         chat_view = self._chat_view
         if not chat_view:
@@ -1433,7 +1433,7 @@ class ChatApp(App):
     async def _handle_usage_command(self) -> None:
         """Handle /usage command - show API usage limits."""
         from claudechic.usage import fetch_usage
-        from claudechic.widgets.usage import UsageReport
+        from claudechic.widgets.reports.usage import UsageReport
 
         chat_view = self._chat_view
         if not chat_view:

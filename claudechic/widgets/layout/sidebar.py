@@ -11,8 +11,8 @@ from textual.widgets import Static
 from rich.text import Text
 
 from claudechic.enums import AgentStatus
-from claudechic.cursor import ClickableMixin
-from claudechic.widgets.button import Button
+from claudechic.widgets.base.cursor import ClickableMixin
+from claudechic.widgets.primitives.button import Button
 
 
 class HamburgerButton(Button):

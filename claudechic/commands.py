@@ -366,7 +366,7 @@ async def _handle_help(app: "ChatApp") -> None:
 
 def _handle_processes(app: "ChatApp") -> None:
     """Show process modal with current background processes."""
-    from claudechic.widgets.process_modal import ProcessModal
+    from claudechic.widgets.reports.process_modal import ProcessModal
 
     agent = app._agent
     if agent:

@@ -3,8 +3,13 @@
 import pytest
 
 from claudechic.app import ChatApp
-from claudechic.widgets import ChatInput, ChatMessage, AgentSidebar, TodoPanel
-from claudechic.widgets.footer import StatusFooter
+from claudechic.widgets import (
+    ChatInput,
+    ChatMessage,
+    AgentSidebar,
+    TodoPanel,
+    StatusFooter,
+)
 from claudechic.messages import (
     ResponseComplete,
     ToolUseMessage,
@@ -378,7 +383,7 @@ async def test_command_output_displays(mock_sdk):
 async def test_context_report_displays(mock_sdk):
     """Context command output displays as ContextReport widget."""
     from claudechic.messages import CommandOutputMessage
-    from claudechic.widgets.context_report import ContextReport
+    from claudechic.widgets.reports.context import ContextReport
 
     CONTEXT_OUTPUT = """## Context Usage
 

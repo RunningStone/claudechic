@@ -5,7 +5,7 @@ from datetime import datetime
 
 import psutil
 
-from claudechic.widgets.processes import BackgroundProcess
+from claudechic.widgets.layout.processes import BackgroundProcess
 
 
 def _extract_command(cmdline: list[str]) -> str | None:

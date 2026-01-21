@@ -15,12 +15,12 @@ from claudechic.widgets import (
     ProcessPanel,
     BackgroundProcess,
     ModelPrompt,
+    StatusFooter,
+    ContextBar,
 )
-from claudechic.widgets.todo import TodoItem
-from claudechic.widgets.processes import ProcessItem
-from claudechic.widgets.indicators import ContextBar
+from claudechic.widgets.content.todo import TodoItem
+from claudechic.widgets.layout.processes import ProcessItem
 from claudechic.enums import AgentStatus
-from claudechic.widgets.footer import StatusFooter
 
 
 class WidgetTestApp(App):
@@ -445,7 +445,7 @@ async def test_thinking_indicator_animates():
 @pytest.mark.asyncio
 async def test_history_search_filters():
     """HistorySearch filters history and cycles through matches."""
-    from claudechic.widgets.history_search import HistorySearch
+    from claudechic.widgets.input.history_search import HistorySearch
     from unittest.mock import patch
 
     class TestApp(App):
@@ -461,7 +461,7 @@ async def test_history_search_filters():
     ]
 
     with patch(
-        "claudechic.widgets.history_search.load_global_history",
+        "claudechic.widgets.input.history_search.load_global_history",
         return_value=mock_history,
     ):
         app = TestApp()

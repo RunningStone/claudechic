@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from claudechic.widgets.button import Button
+from claudechic.widgets.primitives.button import Button
 
 if TYPE_CHECKING:
     from textual.app import App

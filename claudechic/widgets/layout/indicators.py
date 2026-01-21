@@ -7,10 +7,10 @@ from textual.reactive import reactive
 from textual.widgets import Static
 from rich.text import Text
 
-from claudechic.cursor import ClickableMixin
+from claudechic.widgets.base.cursor import ClickableMixin
 from claudechic.formatting import MAX_CONTEXT_TOKENS
 from claudechic.profiling import profile, timed
-from claudechic.widgets.processes import BackgroundProcess
+from claudechic.widgets.layout.processes import BackgroundProcess
 
 
 class IndicatorWidget(Static, ClickableMixin):
@@ -57,7 +57,7 @@ class CPUBar(IndicatorWidget):
 
     def on_click(self, event) -> None:
         """Show profile modal on click."""
-        from claudechic.widgets.profile_modal import ProfileModal
+        from claudechic.widgets.reports.profile import ProfileModal
 
         self.app.push_screen(ProfileModal())
 
@@ -134,6 +134,6 @@ class ProcessIndicator(IndicatorWidget):
 
     def on_click(self, event) -> None:
         """Show process modal on click."""
-        from claudechic.widgets.process_modal import ProcessModal
+        from claudechic.widgets.reports.process_modal import ProcessModal
 
         self.app.push_screen(ProcessModal(self._processes))

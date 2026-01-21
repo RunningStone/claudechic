@@ -14,14 +14,14 @@ from claudechic.agent import (
     ToolUse,
 )
 from claudechic.enums import ToolName
-from claudechic.widgets.chat import (
+from claudechic.widgets.content.message import (
     ChatMessage,
     ChatAttachment,
     ThinkingIndicator,
     SystemInfo,
 )
-from claudechic.widgets.scroll import AutoHideScroll
-from claudechic.widgets.tools import ToolUseWidget, TaskWidget, AgentToolWidget
+from claudechic.widgets.primitives.scroll import AutoHideScroll
+from claudechic.widgets.content.tools import ToolUseWidget, TaskWidget, AgentToolWidget
 
 if TYPE_CHECKING:
     from claude_agent_sdk import ToolUseBlock, ToolResultBlock

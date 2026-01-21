@@ -8,9 +8,9 @@ from textual.reactive import reactive
 from textual.containers import Horizontal
 from textual.widgets import Static
 
-from claudechic.cursor import ClickableMixin
-from claudechic.widgets.indicators import CPUBar, ContextBar, ProcessIndicator
-from claudechic.widgets.processes import BackgroundProcess
+from claudechic.widgets.base.cursor import ClickableMixin
+from claudechic.widgets.layout.indicators import CPUBar, ContextBar, ProcessIndicator
+from claudechic.widgets.layout.processes import BackgroundProcess
 
 
 class ClickableLabel(Static, ClickableMixin):

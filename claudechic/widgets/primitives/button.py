@@ -3,7 +3,7 @@
 from textual.message import Message
 from textual.widgets import Static
 
-from claudechic.cursor import ClickableMixin
+from claudechic.widgets.base.cursor import ClickableMixin
 
 
 class Button(Static, ClickableMixin):
