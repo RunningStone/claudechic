@@ -12,9 +12,12 @@ from claudechic.widgets import (
     QuestionPrompt,
     AgentSidebar,
     TodoPanel,
+    ProcessPanel,
+    BackgroundProcess,
     ModelPrompt,
 )
 from claudechic.widgets.todo import TodoItem
+from claudechic.widgets.processes import ProcessItem
 from claudechic.widgets.indicators import ContextBar
 from claudechic.enums import AgentStatus
 from claudechic.widgets.footer import StatusFooter
@@ -488,3 +491,35 @@ async def test_history_search_filters():
             # Up goes back
             hs.action_prev_match()
             assert hs._current_match() == "fix the bug"
+
+
+@pytest.mark.asyncio
+async def test_process_panel_updates():
+    """ProcessPanel displays and updates background processes."""
+    from datetime import datetime
+
+    app = WidgetTestApp(lambda: ProcessPanel(id="panel", classes="hidden"))
+    async with app.run_test():
+        panel = app.query_one(ProcessPanel)
+
+        # Initially hidden (no processes)
+        assert panel.has_class("hidden")
+
+        # Add some processes
+        processes = [
+            BackgroundProcess(pid=123, command="sleep 100", start_time=datetime.now()),
+            BackgroundProcess(
+                pid=456, command="npm run dev", start_time=datetime.now()
+            ),
+        ]
+        panel.update_processes(processes)
+
+        # Should now be visible
+        assert not panel.has_class("hidden")
+
+        items = list(panel.query(ProcessItem))
+        assert len(items) == 2
+
+        # Clear processes - should hide again
+        panel.update_processes([])
+        assert panel.has_class("hidden")

@@ -1,4 +1,4 @@
-"""Resource indicator widgets - context bar and CPU monitor."""
+"""Resource indicator widgets - context bar, CPU monitor, and process indicator."""
 
 import psutil
 
@@ -9,6 +9,7 @@ from rich.text import Text
 from claudechic.widgets.button import Button
 from claudechic.formatting import MAX_CONTEXT_TOKENS
 from claudechic.profiling import profile, timed
+from claudechic.widgets.processes import BackgroundProcess
 
 
 class CPUBar(Button):
@@ -89,3 +90,42 @@ class ContextBar(Button):
 
         if isinstance(self.app, ChatApp):
             self.app._handle_prompt("/context")
+
+
+class ProcessIndicator(Button):
+    """Display count of background processes. Click to show details."""
+
+    DEFAULT_CSS = """
+    ProcessIndicator {
+        width: auto;
+        padding: 0 1;
+    }
+    ProcessIndicator:hover {
+        background: $panel;
+    }
+    ProcessIndicator.hidden {
+        display: none;
+    }
+    """
+
+    count = reactive(0)
+    can_focus = True
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._processes: list[BackgroundProcess] = []
+
+    def update_processes(self, processes: list[BackgroundProcess]) -> None:
+        """Update the process list and count."""
+        self._processes = processes
+        self.count = len(processes)
+        self.set_class(self.count == 0, "hidden")
+
+    def render(self) -> RenderResult:
+        return Text.assemble(("⚙ ", "yellow"), (f"{self.count}", ""))
+
+    def on_click(self, event) -> None:
+        """Show process modal on click."""
+        from claudechic.widgets.process_modal import ProcessModal
+
+        self.app.push_screen(ProcessModal(self._processes))

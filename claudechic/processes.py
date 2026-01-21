@@ -1,0 +1,108 @@
+"""Background process detection for Claude agents."""
+
+import re
+from datetime import datetime
+
+import psutil
+
+from claudechic.widgets.processes import BackgroundProcess
+
+
+def _extract_command(cmdline: list[str]) -> str | None:
+    """Extract the user command from a shell cmdline.
+
+    Claude wraps commands like:
+      ['/bin/zsh', '-c', '-l', "source ... && eval 'sleep 30' ..."]
+
+    We want to extract just 'sleep 30'.
+    """
+    # Find the argument containing the actual command (after -c and optional -l)
+    cmd_arg = None
+    for i, arg in enumerate(cmdline):
+        if arg == "-c" and i + 1 < len(cmdline):
+            # Next non-flag arg is the command
+            for j in range(i + 1, len(cmdline)):
+                if not cmdline[j].startswith("-"):
+                    cmd_arg = cmdline[j]
+                    break
+            break
+
+    if not cmd_arg:
+        return None
+
+    # Try to extract from eval '...' pattern
+    match = re.search(r"eval ['\"](.+?)['\"] \\< /dev/null", cmd_arg)
+    if match:
+        return match.group(1)
+
+    # Try simpler eval pattern
+    match = re.search(r"eval ['\"](.+?)['\"]", cmd_arg)
+    if match:
+        return match.group(1)
+
+    # Fall back to full command (truncated)
+    return cmd_arg[:50] if len(cmd_arg) > 50 else cmd_arg
+
+
+def get_child_processes(claude_pid: int) -> list[BackgroundProcess]:
+    """Get background processes that are children of a claude process.
+
+    Args:
+        claude_pid: PID of the claude binary for an agent
+
+    Returns:
+        List of BackgroundProcess objects for active shell children
+    """
+    try:
+        claude_proc = psutil.Process(claude_pid)
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return []
+
+    processes = []
+    for child in claude_proc.children(recursive=True):
+        try:
+            name = child.name()
+            # Only track shell processes (where commands run)
+            if name not in ("zsh", "bash", "sh"):
+                continue
+
+            status = child.status()
+            if status == psutil.STATUS_ZOMBIE:
+                continue
+
+            # Extract the command being run
+            cmdline = child.cmdline()
+            command = _extract_command(cmdline)
+            if not command:
+                continue
+
+            # Get start time
+            create_time = datetime.fromtimestamp(child.create_time())
+
+            processes.append(
+                BackgroundProcess(
+                    pid=child.pid, command=command, start_time=create_time
+                )
+            )
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    return processes
+
+
+def get_claude_pid_from_client(client) -> int | None:
+    """Extract the claude process PID from an SDK client.
+
+    Args:
+        client: ClaudeSDKClient instance
+
+    Returns:
+        PID of the claude subprocess, or None if not available
+    """
+    try:
+        transport = client._transport
+        if transport and hasattr(transport, "_process") and transport._process:
+            return transport._process.pid
+    except Exception:
+        pass
+    return None

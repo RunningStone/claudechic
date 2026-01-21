@@ -23,6 +23,7 @@ from claudechic.widgets.tools import (
 )
 from claudechic.widgets.diff import DiffWidget
 from claudechic.widgets.todo import TodoWidget, TodoPanel
+from claudechic.widgets.processes import ProcessPanel, ProcessItem, BackgroundProcess
 from claudechic.widgets.prompts import (
     BasePrompt,
     SelectionPrompt,
@@ -84,4 +85,7 @@ __all__ = [
     "UsageReport",
     "ProfileModal",
     "ModelPrompt",
+    "ProcessPanel",
+    "ProcessItem",
+    "BackgroundProcess",
 ]

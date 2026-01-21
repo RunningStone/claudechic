@@ -174,6 +174,9 @@ class Agent:
         self.observer: AgentObserver | None = None
         self.permission_handler: PermissionHandler | None = None
 
+        # Background process tracking (PID of claude binary)
+        self._claude_pid: int | None = None
+
     # -----------------------------------------------------------------------
     # Lifecycle
     # -----------------------------------------------------------------------
@@ -194,6 +197,11 @@ class Agent:
 
         self.client = ClaudeSDKClient(options)
         await self.client.connect()
+
+        # Capture the claude process PID for background process tracking
+        from claudechic.processes import get_claude_pid_from_client
+
+        self._claude_pid = get_claude_pid_from_client(self.client)
 
         if resume:
             self.session_id = resume
@@ -711,3 +719,15 @@ class Agent:
             "message": {"role": "user", "content": content},
             "parent_tool_use_id": None,
         }
+
+    def get_background_processes(self) -> list:
+        """Get list of background processes for this agent.
+
+        Returns:
+            List of BackgroundProcess objects
+        """
+        if not self._claude_pid:
+            return []
+        from claudechic.processes import get_child_processes
+
+        return get_child_processes(self._claude_pid)

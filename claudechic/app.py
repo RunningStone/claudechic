@@ -60,6 +60,7 @@ from claudechic.widgets import (
     AgentToolWidget,
     TodoWidget,
     TodoPanel,
+    ProcessPanel,
     SelectionPrompt,
     QuestionPrompt,
     SessionItem,
@@ -169,6 +170,7 @@ class ChatApp(App):
         # Cached widget references (initialized lazily)
         self._agent_sidebar: AgentSidebar | None = None
         self._todo_panel: TodoPanel | None = None
+        self._process_panel: ProcessPanel | None = None
         self._context_bar: ContextBar | None = None
         self._right_sidebar: Vertical | None = None
         self._input_container: Vertical | None = None
@@ -267,6 +269,12 @@ class ChatApp(App):
         if self._todo_panel is None:
             self._todo_panel = self.query_one("#todo-panel", TodoPanel)
         return self._todo_panel
+
+    @property
+    def process_panel(self) -> ProcessPanel:
+        if self._process_panel is None:
+            self._process_panel = self.query_one("#process-panel", ProcessPanel)
+        return self._process_panel
 
     @property
     def context_bar(self) -> ContextBar:
@@ -436,6 +444,7 @@ class ChatApp(App):
         "/compactish",
         "/usage",
         "/model",
+        "/processes",
         "/welcome",
         "/help",
     ]
@@ -448,6 +457,7 @@ class ChatApp(App):
             with Vertical(id="right-sidebar", classes="hidden"):
                 yield AgentSidebar(id="agent-sidebar")
                 yield TodoPanel(id="todo-panel")
+                yield ProcessPanel(id="process-panel", classes="hidden")
         with Horizontal(id="input-wrapper"):
             with Vertical(id="input-container"):
                 yield ImageAttachments(id="image-attachments", classes="hidden")
@@ -493,6 +503,9 @@ class ChatApp(App):
     async def on_mount(self) -> None:
         # Start CPU sampling profiler
         start_sampler()
+
+        # Start background process polling
+        self.set_interval(2.0, self._poll_background_processes)
 
         # Register app for MCP tools
         set_app(self)
@@ -597,6 +610,15 @@ class ChatApp(App):
         """Refresh the file index in the background."""
         if self.file_index:
             await self.file_index.refresh()
+
+    def _poll_background_processes(self) -> None:
+        """Poll for background processes and update the panel and footer."""
+        agent = self._agent
+        if not agent:
+            return
+        processes = agent.get_background_processes()
+        self.process_panel.update_processes(processes)
+        self.status_footer.update_processes(processes)
 
     async def _load_and_display_history(
         self, session_id: str, cwd: Path | None = None

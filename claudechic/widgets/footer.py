@@ -9,7 +9,8 @@ from textual.containers import Horizontal
 from textual.widgets import Static
 
 from claudechic.widgets.button import Button
-from claudechic.widgets.indicators import CPUBar, ContextBar
+from claudechic.widgets.indicators import CPUBar, ContextBar, ProcessIndicator
+from claudechic.widgets.processes import BackgroundProcess
 
 
 class AutoEditLabel(Button):
@@ -72,6 +73,7 @@ class StatusFooter(Static):
                 "Auto-edit: off", id="auto-edit-label", classes="footer-label"
             )
             yield Static("", id="footer-spacer")
+            yield ProcessIndicator(id="process-indicator", classes="hidden")
             yield ContextBar(id="context-bar")
             yield CPUBar(id="cpu-bar")
             yield Static("", id="branch-label", classes="footer-label")
@@ -98,5 +100,13 @@ class StatusFooter(Static):
             label = self.query_one("#auto-edit-label", AutoEditLabel)
             label.update("Auto-edit: on" if value else "Auto-edit: off")
             label.set_class(value, "active")
+        except Exception:
+            pass
+
+    def update_processes(self, processes: list[BackgroundProcess]) -> None:
+        """Update the process indicator."""
+        try:
+            indicator = self.query_one("#process-indicator", ProcessIndicator)
+            indicator.update_processes(processes)
         except Exception:
             pass

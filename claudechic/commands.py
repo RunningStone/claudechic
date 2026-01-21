@@ -83,6 +83,10 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         app.run_worker(_handle_help(app))
         return True
 
+    if cmd == "/processes":
+        _handle_processes(app)
+        return True
+
     return False
 
 
@@ -358,3 +362,15 @@ async def _handle_help(app: "ChatApp") -> None:
         msg.add_class("system-message")
         chat_view.mount(msg)
         chat_view.scroll_if_tailing()
+
+
+def _handle_processes(app: "ChatApp") -> None:
+    """Show process modal with current background processes."""
+    from claudechic.widgets.process_modal import ProcessModal
+
+    agent = app._agent
+    if agent:
+        processes = agent.get_background_processes()
+    else:
+        processes = []
+    app.push_screen(ProcessModal(processes))
