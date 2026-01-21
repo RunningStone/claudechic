@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from textual.widget import Widget
+
 from claudechic.agent import (
     Agent,
     ImageAttachment,
@@ -75,7 +77,11 @@ class ChatView(AutoHideScroll):
         self._render_full()
 
     def _render_full(self) -> None:
-        """Fully re-render the chat view from agent.messages."""
+        """Fully re-render the chat view from agent.messages.
+
+        Uses mount_all() to batch all widget mounts into a single CSS recalculation,
+        which is much faster than mounting widgets one at a time.
+        """
         self.clear()
         if not self._agent:
             return
@@ -90,33 +96,83 @@ class ChatView(AutoHideScroll):
         collapse_threshold = total_tools - RECENT_TOOLS_EXPANDED
         tool_index = 0
 
-        with self.app.batch_update():
-            for item in self._agent.messages:
-                if item.role == "user" and isinstance(item.content, UserContent):
-                    self._mount_user_message(item.content.text, item.content.images)
-                elif item.role == "assistant" and isinstance(
-                    item.content, AssistantContent
-                ):
-                    tool_index = self._render_assistant_history(
-                        item.content, tool_index, collapse_threshold
-                    )
+        # Build all widgets first, then mount in one batch
+        widgets: list[Widget] = []
+        for item in self._agent.messages:
+            if item.role == "user" and isinstance(item.content, UserContent):
+                widgets.extend(
+                    self._create_user_widgets(item.content.text, item.content.images)
+                )
+            elif item.role == "assistant" and isinstance(
+                item.content, AssistantContent
+            ):
+                new_widgets, tool_index = self._create_assistant_widgets(
+                    item.content, tool_index, collapse_threshold
+                )
+                widgets.extend(new_widgets)
 
+        # Single mount_all triggers one CSS recalculation instead of N
+        self.mount_all(widgets)
         self.scroll_end(animate=False)
 
-    def _render_assistant_history(
+    def _create_user_widgets(
+        self, text: str, images: list[ImageAttachment], is_agent: bool = False
+    ) -> list[Widget]:
+        """Create widgets for a user message (without mounting)."""
+        widgets: list[Widget] = []
+        msg = ChatMessage(text, is_agent=is_agent)
+        msg.add_class("agent-message" if is_agent else "user-message")
+        widgets.append(msg)
+
+        for i, img in enumerate(images):
+            if img.filename.lower().startswith("screenshot"):
+                display_name = f"Screenshot #{i + 1}"
+            else:
+                display_name = img.filename
+            widgets.append(ChatAttachment(img.filename, display_name))
+
+        return widgets
+
+    def _create_assistant_widgets(
         self, content: AssistantContent, tool_index: int, collapse_threshold: int
-    ) -> int:
-        """Render an assistant message from history. Returns updated tool_index."""
+    ) -> tuple[list[Widget], int]:
+        """Create widgets for an assistant message (without mounting).
+
+        Returns (widgets, updated_tool_index).
+        """
+        widgets: list[Widget] = []
         if content.text:
             msg = ChatMessage(content.text)
             msg.add_class("assistant-message")
-            self.mount(msg)
+            widgets.append(msg)
 
         for tool in content.tool_uses:
             collapse = tool_index < collapse_threshold
-            self._mount_tool_widget(tool, completed=True, collapsed=collapse)
+            widgets.append(
+                self._create_tool_widget(tool, completed=True, collapsed=collapse)
+            )
             tool_index += 1
-        return tool_index
+
+        return widgets, tool_index
+
+    def _create_tool_widget(
+        self, tool: ToolUse, completed: bool = False, collapsed: bool = False
+    ) -> Widget:
+        """Create a tool widget (without mounting)."""
+        from claude_agent_sdk import ToolUseBlock
+
+        block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
+        should_collapse = collapsed or tool.name in COLLAPSE_BY_DEFAULT
+        cwd = self._agent.cwd if self._agent else None
+
+        if tool.name == ToolName.TASK:
+            return TaskWidget(block, collapsed=should_collapse, cwd=cwd)
+        elif tool.name.startswith("mcp__chic__"):
+            return AgentToolWidget(block, cwd=cwd)
+        else:
+            return ToolUseWidget(
+                block, collapsed=should_collapse, completed=completed, cwd=cwd
+            )
 
     # -----------------------------------------------------------------------
     # Streaming API - called by ChatApp during live response
@@ -251,38 +307,8 @@ class ChatView(AutoHideScroll):
         self, text: str, images: list[ImageAttachment], is_agent: bool = False
     ) -> None:
         """Mount a user message widget with optional image attachments."""
-        msg = ChatMessage(text, is_agent=is_agent)
-        msg.add_class("agent-message" if is_agent else "user-message")
-        self.mount(msg)
-
-        for i, img in enumerate(images):
-            if img.filename.lower().startswith("screenshot"):
-                display_name = f"Screenshot #{i + 1}"
-            else:
-                display_name = img.filename
-            self.mount(ChatAttachment(img.filename, display_name))
-
-    def _mount_tool_widget(
-        self, tool: ToolUse, completed: bool = False, collapsed: bool = False
-    ) -> None:
-        """Mount a tool widget (for history rendering)."""
-        from claude_agent_sdk import ToolUseBlock
-
-        block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
-        # Collapse if explicitly requested or if tool type defaults to collapsed
-        should_collapse = collapsed or tool.name in COLLAPSE_BY_DEFAULT
-        cwd = self._agent.cwd if self._agent else None
-
-        if tool.name == ToolName.TASK:
-            widget = TaskWidget(block, collapsed=should_collapse, cwd=cwd)
-        elif tool.name.startswith("mcp__chic__"):
-            widget = AgentToolWidget(block, cwd=cwd)
-        else:
-            widget = ToolUseWidget(
-                block, collapsed=should_collapse, completed=completed, cwd=cwd
-            )
-
-        self.mount(widget)
+        for widget in self._create_user_widgets(text, images, is_agent):
+            self.mount(widget)
 
     def _hide_thinking(self) -> None:
         """Remove thinking indicator if present."""

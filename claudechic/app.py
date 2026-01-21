@@ -1353,46 +1353,51 @@ class ChatApp(App):
         if agent_id not in self.agents:
             return
         old_agent = self._agent
-        # Save current input and hide old agent's UI
-        if old_agent:
-            old_agent.pending_input = self.chat_input.text
-            old_chat_view = self._chat_views.get(old_agent.id)
-            if old_chat_view:
-                old_chat_view.add_class("hidden")
-            old_prompt = self._active_prompts.get(old_agent.id)
-            if old_prompt:
-                old_prompt.add_class("hidden")
-        # Switch active agent (setter syncs to AgentManager)
-        self.active_agent_id = agent_id
-        agent = self._agent
-        chat_view = self._chat_views.get(agent_id)
-        if chat_view:
-            chat_view.remove_class("hidden")
-        # Restore new agent's input
-        if agent:
-            self.chat_input.text = agent.pending_input
-        # Show new agent's prompt if it has one, otherwise show input
-        active_prompt = self._active_prompts.get(agent_id)
-        if active_prompt:
-            active_prompt.remove_class("hidden")
-            self.input_container.add_class("hidden")
-        else:
-            self.input_container.remove_class("hidden")
-        # Update sidebar selection
-        self.agent_sidebar.set_active(agent_id)
-        # Update footer branch for new agent's cwd (async, non-blocking)
+
+        # Batch all class changes to trigger single CSS recalculation
+        with self.batch_update():
+            # Save current input and hide old agent's UI
+            if old_agent:
+                old_agent.pending_input = self.chat_input.text
+                old_chat_view = self._chat_views.get(old_agent.id)
+                if old_chat_view:
+                    old_chat_view.add_class("hidden")
+                old_prompt = self._active_prompts.get(old_agent.id)
+                if old_prompt:
+                    old_prompt.add_class("hidden")
+            # Switch active agent (setter syncs to AgentManager)
+            self.active_agent_id = agent_id
+            agent = self._agent
+            chat_view = self._chat_views.get(agent_id)
+            if chat_view:
+                chat_view.remove_class("hidden")
+            # Restore new agent's input
+            if agent:
+                self.chat_input.text = agent.pending_input
+            # Show new agent's prompt if it has one, otherwise show input
+            active_prompt = self._active_prompts.get(agent_id)
+            if active_prompt:
+                active_prompt.remove_class("hidden")
+                self.input_container.add_class("hidden")
+            else:
+                self.input_container.remove_class("hidden")
+            # Update sidebar selection
+            self.agent_sidebar.set_active(agent_id)
+            # Update footer
+            self.status_footer.auto_edit = agent.auto_approve_edits if agent else False
+            self._update_footer_model(agent.model if agent else None)
+            # Update todo panel for new agent
+            self.todo_panel.update_todos(agent.todos if agent else [])
+            # Update context bar for new agent
+            self.refresh_context()
+            # Update plan button for new agent (use cached plan_path)
+            self.agent_sidebar.set_plan(agent.plan_path if agent else None)
+            self._position_right_sidebar()
+
+        # These happen outside batch (async/focus)
         asyncio.create_task(
             self.status_footer.refresh_branch(str(agent.cwd) if agent else None)
         )
-        self.status_footer.auto_edit = agent.auto_approve_edits if agent else False
-        self._update_footer_model(agent.model if agent else None)
-        # Update todo panel for new agent
-        self.todo_panel.update_todos(agent.todos if agent else [])
-        # Update context bar for new agent
-        self.refresh_context()
-        # Update plan button for new agent (use cached plan_path)
-        self.agent_sidebar.set_plan(agent.plan_path if agent else None)
-        self._position_right_sidebar()
         self.chat_input.focus()
 
     async def _reconnect_agent(self, agent: "Agent", session_id: str) -> None:
