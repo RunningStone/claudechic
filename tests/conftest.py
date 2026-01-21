@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 async def empty_async_gen():
     """Empty async generator for mocking receive_response."""
     return
-    yield  # Makes this an async generator
+    yield  # noqa: unreachable - makes this an async generator
 
 
 async def wait_for_workers(app):
@@ -38,13 +38,18 @@ async def submit_command(app, pilot, command: str):
 
 @pytest.fixture
 def mock_sdk():
-    """Patch SDK to not actually connect."""
+    """Patch SDK to not actually connect.
+
+    Patches both app.py and agent.py imports since agents create their own clients.
+    """
     mock_client = MagicMock()
     mock_client.connect = AsyncMock()
     mock_client.query = AsyncMock()
     mock_client.interrupt = AsyncMock()
     mock_client.get_server_info = AsyncMock(return_value={"commands": [], "models": []})
     mock_client.receive_response = lambda: empty_async_gen()
+    mock_client._transport = None  # For get_claude_pid_from_client
 
     with patch("claudechic.app.ClaudeSDKClient", return_value=mock_client):
-        yield mock_client
+        with patch("claudechic.agent.ClaudeSDKClient", return_value=mock_client):
+            yield mock_client

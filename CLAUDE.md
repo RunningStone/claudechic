@@ -247,7 +247,8 @@ Agent status indicators: ○ (idle), ● gray (busy), ● orange (needs input)
 ## Testing
 
 ```bash
-uv run pytest tests/ -v
+uv run pytest tests/ -n auto -q  # Parallel (fast, ~3s)
+uv run pytest tests/ -v          # Sequential with verbose output
 ```
 
 Tests use `app.interactions` queue to programmatically respond to permission prompts, and `app.completions` queue to wait for response completion. Real SDK required.
