@@ -406,9 +406,9 @@ class ChatApp(App):
         if agent:
             self._active_prompts[agent.id] = prompt
 
-        # Mount prompt; only show if it belongs to the currently active agent
+        # Mount prompt as sibling of input-container (after it in chat-column)
         is_active = agent is None or agent.id == self.active_agent_id
-        self.query_one("#input-container").mount(prompt)
+        self.query_one("#chat-column").mount(prompt)
         if is_active:
             self.input_container.add_class("hidden")
         else:

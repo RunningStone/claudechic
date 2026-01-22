@@ -367,6 +367,7 @@ ShellOutputWidget #shell-output {
     width: 1fr;
     max-width: 100;
     height: 1fr;
+    overflow: hidden;  /* Prevent chat-view from pushing input off screen */
 }
 
 #input-container {
@@ -504,7 +505,7 @@ AutoEditLabel:hover {
     max-width: 90;
     background: $surface;
     border-left: tall $primary;
-    padding: 0 2 1 1;
+    padding: 1 2 1 1;  /* 1 line top/bottom padding */
 }
 
 WorktreePrompt, ModelPrompt {

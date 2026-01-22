@@ -220,8 +220,8 @@ class SelectionPrompt(BasePrompt):
         self._result_value = options[0][0] if options else ""
 
     def compose(self) -> ComposeResult:
-        # Set min-height based on content: title (2 lines w/ padding) + options (1 each) + bottom padding
-        min_h = 2 + self._total_options() + 2
+        # Set min-height: 1 top margin + title + blank + options + 1 bottom margin
+        min_h = 1 + 1 + 1 + self._total_options() + 1
         self.styles.min_height = min_h
 
         yield Static(self.title, classes="prompt-title")
