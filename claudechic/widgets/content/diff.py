@@ -161,7 +161,7 @@ class DiffWidget(HorizontalScroll):
     """
 
     # Minimum width to show side-by-side (each side needs ~60 chars)
-    SIDE_BY_SIDE_MIN_WIDTH = 120
+    SIDE_BY_SIDE_MIN_WIDTH = 130
 
     def __init__(
         self,

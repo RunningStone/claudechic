@@ -12,6 +12,9 @@ from claudechic.features.diff import DiffSidebar, DiffView, get_changes
 from claudechic.features.diff.git import HunkComment
 from claudechic.features.diff.widgets import DiffFileItem
 
+# Width threshold below which sidebar is hidden
+SIDEBAR_MIN_WIDTH = 100
+
 
 class DiffScreen(Screen[list[HunkComment]]):
     """Full-screen diff viewer for reviewing uncommitted changes."""
@@ -35,6 +38,10 @@ class DiffScreen(Screen[list[HunkComment]]):
         height: 100%;
         content-align: center middle;
         color: $text-muted;
+    }
+
+    DiffScreen #diff-sidebar.hidden {
+        display: none;
     }
     """
 
@@ -110,3 +117,11 @@ class DiffScreen(Screen[list[HunkComment]]):
             self._sidebar.set_active(event.path)
         if self._view:
             self._view.scroll_to_file(event.path)
+
+    def on_resize(self) -> None:
+        """Hide sidebar when screen is narrow."""
+        if self._sidebar:
+            if self.size.width < SIDEBAR_MIN_WIDTH:
+                self._sidebar.add_class("hidden")
+            else:
+                self._sidebar.remove_class("hidden")

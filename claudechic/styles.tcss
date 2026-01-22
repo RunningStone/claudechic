@@ -621,7 +621,7 @@ DiffFileItem:hover {
 }
 
 DiffFileItem.active {
-    background: $primary-darken-2;
+    background: $primary 35%;
 }
 
 DiffView {

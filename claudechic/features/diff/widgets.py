@@ -19,12 +19,6 @@ class DiffFileItem(Static):
         padding: 0 1;
         height: 1;
     }
-    DiffFileItem:hover {
-        background: $surface-lighten-1;
-    }
-    DiffFileItem.active {
-        background: $primary-darken-2;
-    }
     """
 
     class Selected(Message):
@@ -55,7 +49,12 @@ class DiffFileItem(Static):
         color = "$primary" if self.status != "deleted" else "$error"
         # Show hunk count if > 1
         count_str = f" ({self.hunk_count})" if self.hunk_count > 1 else ""
-        yield Label(f"[{color}]{indicator}[/] {self.path}[dim]{count_str}[/]")
+        # Truncate path from front if too long (leave room for indicator + count)
+        max_path_len = 24
+        display_path = self.path
+        if len(display_path) > max_path_len:
+            display_path = "…" + display_path[-(max_path_len - 1) :]
+        yield Label(f"[{color}]{indicator}[/] {display_path}[dim]{count_str}[/]")
 
     def on_click(self) -> None:
         self.post_message(self.Clicked(self.path))
