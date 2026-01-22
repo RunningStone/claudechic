@@ -1715,13 +1715,13 @@ class ChatApp(App):
                     "chat-view"
                 )  # Add class for consistent query behavior
             else:
-                # Additional agents get new chat views
+                # Additional agents get new chat views - mount in chat-column before input
                 chat_view = ChatView(
                     id=f"chat-view-{agent.id.replace('/', '-')}",
                     classes="chat-view hidden",
                 )
-                main = self.query_one("#main", Horizontal)
-                main.mount(chat_view, after=self.query_one("#session-picker"))
+                chat_column = self.query_one("#chat-column", Vertical)
+                chat_column.mount(chat_view, before=self.input_container)
 
             # Store mapping and set agent reference on ChatView
             self._chat_views[agent.id] = chat_view
