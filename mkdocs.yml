@@ -6,6 +6,7 @@ nav:
   - Home: index.md
   - Multi-Agent: agents.md
   - Architecture: architecture.md
+  - Related Work: related.md
 
 theme:
   name: material
