@@ -133,7 +133,9 @@ class HistorySearch(Widget):
             if self._query:
                 escaped_query = escape(self._query)
                 pattern = re.compile(re.escape(escaped_query), re.IGNORECASE)
-                text = pattern.sub(lambda m: f"[bold #cc7700]{m.group()}[/]", text)
+                theme = self.app.current_theme
+                primary = theme.primary if isinstance(theme.primary, str) else "#cc7700"
+                text = pattern.sub(lambda m: f"[bold {primary}]{m.group()}[/]", text)
 
             # Show position if multiple matches
             if len(self._filtered) > 1:
