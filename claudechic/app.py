@@ -11,9 +11,13 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from textual.app import App, ComposeResult
+if TYPE_CHECKING:
+    from claudechic.screens.chat import ChatScreen
+
+from textual.app import App
+from textual.screen import Screen
 
 from claudechic.theme import CHIC_THEME
 from textual.binding import Binding
@@ -121,13 +125,7 @@ class ChatApp(App):
     BINDINGS = [
         Binding("ctrl+y", "copy_selection", "Copy", priority=True, show=False),
         Binding("ctrl+c", "quit", "Quit", priority=True, show=False),
-        Binding("ctrl+l", "clear", "Clear", show=False),
         Binding("ctrl+s", "screenshot", "Screenshot", show=False),
-        Binding(
-            "shift+tab", "cycle_permission_mode", "Auto-edit", priority=True, show=False
-        ),
-        Binding("escape", "escape", "Cancel", show=False),
-        Binding("ctrl+r", "history_search", "History", priority=True, show=False),
         # Agent switching: ctrl+1 through ctrl+9
         *[
             Binding(
@@ -447,25 +445,11 @@ class ChatApp(App):
 
         return get_autocomplete_commands()
 
-    def compose(self) -> ComposeResult:
-        yield HamburgerButton(id="hamburger-btn")
-        with Horizontal(id="main"):
-            with Vertical(id="chat-column"):
-                yield ChatView(id="chat-view")
-                with Vertical(id="input-container"):
-                    yield ImageAttachments(id="image-attachments", classes="hidden")
-                    yield HistorySearch(id="history-search")
-                    yield ChatInput(id="input")
-                    yield TextAreaAutoComplete(
-                        "#input",
-                        slash_commands=self.LOCAL_COMMANDS,  # Updated in on_mount
-                    )
-            with Vertical(id="right-sidebar", classes="hidden"):
-                yield AgentSection(id="agent-section")
-                yield PlanSection(id="plan-section", classes="hidden")
-                yield TodoPanel(id="todo-panel")
-                yield ProcessPanel(id="process-panel", classes="hidden")
-        yield StatusFooter()
+    def get_default_screen(self) -> Screen:
+        """Return the chat screen as the default."""
+        from claudechic.screens.chat import ChatScreen
+
+        return ChatScreen(slash_commands=self.LOCAL_COMMANDS)
 
     def _handle_sdk_stderr(self, message: str) -> None:
         """Handle SDK stderr output by showing in chat."""
@@ -529,20 +513,25 @@ class ChatApp(App):
         self.register_theme(CHIC_THEME)
         self.theme = get_theme() or "chic"
 
-        # Initialize AgentManager (new architecture)
+        # Initialize AgentManager (but don't create agent yet - wait for screen ready)
         self.agent_mgr = AgentManager(self._make_options)
         self._wire_agent_manager_callbacks()
 
-        # Create initial agent synchronously (UI populated immediately)
-        cwd = Path.cwd()
-        self.agent_mgr.create_unconnected(name=cwd.name, cwd=cwd)
+        # Initialize file index for fuzzy file search (doesn't need widgets)
+        self._cwd = Path.cwd()
+        self.file_index = FileIndex(root=self._cwd)
+        self._refresh_file_index()
+
+    def on_chat_screen_ready(self, event: ChatScreen.Ready) -> None:
+        """Handle chat screen ready - now safe to create agent and access widgets."""
+        if self.agent_mgr is None:
+            return
+
+        # Create initial agent (now that widgets are mounted)
+        self.agent_mgr.create_unconnected(name=self._cwd.name, cwd=self._cwd)
 
         # Populate ghost worktrees (feature branches only)
         self._populate_worktrees()
-
-        # Initialize file index for fuzzy file search
-        self.file_index = FileIndex(root=cwd)
-        self._refresh_file_index()
 
         # Focus input immediately - UI is ready
         self.chat_input.focus()

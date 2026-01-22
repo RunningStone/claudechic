@@ -46,6 +46,7 @@ claudechic/
 │       └── git.py        # Git worktree operations
 ├── processes.py       # BackgroundProcess dataclass, child process detection
 ├── screens/           # Full-page screens (navigation)
+│   ├── chat.py        # ChatScreen - main chat UI (default screen)
 │   ├── diff.py        # DiffScreen - review uncommitted changes
 │   └── session.py     # SessionScreen - session browser for /resume
 └── widgets/
@@ -125,23 +126,23 @@ tests/
 
 ```
 ChatApp
-├── Horizontal #main
-│   ├── ListView #session-picker (hidden by default)
-│   ├── ChatView (one per agent, only active visible)
-│   │   ├── ChatMessage (user/assistant)
-│   │   ├── ToolUseWidget (collapsible tool display)
-│   │   ├── TaskWidget (for Task tool - nested content)
-│   │   ├── AgentToolWidget (for MCP chic tools)
-│   │   └── ThinkingIndicator (animated spinner)
-│   └── Vertical #right-sidebar (hidden when narrow or single agent)
-│       ├── AgentSidebar (list of agents with status)
-│       └── TodoPanel (todos for active agent)
-├── Horizontal #input-wrapper
-│   └── Vertical #input-container
-│       ├── ImageAttachments (hidden by default)
-│       ├── ChatInput (or SelectionPrompt/QuestionPrompt when prompting)
-│       └── TextAreaAutoComplete (slash commands, file paths)
-└── StatusFooter (git branch, CPU/context bars)
+└── ChatScreen (default screen, owns chat-specific bindings)
+    ├── Horizontal #main
+    │   ├── Vertical #chat-column
+    │   │   ├── ChatView (one per agent, only active visible)
+    │   │   │   ├── ChatMessage (user/assistant)
+    │   │   │   ├── ToolUseWidget (collapsible tool display)
+    │   │   │   ├── TaskWidget (for Task tool - nested content)
+    │   │   │   └── ThinkingIndicator (animated spinner)
+    │   │   └── Vertical #input-container
+    │   │       ├── ImageAttachments (hidden by default)
+    │   │       ├── ChatInput (or SelectionPrompt/QuestionPrompt)
+    │   │       └── TextAreaAutoComplete
+    │   └── Vertical #right-sidebar (hidden when narrow)
+    │       ├── AgentSection
+    │       ├── TodoPanel
+    │       └── ProcessPanel
+    └── StatusFooter
 ```
 
 ### Observer Pattern
