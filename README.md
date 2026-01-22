@@ -51,3 +51,8 @@ Read more in the **[documentation](https://matthewrocklin.com/claudechic/)** abo
 -  [Related Work](https://matthewrocklin.com/claudechic/related/) - For similar and more mature projects
 
 Built on the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview)
+
+## Alpha Status
+
+This project is young and fresh.  Expect bugs.
+[Report issues](https://github.com/mrocklin/claudechic/issues/new).

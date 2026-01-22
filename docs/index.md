@@ -72,3 +72,7 @@ claudechic
 ??? question "How do you make money?"
 
     This is an open source hobby project.  We do not currently have commercial aspirations
+
+??? question "How mature is this project?"
+
+    Not at all mature!  Expect bugs.  [Report issues](https://github.com/mrocklin/claudechic/issues/new).
