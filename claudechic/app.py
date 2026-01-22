@@ -443,24 +443,12 @@ class ChatApp(App):
         except Exception:
             pass  # Footer may not be mounted yet
 
-    # Built-in slash commands (local to this app)
-    LOCAL_COMMANDS = [
-        "/clear",
-        "/resume",
-        "/worktree",
-        "/worktree finish",
-        "/worktree cleanup",
-        "/agent",
-        "/agent close",
-        "/shell",
-        "/theme",
-        "/compactish",
-        "/usage",
-        "/model",
-        "/processes",
-        "/welcome",
-        "/help",
-    ]
+    # Built-in slash commands (imported from single source of truth)
+    @property
+    def LOCAL_COMMANDS(self) -> list[str]:
+        from claudechic.commands import get_autocomplete_commands
+
+        return get_autocomplete_commands()
 
     def compose(self) -> ComposeResult:
         yield HamburgerButton(id="hamburger-btn")

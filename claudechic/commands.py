@@ -2,6 +2,9 @@
 
 This module extracts command routing from app.py. Commands receive an app
 reference and access only what they need.
+
+The COMMANDS registry is the single source of truth for all slash commands.
+It's used by autocomplete (app.py) and help (help_data.py).
 """
 
 from __future__ import annotations
@@ -14,6 +17,65 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from claudechic.app import ChatApp
+
+# Command registry: (name, description, [variants for autocomplete])
+# Variants are additional completions like "/agent close" for "/agent"
+COMMANDS: list[tuple[str, str, list[str]]] = [
+    ("/clear", "Clear chat and start new session", []),
+    ("/resume", "Resume a previous session", []),
+    (
+        "/worktree",
+        "Create git worktree with agent",
+        ["/worktree finish", "/worktree cleanup"],
+    ),
+    ("/agent", "Create or list agents", ["/agent close"]),
+    ("/shell", "Run shell command (or -i for interactive)", []),
+    ("/theme", "Search themes", []),
+    ("/compactish", "Compact session to reduce context", []),
+    ("/usage", "Show API rate limit usage", []),
+    ("/model", "Change model", []),
+    ("/processes", "Show background processes", []),
+    (
+        "/analytics",
+        "Analytics settings (opt-in/opt-out)",
+        ["/analytics opt-in", "/analytics opt-out"],
+    ),
+    ("/welcome", "Show welcome message", []),
+    ("/help", "Show help", []),
+    ("/exit", "Quit", []),
+    ("!<cmd>", "Shell command alias", []),
+]
+
+
+def get_autocomplete_commands() -> list[str]:
+    """Get flat list of commands for autocomplete (includes variants)."""
+    result = []
+    for name, _, variants in COMMANDS:
+        if not name.startswith("!"):  # Skip ! alias, not useful in autocomplete
+            result.append(name)
+            result.extend(variants)
+    return result
+
+
+def get_help_commands() -> list[tuple[str, str]]:
+    """Get (command, description) pairs for help display."""
+    # For help, show base command with [args] notation
+    result = []
+    for name, desc, _ in COMMANDS:
+        # Add [args] hints for commands that take arguments
+        display_name = name
+        if name == "/resume":
+            display_name = "/resume [id]"
+        elif name == "/agent":
+            display_name = "/agent [name] [path]"
+        elif name == "/shell":
+            display_name = "/shell <cmd>"
+        elif name == "/compactish":
+            display_name = "/compactish [-n]"
+        elif name == "/worktree":
+            display_name = "/worktree <name>"
+        result.append((display_name, desc))
+    return result
 
 
 def handle_command(app: "ChatApp", prompt: str) -> bool:

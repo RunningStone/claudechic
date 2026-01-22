@@ -9,22 +9,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from claudechic.agent import Agent
 
-# Claudechic-specific commands
-CHIC_COMMANDS = [
-    ("/clear", "Clear chat and start new session"),
-    ("/resume [id]", "Resume a previous session"),
-    ("/agent [name] [path]", "Create or list agents"),
-    ("/shell <cmd>", "Run shell command (or -i for interactive)"),
-    ("/worktree <name>", "Create git worktree with agent"),
-    ("/compactish [-n]", "Compact session to reduce context"),
-    ("/usage", "Show API rate limit usage"),
-    ("/model", "Change model"),
-    ("/theme", "Search themes"),
-    ("/welcome", "Show welcome message"),
-    ("/help", "Show this help"),
-    ("/exit", "Quit"),
-    ("!<cmd>", "Shell command alias"),
-]
+
+# Claudechic-specific commands (imported from single source of truth)
+def _get_chic_commands() -> list[tuple[str, str]]:
+    from claudechic.commands import get_help_commands
+
+    return get_help_commands()
+
 
 # Keyboard shortcuts
 SHORTCUTS = [
@@ -169,7 +160,7 @@ async def format_help(agent: "Agent | None") -> str:
     lines.append("## Claudechic Commands\n")
     lines.append("| Command | Description |")
     lines.append("|---------|-------------|")
-    for cmd, desc in CHIC_COMMANDS:
+    for cmd, desc in _get_chic_commands():
         lines.append(f"| `{cmd}` | {desc} |")
     lines.append("")
 
