@@ -77,8 +77,8 @@ class PointerMixin:
 class ClickableMixin:
     """Mixin for clickable widgets with hand cursor.
 
-    Shows pointer cursor on hover. Use CSS :hover for visual styling
-    instead of .hovered class (much more efficient).
+    Shows pointer cursor on hover. Adds 'clickable' class for CSS styling.
+    Style with `.clickable:hover` in CSS.
 
     Example:
         class MyButton(Static, ClickableMixin):
@@ -88,6 +88,11 @@ class ClickableMixin:
             def compose(self):
                 yield Child()
     """
+
+    def on_mount(self) -> None:
+        self.add_class("clickable")  # type: ignore[attr-defined]
+        if hasattr(super(), "on_mount"):
+            super().on_mount()  # type: ignore[misc]
 
     def on_enter(self) -> None:
         set_pointer("pointer")
