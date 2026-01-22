@@ -196,9 +196,9 @@ class DiffWidget(HorizontalScroll):
             pass
 
     def _use_side_by_side(self) -> bool:
-        """Determine if we should use side-by-side view based on available width."""
+        """Determine if we should use side-by-side view based on widget's actual width."""
         try:
-            return self.app.size.width >= self.SIDE_BY_SIDE_MIN_WIDTH
+            return self.size.width >= self.SIDE_BY_SIDE_MIN_WIDTH
         except Exception:
             return False
 

@@ -29,26 +29,39 @@ class HunkComment:
 
 def format_hunk_comments(comments: list[HunkComment]) -> str:
     """Format hunk comments as markdown for chat input."""
-    parts = []
+    # Group comments by file path
+    by_file: dict[str, list[HunkComment]] = {}
     for c in comments:
-        # Reconstruct unified diff from old/new lines
-        diff_lines = list(
-            difflib.unified_diff(
-                c.hunk.old_lines,
-                c.hunk.new_lines,
-                lineterm="",
-                n=3,
+        by_file.setdefault(c.path, []).append(c)
+
+    file_parts = []
+    for file_comments in by_file.values():
+        hunk_parts = []
+        for c in file_comments:
+            # Reconstruct unified diff from old/new lines
+            diff_lines = list(
+                difflib.unified_diff(
+                    c.hunk.old_lines,
+                    c.hunk.new_lines,
+                    lineterm="",
+                    n=3,
+                )
+            )[2:]  # Skip --- and +++ headers
+
+            diff_text = (
+                "\n".join(diff_lines) if diff_lines else "\n".join(c.hunk.new_lines)
             )
-        )[2:]  # Skip --- and +++ headers
+            line_range = (
+                f"L{c.hunk.new_start}-{c.hunk.new_start + c.hunk.new_count - 1}"
+            )
 
-        diff_text = "\n".join(diff_lines) if diff_lines else "\n".join(c.hunk.new_lines)
-        line_range = f"L{c.hunk.new_start}-{c.hunk.new_start + c.hunk.new_count - 1}"
+            hunk_parts.append(
+                f"## {c.path} ({line_range})\n\n```diff\n{diff_text}\n```\n\n{c.comment}"
+            )
 
-        parts.append(
-            f"## {c.path} ({line_range})\n```diff\n{diff_text}\n```\n{c.comment}"
-        )
+        file_parts.append("\n\n".join(hunk_parts))
 
-    return "\n\n".join(parts)
+    return "\n\n---\n\n".join(file_parts)
 
 
 @dataclass
