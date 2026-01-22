@@ -168,8 +168,6 @@ class ChatApp(App):
         # Event queues for testing
         self.interactions: asyncio.Queue[PermissionRequest] = asyncio.Queue()
         self.completions: asyncio.Queue[ResponseComplete] = asyncio.Queue()
-        # Permission UI serialization - only show one prompt at a time
-        self._permission_lock = asyncio.Lock()
         # File index for fuzzy file search
         self.file_index: FileIndex | None = None
         # Cached widget references (initialized lazily)
@@ -1271,11 +1269,13 @@ class ChatApp(App):
             self._hide_session_picker()
             return
 
-        # Cancel any active prompts
-        for prompt in list(self.query(SelectionPrompt)) + list(
-            self.query(QuestionPrompt)
-        ):
-            prompt.cancel()
+        # Cancel active agent's prompt only
+        if self.active_agent_id:
+            active_prompt = self._active_prompts.get(self.active_agent_id)
+        else:
+            active_prompt = None
+        if active_prompt:
+            active_prompt.cancel()
             return
 
         # Interrupt running agent - send interrupt to SDK
@@ -1421,6 +1421,7 @@ class ChatApp(App):
             active_prompt = self._active_prompts.get(agent_id)
             if active_prompt:
                 active_prompt.remove_class("hidden")
+                active_prompt.focus()
                 self.input_container.add_class("hidden")
             else:
                 self.input_container.remove_class("hidden")
@@ -1921,24 +1922,18 @@ class ChatApp(App):
         This is called by Agent when it needs user input for a permission.
         Returns a PermissionResponse with choice and optional alternative message.
 
-        Uses a lock to serialize permission prompts - only one shown at a time.
+        Each agent can have its own pending prompt. Prompts are shown/hidden
+        based on which agent is active (handled by _show_prompt and on_agent_switched).
         """
         # Put in interactions queue for testing
         await self.interactions.put(request)
 
-        # Serialize permission prompts - acquire lock before showing UI
-        async with self._permission_lock:
-            # Wait until this agent is active before showing prompt (multi-agent only)
-            if len(self.agents) > 1:
-                while agent.id != self.active_agent_id:
-                    await asyncio.sleep(0.1)
-
-            return await self._show_permission_prompt(agent, request)
+        return await self._show_permission_prompt(agent, request)
 
     async def _show_permission_prompt(
         self, agent: Agent, request: PermissionRequest
     ) -> PermissionResponse:
-        """Show the permission prompt UI (called under _permission_lock)."""
+        """Show the permission prompt UI for an agent."""
         if request.tool_name == ToolName.ASK_USER_QUESTION:
             # Handle question prompts
             questions = request.tool_input.get("questions", [])

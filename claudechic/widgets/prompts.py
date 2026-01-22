@@ -63,8 +63,9 @@ class BasePrompt(Static):
         self.focus()
 
     def on_blur(self) -> None:
-        """Refocus when focus is lost - prompt must stay focused."""
-        self.focus()
+        """Refocus when focus is lost - prompt must stay focused (unless hidden)."""
+        if not self.has_class("hidden"):
+            self.focus()
 
     def cancel(self) -> None:
         """Cancel and dismiss the prompt without a selection."""
@@ -156,6 +157,10 @@ class BasePrompt(Static):
         return False
 
     def on_key(self, event) -> None:
+        # Ignore input when hidden (agent not active)
+        if self.has_class("hidden"):
+            return
+
         # Text mode takes priority
         if self._in_text_mode:
             if self._handle_text_mode_key(event):

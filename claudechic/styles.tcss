@@ -29,6 +29,11 @@ Screen {
     layers: below above modal;
 }
 
+/* Generic hidden class for dynamic visibility */
+.hidden {
+    display: none;
+}
+
 /* Scrollbar styling - applied to scrollable containers */
 * {
     scrollbar-background: $surface;
