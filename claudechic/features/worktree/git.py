@@ -96,6 +96,16 @@ class FinishState:
     last_error: str | None = None
 
 
+def is_git_repo() -> bool:
+    """Check if the current directory is inside a git repository."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--git-dir"],
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
 def get_repo_name() -> str:
     """Get the current repository name."""
     result = subprocess.run(

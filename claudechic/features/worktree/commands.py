@@ -25,6 +25,7 @@ from claudechic.features.worktree.git import (
     get_cleanup_fix_prompt,
     get_finish_info,
     get_finish_prompt,
+    is_git_repo,
     list_worktrees,
     remove_worktree,
     start_worktree,
@@ -49,6 +50,10 @@ def handle_worktree_command(app: "ChatApp", command: str) -> None:
         app: The ChatApp instance
         command: Full command string (e.g. "/worktree finish")
     """
+    if not is_git_repo():
+        app.notify("Not in a git repository", severity="error")
+        return
+
     parts = command.split(maxsplit=2)
 
     if len(parts) == 1:
