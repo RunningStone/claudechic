@@ -167,6 +167,8 @@ class DiffWidget(HorizontalScroll):
         path: str = "",
         context_lines: int = 3,
         replace_all: bool = False,
+        old_start: int = 1,
+        new_start: int = 1,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -175,6 +177,8 @@ class DiffWidget(HorizontalScroll):
         self._path = path
         self._context_lines = context_lines
         self._replace_all = replace_all
+        self._old_start = old_start
+        self._new_start = new_start
 
     def compose(self):
         content = self._render_diff()
@@ -210,8 +214,9 @@ class DiffWidget(HorizontalScroll):
         grouped = list(sm.get_grouped_opcodes(self._context_lines))
 
         # Calculate gutter width based on max line number (for each column)
-        max_old = len(old_lines) or 1
-        max_new = len(new_lines) or 1
+        # Use starting line numbers to compute actual max line numbers
+        max_old = self._old_start + len(old_lines) - 1 if old_lines else self._old_start
+        max_new = self._new_start + len(new_lines) - 1 if new_lines else self._new_start
         gutter_width = max(len(str(max_old)), len(str(max_new)))
 
         def make_gutter(old_num: int | None, new_num: int | None) -> Content:
@@ -238,7 +243,7 @@ class DiffWidget(HorizontalScroll):
                     # Context lines - both line numbers shown
                     for di, i in enumerate(range(i1, i2)):
                         j = j1 + di
-                        gutter = make_gutter(i + 1, j + 1)
+                        gutter = make_gutter(self._old_start + i, self._new_start + j)
                         code = (
                             old_highlighted[i]
                             if i < len(old_highlighted)
@@ -255,7 +260,7 @@ class DiffWidget(HorizontalScroll):
                 elif tag == "delete":
                     # Deleted lines - old line number only
                     for i in range(i1, i2):
-                        gutter = make_gutter(i + 1, None)
+                        gutter = make_gutter(self._old_start + i, None)
                         code = (
                             old_highlighted[i]
                             if i < len(old_highlighted)
@@ -271,7 +276,7 @@ class DiffWidget(HorizontalScroll):
                 elif tag == "insert":
                     # Inserted lines - new line number only
                     for j in range(j1, j2):
-                        gutter = make_gutter(None, j + 1)
+                        gutter = make_gutter(None, self._new_start + j)
                         code = (
                             new_highlighted[j]
                             if j < len(new_highlighted)
@@ -299,7 +304,7 @@ class DiffWidget(HorizontalScroll):
                         else:
                             old_spans = []
 
-                        gutter = make_gutter(i + 1, None)
+                        gutter = make_gutter(self._old_start + i, None)
                         code = (
                             old_highlighted[i]
                             if i < len(old_highlighted)
@@ -327,7 +332,7 @@ class DiffWidget(HorizontalScroll):
                         else:
                             new_spans = []
 
-                        gutter = make_gutter(None, j + 1)
+                        gutter = make_gutter(None, self._new_start + j)
                         code = (
                             new_highlighted[j]
                             if j < len(new_highlighted)

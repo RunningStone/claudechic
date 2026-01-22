@@ -130,6 +130,9 @@ class ChatApp(App):
         ),
         Binding("escape", "escape", "Cancel", show=False),
         Binding("ctrl+r", "history_search", "History", priority=True, show=False),
+        # Diff mode navigation (priority so they work even when input has focus)
+        Binding("j", "diff_next", "Next file", priority=True, show=False),
+        Binding("k", "diff_prev", "Previous file", priority=True, show=False),
         # Agent switching: ctrl+1 through ctrl+9
         *[
             Binding(
@@ -195,6 +198,10 @@ class ChatApp(App):
         self._hamburger_btn: HamburgerButton | None = None
         # Available models from SDK (populated in _update_slash_commands)
         self._available_models: list[dict] = []
+        # Diff mode state
+        self._diff_mode = False
+        self._diff_sidebar: Any = None
+        self._diff_view: Any = None
 
     # Properties to access active agent's state
     @property
@@ -1242,6 +1249,11 @@ class ChatApp(App):
 
     def action_escape(self) -> None:
         """Handle Escape: cancel picker, dismiss prompts, close overlay, or interrupt agent."""
+        # Diff mode takes priority
+        if self._diff_mode:
+            self._exit_diff_mode()
+            return
+
         # Sidebar overlay takes priority (most likely what user wants to dismiss)
         if self._sidebar_overlay_open:
             self._close_sidebar_overlay()
@@ -1654,6 +1666,20 @@ class ChatApp(App):
             event.stop()
 
     def on_key(self, event) -> None:
+        # In diff mode, handle j/k/up/down for navigation
+        if self._diff_mode:
+            if event.key in ("j", "down"):
+                self.action_diff_next()
+                event.prevent_default()
+                event.stop()
+                return
+            elif event.key in ("k", "up"):
+                self.action_diff_prev()
+                event.prevent_default()
+                event.stop()
+                return
+            return  # Don't redirect other keys to input in diff mode
+
         if self.query(SelectionPrompt) or self.query(QuestionPrompt):
             return
         if not self._chat_input or self.focused == self._chat_input:
@@ -2007,3 +2033,91 @@ class ChatApp(App):
             desc.split("·")[0].strip() if "·" in desc else active.get("displayName", "")
         )
         self.status_footer.model = model_name
+
+    # ── Diff Mode ──────────────────────────────────────────────────────────────
+
+    def _toggle_diff_mode(self) -> None:
+        """Toggle between diff view and normal chat view."""
+        if self._diff_mode:
+            self._exit_diff_mode()
+        else:
+            self._do_enter_diff_mode()
+
+    @work(exclusive=True)
+    async def _do_enter_diff_mode(self) -> None:
+        """Enter diff mode - show git changes."""
+        from claudechic.features.diff import DiffSidebar, DiffView, get_changes
+
+        agent = self._agent
+        if not agent:
+            self.notify("No active agent", severity="error")
+            return
+
+        changes = await get_changes(str(agent.cwd))
+        if not changes:
+            self.notify("No uncommitted changes", severity="warning")
+            return
+
+        self._diff_mode = True
+
+        # Hide chat UI
+        chat_column = self.query_one("#chat-column", Vertical)
+        chat_column.add_class("hidden")
+        self.query_one("#right-sidebar", Vertical).add_class("hidden")
+
+        # Create and mount diff widgets
+        main = self.query_one("#main", Horizontal)
+        self._diff_sidebar = DiffSidebar(changes, id="diff-sidebar")
+        self._diff_view = DiffView(changes, id="diff-view")
+        main.mount(self._diff_sidebar)
+        main.mount(self._diff_view)
+
+        # Focus diff view for j/k navigation
+        self._diff_view.focus()
+
+    def _exit_diff_mode(self) -> None:
+        """Exit diff mode - return to normal chat."""
+        if not self._diff_mode:
+            return
+
+        self._diff_mode = False
+
+        # Remove diff widgets
+        if self._diff_sidebar:
+            self._diff_sidebar.remove()
+            self._diff_sidebar = None
+        if self._diff_view:
+            self._diff_view.remove()
+            self._diff_view = None
+
+        # Show chat UI
+        chat_column = self.query_one("#chat-column", Vertical)
+        chat_column.remove_class("hidden")
+        # Restore sidebar based on layout rules
+        self._position_right_sidebar()
+
+        self.chat_input.focus()
+
+    def on_diff_file_item_selected(self, event: Any) -> None:
+        """Handle programmatic file selection - just update sidebar highlight."""
+        if self._diff_sidebar and hasattr(event, "path"):
+            self._diff_sidebar.set_active(event.path)
+
+    def on_diff_file_item_clicked(self, event: Any) -> None:
+        """Handle user click on sidebar item - scroll to file."""
+        if not hasattr(event, "path"):
+            return
+        if self._diff_sidebar:
+            self._diff_sidebar.set_active(event.path)
+        if self._diff_view:
+            self._diff_view.scroll_to_file(event.path)
+
+    def action_diff_next(self) -> None:
+        """Navigate to next file in diff view (j key)."""
+        if self._diff_mode and self._diff_view:
+            self._diff_view.action_next_file()
+
+    def action_diff_prev(self) -> None:
+        """Navigate to previous file in diff view (k key)."""
+        if self._diff_mode and self._diff_view:
+            self._diff_view.action_prev_file()

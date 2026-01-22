@@ -626,3 +626,53 @@ Toast.-error {
 ToastRack {
     margin-bottom: 6;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Diff View - /diff command
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+DiffSidebar {
+    width: 30;
+    border-right: solid $panel;
+    padding: 1 0;
+}
+
+DiffSidebar .section-header {
+    padding: 0 1;
+    text-style: bold;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+DiffFileItem {
+    padding: 0 1;
+    height: 1;
+}
+
+DiffFileItem:hover {
+    background: $surface;
+}
+
+DiffFileItem.active {
+    background: $primary-darken-2;
+}
+
+DiffView {
+    padding: 1;
+}
+
+FileDiffPanel {
+    margin-bottom: 1;
+    border: solid $panel;
+    height: auto;
+}
+
+FileDiffPanel .file-header {
+    background: $surface;
+    padding: 0 1;
+    text-style: bold;
+}
+
+FileDiffPanel DiffWidget {
+    padding: 0 1;
+}

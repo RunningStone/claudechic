@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 # Variants are additional completions like "/agent close" for "/agent"
 COMMANDS: list[tuple[str, str, list[str]]] = [
     ("/clear", "Clear chat and start new session", []),
+    ("/diff", "Review uncommitted changes", []),
     ("/resume", "Resume a previous session", []),
     (
         "/worktree",
@@ -151,6 +152,10 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
 
     if cmd.startswith("/analytics"):
         return _handle_analytics(app, cmd)
+
+    if cmd == "/diff" or cmd == "/d":
+        app._toggle_diff_mode()
+        return True
 
     return False
 
