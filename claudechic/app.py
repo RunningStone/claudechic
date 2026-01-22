@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from importlib.resources import files
 import logging
 import os
 import re
@@ -503,6 +504,10 @@ class ChatApp(App):
         Note: can_use_tool is set by Agent.connect() to its own handler,
         which routes to permission_ui_callback set by AgentManager.
         """
+        # Load system prompt from bundled context file
+        context_file = files("claudechic").joinpath("context.md")
+        system_prompt = context_file.read_text()
+
         return ClaudeAgentOptions(
             permission_mode="default",
             env={"ANTHROPIC_API_KEY": ""},
@@ -510,6 +515,7 @@ class ChatApp(App):
             cwd=cwd,
             resume=resume,
             model=model,
+            system_prompt=system_prompt,
             mcp_servers={"chic": create_chic_server(caller_name=agent_name)},
             include_partial_messages=True,
             stderr=self._handle_sdk_stderr,

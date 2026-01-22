@@ -53,7 +53,7 @@ package = true
 include = ["claudechic*"]
 
 [tool.setuptools.package-data]
-claudechic = ["*.tcss"]
+claudechic = ["*.tcss", "*.md"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
