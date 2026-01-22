@@ -627,6 +627,13 @@ class Agent:
             log.info(f"Auto-approved {tool_name} (session allowed)")
             return PermissionResultAllow()
 
+        # Auto-approve git commands during worktree finish
+        if self.finish_state and tool_name == ToolName.BASH:
+            command = tool_input.get("command", "")
+            if command.startswith("git "):
+                log.info(f"Auto-approved git during finish: {command[:50]}")
+                return PermissionResultAllow()
+
         # Create permission request and queue it
         request = PermissionRequest(tool_name, tool_input)
         self.pending_prompts.append(request)
