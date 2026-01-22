@@ -168,6 +168,50 @@ def get_main_worktree() -> tuple[Path, str] | None:
     return None
 
 
+def get_parent_branch(branch: str, cwd: Path | None = None) -> str | None:
+    """Find the branch that the given branch was forked from.
+
+    Returns the branch whose tip is an ancestor of our branch and is closest
+    to our branch tip. This handles nested worktrees correctly.
+    """
+    worktrees = list_worktrees()
+    other_branches = [wt.branch for wt in worktrees if wt.branch != branch]
+
+    if not other_branches:
+        return None
+
+    # Find which branch is an ancestor and closest to our tip
+    best_branch = None
+    best_distance = float("inf")
+
+    for candidate in other_branches:
+        # Check if candidate is ancestor of our branch
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", candidate, branch],
+            cwd=cwd,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            continue  # Not an ancestor
+
+        # Count commits from candidate to our branch
+        result = subprocess.run(
+            ["git", "rev-list", "--count", f"{candidate}..{branch}"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            continue
+
+        distance = int(result.stdout.strip())
+        if distance < best_distance:
+            best_distance = distance
+            best_branch = candidate
+
+    return best_branch
+
+
 def start_worktree(feature_name: str) -> tuple[bool, str, Path | None]:
     """Create a worktree for the given feature.
 
@@ -211,6 +255,10 @@ def get_finish_info(cwd: Path | None = None) -> tuple[bool, str, FinishInfo | No
         cwd: Current working directory (SDK's cwd). If None, uses Path.cwd().
 
     Returns (success, message, FinishInfo or None).
+
+    The base_branch is determined by finding which branch this worktree was
+    forked from, allowing nested worktrees to merge back to their parent
+    rather than always going to main.
     """
     if cwd is None:
         cwd = Path.cwd()
@@ -225,15 +273,26 @@ def get_finish_info(cwd: Path | None = None) -> tuple[bool, str, FinishInfo | No
     if main_wt is None:
         return False, "Cannot find main worktree.", None
 
-    main_dir, base_branch = main_wt
+    main_dir = main_wt[0]
+
+    # Find parent branch (handles nested worktrees)
+    parent_branch = get_parent_branch(current_wt.branch, cwd=cwd)
+    if parent_branch is None:
+        # Fallback to main branch
+        parent_branch = main_wt[1]
+
+    # Find the directory for the parent branch
+    parent_wt = next((wt for wt in worktrees if wt.branch == parent_branch), None)
+    parent_dir = parent_wt.path if parent_wt else main_dir
+
     return (
         True,
         "Ready to finish worktree",
         FinishInfo(
             branch_name=current_wt.branch,
-            base_branch=base_branch,
+            base_branch=parent_branch,
             worktree_dir=current_wt.path,
-            main_dir=main_dir,
+            main_dir=parent_dir,
         ),
     )
 
