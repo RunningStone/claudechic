@@ -40,8 +40,10 @@ class SessionScreen(Screen[str | None]):
         margin-bottom: 1;
     }
 
-    SessionScreen #session-list {
+    SessionScreen #session-list,
+    SessionScreen #session-list:focus {
         height: 1fr;
+        background: transparent;
     }
 
     SessionScreen #session-list > SessionItem {
@@ -62,9 +64,6 @@ class SessionScreen(Screen[str | None]):
     }
     """
 
-    def __init__(self) -> None:
-        super().__init__()
-
     def compose(self) -> ComposeResult:
         with Vertical(id="session-container"):
             yield Static("Resume Session", id="session-title")
@@ -74,6 +73,16 @@ class SessionScreen(Screen[str | None]):
     def on_mount(self) -> None:
         self._update_list("")
         self.query_one("#session-search", Input).focus()
+
+    def on_key(self, event) -> None:
+        """Forward navigation keys to list."""
+        list_view = self.query_one("#session-list", ListView)
+        if event.key == "down":
+            list_view.action_cursor_down()
+            event.prevent_default()
+        elif event.key == "up":
+            list_view.action_cursor_up()
+            event.prevent_default()
 
     def action_go_back(self) -> None:
         """Return to chat without selecting a session."""
@@ -99,6 +108,16 @@ class SessionScreen(Screen[str | None]):
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "session-search":
             self._update_list(event.value)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Enter in search box selects first item."""
+        if event.input.id == "session-search":
+            list_view = self.query_one("#session-list", ListView)
+            if list_view.index is not None and list_view.highlighted_child:
+                item = list_view.highlighted_child
+                list_view.post_message(
+                    ListView.Selected(list_view, item, list_view.index)
+                )
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if isinstance(event.item, SessionItem):
