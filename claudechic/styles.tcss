@@ -99,7 +99,7 @@ ModelLabel:hover {
 }
 
 /* Shared block styling - all content blocks */
-ChatMessage, BaseToolWidget, ThinkingIndicator, ErrorMessage, SystemInfo {
+ChatMessage, BaseToolWidget, ThinkingIndicator, ErrorMessage, SystemInfo, #input-container {
     background: transparent;
     margin: 0 2 1 0;  /* 1 line between blocks, 2 from scrollbar */
     padding: 0 2 0 2;
@@ -261,8 +261,8 @@ ShellOutputWidget #shell-output {
 /* Chat views - both initial and dynamically created */
 #chat-view, .chat-view {
     layout: stream;
-    width: 1fr;
-    max-width: 100;
+    width: 100%;
+    height: 1fr;
     padding: 1 1;
 }
 
@@ -362,26 +362,17 @@ ShellOutputWidget #shell-output {
     color: $text;
 }
 
-/* Input wrapper for centering */
-#input-wrapper {
-    dock: bottom;
-    width: 100%;
-    height: auto;
-    align: center top;
-}
-
-/* Shift left when sidebar visible but not enough room to center */
-#input-wrapper.sidebar-shift {
-    align: left top;
-    margin-right: 28;  /* Leave room for sidebar */
+/* Chat column - contains chat view and input, fills available width */
+#chat-column {
+    width: 1fr;
+    max-width: 100;
+    height: 100%;
 }
 
 #input-container {
-    width: 100%;
-    max-width: 90;
     height: auto;
-    padding: 1 0;
-    margin: 1 0;
+    margin: 1 2 1 1;  /* Left margin matches chat-view padding */
+    padding: 1 2;  /* Vertical padding for space around cursor */
     border-left: wide $primary;
     background: $primary 10%;
 }
@@ -397,7 +388,7 @@ ShellOutputWidget #shell-output {
     max-height: 10;
     width: 100%;
     border: none;
-    padding: 0 1;
+    padding: 0 1 0 0;  /* No left padding - container provides it */
     background: transparent;
 }
 

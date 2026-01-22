@@ -408,7 +408,7 @@ class ChatApp(App):
 
         # Mount prompt; only show if it belongs to the currently active agent
         is_active = agent is None or agent.id == self.active_agent_id
-        self.query_one("#input-wrapper").mount(prompt)
+        self.query_one("#input-container").mount(prompt)
         if is_active:
             self.input_container.add_class("hidden")
         else:
@@ -466,21 +466,21 @@ class ChatApp(App):
         yield HamburgerButton(id="hamburger-btn")
         with Horizontal(id="main"):
             yield ListView(id="session-picker", classes="hidden")
-            yield ChatView(id="chat-view")
+            with Vertical(id="chat-column"):
+                yield ChatView(id="chat-view")
+                with Vertical(id="input-container"):
+                    yield ImageAttachments(id="image-attachments", classes="hidden")
+                    yield HistorySearch(id="history-search")
+                    yield ChatInput(id="input")
+                    yield TextAreaAutoComplete(
+                        "#input",
+                        slash_commands=self.LOCAL_COMMANDS,  # Updated in on_mount
+                    )
             with Vertical(id="right-sidebar", classes="hidden"):
                 yield AgentSection(id="agent-section")
                 yield PlanSection(id="plan-section", classes="hidden")
                 yield TodoPanel(id="todo-panel")
                 yield ProcessPanel(id="process-panel", classes="hidden")
-        with Horizontal(id="input-wrapper"):
-            with Vertical(id="input-container"):
-                yield ImageAttachments(id="image-attachments", classes="hidden")
-                yield HistorySearch(id="history-search")
-                yield ChatInput(id="input")
-                yield TextAreaAutoComplete(
-                    "#input",
-                    slash_commands=self.LOCAL_COMMANDS,  # Updated in on_mount
-                )
         yield StatusFooter()
 
     def _handle_sdk_stderr(self, message: str) -> None:
@@ -874,7 +874,6 @@ class ChatApp(App):
         )
         width = self.size.width
         main = self.query_one("#main", Horizontal)
-        input_wrapper = self.query_one("#input-wrapper", Horizontal)
 
         # Check if any agent needs attention (for hamburger color)
         needs_attention = any(
@@ -895,15 +894,12 @@ class ChatApp(App):
             # Wide enough to center chat while showing sidebar
             if width >= self.CENTERED_SIDEBAR_WIDTH:
                 main.remove_class("sidebar-shift")
-                input_wrapper.remove_class("sidebar-shift")
             else:
                 # Shift left to make room for sidebar
                 main.add_class("sidebar-shift")
-                input_wrapper.add_class("sidebar-shift")
         elif has_content:
             # Narrow but has content - show hamburger, sidebar as overlay when open
             main.remove_class("sidebar-shift")
-            input_wrapper.remove_class("sidebar-shift")
 
             if self._sidebar_overlay_open:
                 # Sidebar open - hide hamburger, show sidebar
@@ -930,7 +926,6 @@ class ChatApp(App):
             self.hamburger_btn.remove_class("visible")
             self._sidebar_overlay_open = False
             main.remove_class("sidebar-shift")
-            input_wrapper.remove_class("sidebar-shift")
 
     def on_response_complete(self, event: ResponseComplete) -> None:
         agent = self._get_agent(event.agent_id)
