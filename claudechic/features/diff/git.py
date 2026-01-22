@@ -1,6 +1,7 @@
 """Git diff parsing - pure functions for extracting file changes."""
 
 import asyncio
+import difflib
 import re
 from dataclasses import dataclass, field
 
@@ -15,6 +16,39 @@ class Hunk:
     new_count: int
     old_lines: list[str]  # Lines from old file (context + removed)
     new_lines: list[str]  # Lines from new file (context + added)
+
+
+@dataclass
+class HunkComment:
+    """A comment on a specific hunk."""
+
+    path: str
+    hunk: Hunk
+    comment: str
+
+
+def format_hunk_comments(comments: list[HunkComment]) -> str:
+    """Format hunk comments as markdown for chat input."""
+    parts = []
+    for c in comments:
+        # Reconstruct unified diff from old/new lines
+        diff_lines = list(
+            difflib.unified_diff(
+                c.hunk.old_lines,
+                c.hunk.new_lines,
+                lineterm="",
+                n=3,
+            )
+        )[2:]  # Skip --- and +++ headers
+
+        diff_text = "\n".join(diff_lines) if diff_lines else "\n".join(c.hunk.new_lines)
+        line_range = f"L{c.hunk.new_start}-{c.hunk.new_start + c.hunk.new_count - 1}"
+
+        parts.append(
+            f"## {c.path} ({line_range})\n```diff\n{diff_text}\n```\n{c.comment}"
+        )
+
+    return "\n\n".join(parts)
 
 
 @dataclass

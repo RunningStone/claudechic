@@ -9,10 +9,11 @@ from textual.screen import Screen
 from textual.widgets import Static
 
 from claudechic.features.diff import DiffSidebar, DiffView, get_changes
+from claudechic.features.diff.git import HunkComment
 from claudechic.features.diff.widgets import DiffFileItem
 
 
-class DiffScreen(Screen[None]):
+class DiffScreen(Screen[list[HunkComment]]):
     """Full-screen diff viewer for reviewing uncommitted changes."""
 
     BINDINGS = [
@@ -70,11 +71,16 @@ class DiffScreen(Screen[None]):
         self._view.focus()
 
     def action_go_back(self) -> None:
-        """Return to chat."""
-        self.dismiss(None)
+        """Return to chat with collected comments."""
+        comments = self._view.get_comments() if self._view else []
+        self.dismiss(comments)
 
     def on_key(self, event) -> None:
-        """Handle j/k for hunk navigation."""
+        """Handle j/k for hunk navigation and Enter for commenting."""
+        # If editing a comment, let the input handle all keys
+        if self._view and self._view.is_editing():
+            return
+
         if event.key in ("j", "down"):
             if self._view:
                 self._view.action_next_file()
@@ -83,6 +89,13 @@ class DiffScreen(Screen[None]):
         elif event.key in ("k", "up"):
             if self._view:
                 self._view.action_prev_file()
+            event.prevent_default()
+            event.stop()
+        elif event.key in ("enter", "o"):
+            if self._view:
+                hunk = self._view.get_current_hunk_widget()
+                if hunk:
+                    hunk.start_editing()
             event.prevent_default()
             event.stop()
 

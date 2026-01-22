@@ -1961,6 +1961,7 @@ class ChatApp(App):
 
     def _toggle_diff_mode(self) -> None:
         """Show diff screen for reviewing uncommitted changes."""
+        from claudechic.features.diff import HunkComment, format_hunk_comments
         from claudechic.screens import DiffScreen
 
         agent = self._agent
@@ -1968,7 +1969,9 @@ class ChatApp(App):
             self.notify("No active agent", severity="error")
             return
 
-        def on_dismiss(_: None) -> None:
+        def on_dismiss(comments: list[HunkComment] | None) -> None:
+            if comments:
+                self.chat_input.text = format_hunk_comments(comments)
             self.chat_input.focus()
 
         self.push_screen(DiffScreen(agent.cwd), on_dismiss)

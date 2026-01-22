@@ -1,13 +1,14 @@
 """Diff view widgets - sidebar, main view, and file panels."""
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
 from textual.message import Message
-from textual.widgets import Label, Static
+from textual.widgets import Label, Static, TextArea
 
 from claudechic.widgets.content.diff import DiffWidget
 
-from .git import FileChange, Hunk
+from .git import FileChange, Hunk, HunkComment
 
 
 class DiffFileItem(Static):
@@ -109,6 +110,66 @@ class DiffSidebar(Vertical):
             pass
 
 
+class CommentInput(TextArea):
+    """Multi-line input for adding comments to hunks. Enter submits, Ctrl+J for newline."""
+
+    BINDINGS = [
+        Binding("enter", "submit", "Submit", priority=True, show=False),
+        Binding("ctrl+j", "newline", "Newline", priority=True, show=False),
+        Binding("escape", "cancel", "Cancel", priority=True, show=False),
+    ]
+
+    DEFAULT_CSS = """
+    CommentInput {
+        height: auto;
+        max-height: 10;
+        min-height: 3;
+        max-width: 80;
+        margin-top: 1;
+        background: $surface;
+        border: solid $primary;
+    }
+    """
+
+    class CommentSubmitted(Message):
+        """Posted when comment is submitted (Enter pressed)."""
+
+        def __init__(self, comment: str) -> None:
+            super().__init__()
+            self.comment = comment
+
+    class CommentCancelled(Message):
+        """Posted when comment is cancelled (Escape pressed)."""
+
+    def __init__(self, value: str = "", **kwargs) -> None:
+        kwargs.setdefault("soft_wrap", True)
+        kwargs.setdefault("show_line_numbers", False)
+        super().__init__(**kwargs)
+        if value:
+            self.text = value
+
+    def action_submit(self) -> None:
+        self.post_message(self.CommentSubmitted(self.text))
+
+    def action_newline(self) -> None:
+        self.insert("\n")
+
+    def action_cancel(self) -> None:
+        self.post_message(self.CommentCancelled())
+
+
+class CommentLabel(Static):
+    """Label showing a saved comment on a hunk."""
+
+    DEFAULT_CSS = """
+    CommentLabel {
+        margin-top: 1;
+        padding: 0 1;
+        color: $warning;
+    }
+    """
+
+
 class HunkWidget(Static, can_focus=True):
     """Widget displaying a single hunk with syntax-highlighted diff."""
 
@@ -119,6 +180,9 @@ class HunkWidget(Static, can_focus=True):
         border-left: tall $panel;
         padding-left: 1;
     }
+    HunkWidget.has-comment {
+        border-left: tall $warning;
+    }
     HunkWidget:focus {
         border-left: tall $primary;
     }
@@ -128,6 +192,9 @@ class HunkWidget(Static, can_focus=True):
         super().__init__(**kwargs)
         self.hunk = hunk
         self.path = path
+        self.comment: str | None = None
+        self._input: CommentInput | None = None
+        self._label: CommentLabel | None = None
 
     def on_mouse_down(self) -> None:
         """Focus this hunk on click."""
@@ -143,6 +210,65 @@ class HunkWidget(Static, can_focus=True):
             old_start=self.hunk.old_start,
             new_start=self.hunk.new_start,
         )
+
+    @property
+    def editing(self) -> bool:
+        """Return True if comment input is active."""
+        return self._input is not None
+
+    def start_editing(self) -> None:
+        """Show comment input below the diff."""
+        if self._input is not None:
+            return
+        # Hide label while editing
+        if self._label:
+            self._label.remove()
+            self._label = None
+        self._input = CommentInput(
+            placeholder="Add comment...",
+            value=self.comment or "",
+        )
+        self.mount(self._input)
+        self._input.focus()
+
+    def stop_editing(self, save: bool = True) -> None:
+        """Hide comment input and optionally save the comment."""
+        if self._input is None:
+            return
+        if save:
+            self.comment = self._input.text.strip() or None
+            if self.comment:
+                self.add_class("has-comment")
+            else:
+                self.remove_class("has-comment")
+        self._input.remove()
+        self._input = None
+        # Show label with comment text
+        self._update_label()
+        self.focus()
+
+    def _update_label(self) -> None:
+        """Show or hide the comment label based on current comment."""
+        if self._label:
+            self._label.remove()
+            self._label = None
+        if self.comment:
+            self._label = CommentLabel(f"💬 {self.comment}")
+            self.mount(self._label)
+
+    def on_comment_input_comment_submitted(
+        self, event: CommentInput.CommentSubmitted
+    ) -> None:
+        """Handle comment submission."""
+        event.stop()
+        self.stop_editing(save=True)
+
+    def on_comment_input_comment_cancelled(
+        self, event: CommentInput.CommentCancelled
+    ) -> None:
+        """Handle comment cancellation."""
+        event.stop()
+        self.stop_editing(save=False)
 
 
 class FileDiffPanel(Vertical):
@@ -262,6 +388,41 @@ class DiffView(VerticalScroll):
         else:
             # Binary file with no hunks
             self.post_message(DiffFileItem.Selected(path))
+
+    def get_current_hunk_widget(self) -> HunkWidget | None:
+        """Get the currently focused hunk widget."""
+        if not self._hunk_list:
+            return None
+        file_idx, hunk_idx = self._hunk_list[self._current_idx]
+        if hunk_idx < 0:
+            return None
+        path = self.changes[file_idx].path
+        hunk_id = f"hunk-{_sanitize_id(path)}-{hunk_idx}"
+        try:
+            return self.query_one(f"#{hunk_id}", HunkWidget)
+        except Exception:
+            return None
+
+    def get_comments(self) -> list[HunkComment]:
+        """Collect all non-empty comments from hunks."""
+        comments = []
+        for hunk_widget in self.query(HunkWidget):
+            if hunk_widget.comment:
+                comments.append(
+                    HunkComment(
+                        path=hunk_widget.path,
+                        hunk=hunk_widget.hunk,
+                        comment=hunk_widget.comment,
+                    )
+                )
+        return comments
+
+    def is_editing(self) -> bool:
+        """Return True if any hunk is in editing mode."""
+        for hunk_widget in self.query(HunkWidget):
+            if hunk_widget.editing:
+                return True
+        return False
 
 
 def _sanitize_id(path: str) -> str:
