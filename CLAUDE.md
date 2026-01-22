@@ -12,16 +12,6 @@ uv run claudechic -s <uuid>    # Resume specific session
 
 Requires Claude Code to be logged in with a Max/Pro subscription (`claude /login`).
 
-## Remote Testing
-
-For live testing by AI agents, run with remote control enabled:
-
-```bash
-./scripts/claudechic-remote 9999
-```
-
-This starts an HTTP server on port 9999 with endpoints for sending messages, taking screenshots, and checking state. See [.ai-docs/remote-testing.md](.ai-docs/remote-testing.md) for full API documentation.
-
 ## File Map
 
 ```
@@ -251,7 +241,17 @@ uv run pytest tests/ -n auto -q  # Parallel (fast, ~3s)
 uv run pytest tests/ -v          # Sequential with verbose output
 ```
 
-Tests use `app.interactions` queue to programmatically respond to permission prompts, and `app.completions` queue to wait for response completion. Real SDK required.
+Use parallel testing by default.
+
+## Remote Testing
+
+For live testing by AI agents, run with remote control enabled:
+
+```bash
+./scripts/claudechic-remote 9999
+```
+
+This starts an HTTP server on port 9999 with endpoints for sending messages, taking screenshots, and checking state. See [.ai-docs/remote-testing.md](.ai-docs/remote-testing.md) for full API documentation.
 
 ## Pre-commit Hooks
 
