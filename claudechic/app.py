@@ -156,6 +156,7 @@ class ChatApp(App):
         remote_port: int = 0,
     ) -> None:
         super().__init__()
+        self.scroll_sensitivity_y = 1.0  # Smoother scrolling (default is 2.0)
         # AgentManager is the single source of truth for agents
         self.agent_mgr: AgentManager | None = None
 
