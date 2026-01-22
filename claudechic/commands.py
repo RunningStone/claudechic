@@ -258,10 +258,9 @@ def _wait_for_keypress() -> None:
 
 
 def _handle_bang(app: "ChatApp", command: str) -> bool:
-    """Alias for /shell <command>."""
+    """Alias for /shell <command>. Empty command opens interactive shell."""
     if not command:
-        app.notify("Usage: !<command>")
-        return True
+        return _handle_shell(app, "/shell")
     return _handle_shell(app, f"/shell {command}")
 
 
