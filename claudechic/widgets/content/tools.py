@@ -28,6 +28,7 @@ from claudechic.widgets.content.diff import DiffWidget
 from claudechic.widgets.content.message import ChatMessage
 from claudechic.widgets.primitives.spinner import Spinner
 from claudechic.widgets.base.copyable import CopyButton, CopyableMixin
+from claudechic.widgets.base.tool_base import BaseToolWidget
 
 log = logging.getLogger(__name__)
 
@@ -78,10 +79,8 @@ class EditPlanRequested(Message):
         self.plan_path = plan_path
 
 
-class ToolUseWidget(Static, CopyableMixin):
+class ToolUseWidget(BaseToolWidget, CopyableMixin):
     """A collapsible widget showing a tool use."""
-
-    can_focus = False
 
     def __init__(
         self,
@@ -130,13 +129,6 @@ class ToolUseWidget(Static, CopyableMixin):
             self.query_one(Spinner).remove()
         except Exception:
             pass
-
-    def collapse(self) -> None:
-        """Collapse this widget."""
-        try:
-            self.query_one(QuietCollapsible).collapsed = True
-        except Exception:
-            pass  # Widget may not be mounted
 
     def get_copyable_content(self) -> str:
         """Get content suitable for copying."""
@@ -281,10 +273,9 @@ class ToolUseWidget(Static, CopyableMixin):
             pass  # Widget may not be fully mounted
 
 
-class TaskWidget(Static):
+class TaskWidget(BaseToolWidget):
     """A collapsible widget showing a Task with nested subagent content."""
 
-    can_focus = False
     RECENT_EXPANDED = 2  # Keep last N tool uses expanded within task
 
     def __init__(
@@ -305,13 +296,6 @@ class TaskWidget(Static):
         title = f"Task: {desc}" + (f" ({agent_type})" if agent_type else "")
         with QuietCollapsible(title=title, collapsed=self._initial_collapsed):
             yield Static("", id="task-content")
-
-    def collapse(self) -> None:
-        """Collapse this widget."""
-        try:
-            self.query_one(QuietCollapsible).collapsed = True
-        except Exception:
-            pass  # Widget may not be mounted
 
     def stop_spinner(self) -> None:
         """No-op for TaskWidget (no spinner to stop)."""
@@ -468,34 +452,8 @@ class AgentListWidget(Static):
             yield Static(f"{indicator} {padded}  {path}")
 
 
-class AgentToolWidget(Static):
+class AgentToolWidget(BaseToolWidget):
     """Widget for displaying chic agent MCP tool calls (spawn_agent, ask_agent, etc.)."""
-
-    DEFAULT_CSS = """
-    AgentToolWidget {
-        border-left: solid $panel;
-        padding: 0 1;
-        margin: 1 0;
-    }
-    AgentToolWidget .agent-header {
-        text-style: bold;
-    }
-    AgentToolWidget .agent-prompt {
-        color: $text-muted;
-        margin-left: 2;
-    }
-    AgentToolWidget .go-btn {
-        margin-left: 2;
-        min-width: 14;
-    }
-    AgentToolWidget .result-text {
-        margin-top: 1;
-        color: $text-muted;
-    }
-    AgentToolWidget Spinner {
-        margin-left: 2;
-    }
-    """
 
     class GoToAgent(Message):
         """Message posted when user clicks 'Go to agent' button."""
@@ -511,48 +469,64 @@ class AgentToolWidget(Static):
         self._agent_name = block.input.get("name", "?")
         self._cwd = cwd
 
+    def _make_title(self, verb: str, text: str = "") -> str:
+        """Create collapsible title with optional truncated text preview."""
+        if not text:
+            return f"{verb} {self._agent_name}"
+        preview = text[:60] + "..." if len(text) > 60 else text
+        return f"{verb} {self._agent_name}: {preview}"
+
     def compose(self) -> ComposeResult:
         tool_short = self.block.name.replace("mcp__chic__", "")
+        prompt = self.block.input.get("prompt", "") or self.block.input.get(
+            "message", ""
+        )
 
         if tool_short == "spawn_agent":
-            yield Static(f"Spawning agent: {self._agent_name}", classes="agent-header")
-            if prompt := self.block.input.get("prompt"):
-                preview = prompt[:80] + "..." if len(prompt) > 80 else prompt
-                yield Static(f'"{preview}"', classes="agent-prompt")
-            yield Button(f"Go to {self._agent_name}", classes="go-btn")
+            with QuietCollapsible(
+                title=self._make_title("Spawn", prompt), collapsed=True
+            ):
+                if prompt:
+                    yield Markdown(prompt)
+                yield Button(f"Go to {self._agent_name}", classes="go-btn")
 
         elif tool_short == "spawn_worktree":
-            yield Static(
-                f"Creating worktree: {self._agent_name}", classes="agent-header"
-            )
-            if prompt := self.block.input.get("prompt"):
-                preview = prompt[:80] + "..." if len(prompt) > 80 else prompt
-                yield Static(f'"{preview}"', classes="agent-prompt")
-            yield Button(f"Go to {self._agent_name}", classes="go-btn")
+            with QuietCollapsible(
+                title=self._make_title("Worktree", prompt), collapsed=True
+            ):
+                if prompt:
+                    yield Markdown(prompt)
+                yield Button(f"Go to {self._agent_name}", classes="go-btn")
 
         elif tool_short == "ask_agent":
-            yield Static(f"Asking agent: {self._agent_name}", classes="agent-header")
-            if prompt := self.block.input.get("prompt"):
-                preview = prompt[:80] + "..." if len(prompt) > 80 else prompt
-                yield Static(f'"{preview}"', classes="agent-prompt")
             yield Spinner()
-            yield Button(f"Go to {self._agent_name}", classes="go-btn")
+            with QuietCollapsible(
+                title=self._make_title("Ask", prompt), collapsed=True
+            ):
+                yield Markdown(prompt)
+                yield Button(f"Go to {self._agent_name}", classes="go-btn")
+
+        elif tool_short == "tell_agent":
+            with QuietCollapsible(
+                title=self._make_title("Tell", prompt), collapsed=True
+            ):
+                yield Markdown(prompt)
+                yield Button(f"Go to {self._agent_name}", classes="go-btn")
 
         elif tool_short == "list_agents":
-            yield Static("Listing agents", classes="agent-header")
+            with QuietCollapsible(title="List agents", collapsed=True):
+                yield Static("")  # Placeholder, result will be mounted
 
         else:
-            # Fallback for unknown chic tools
-            yield Static(f"{tool_short}: {self._agent_name}", classes="agent-header")
+            with QuietCollapsible(
+                title=f"{tool_short}: {self._agent_name}", collapsed=True
+            ):
+                yield Static(json.dumps(self.block.input, indent=2))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if "go-btn" in event.button.classes:
             event.stop()
             self.post_message(self.GoToAgent(self._agent_name))
-
-    def collapse(self) -> None:
-        """No-op for compatibility with ToolUseWidget interface."""
-        pass
 
     def set_result(self, result: ToolResultBlock) -> None:
         """Update with tool result."""

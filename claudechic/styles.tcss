@@ -99,10 +99,21 @@ ModelLabel:hover {
 }
 
 /* Shared block styling - all content blocks */
-ChatMessage, ToolUseWidget, ThinkingIndicator, ErrorMessage, SystemInfo {
+ChatMessage, BaseToolWidget, ThinkingIndicator, ErrorMessage, SystemInfo {
     background: transparent;
     margin: 0 2 1 0;  /* 1 line between blocks, 2 from scrollbar */
     padding: 0 2 0 2;
+}
+
+/* Base tool widget styling - inherited by ToolUseWidget, TaskWidget, AgentToolWidget */
+BaseToolWidget {
+    border-left: wide $panel;
+    margin: 0;
+}
+
+BaseToolWidget:hover {
+    border-left: wide $panel-lighten-2;
+    background: $surface;
 }
 
 /* Error messages - red, like user messages but indicating problems */
@@ -166,17 +177,6 @@ ChatMessage.system-message {
     background: $surface;
 }
 
-/* Tool uses - subtle, highlight on hover */
-ToolUseWidget {
-    border-left: wide $panel;
-    margin: 0;
-}
-
-ToolUseWidget:hover {
-    border-left: wide $panel-lighten-2;
-    background: $surface;
-}
-
 /* Skill header (when no collapsible needed) */
 ToolUseWidget .skill-header {
     color: $text-muted;
@@ -186,7 +186,6 @@ ToolUseWidget .skill-header {
 /* Task widgets - slightly more prominent */
 TaskWidget {
     border-left: wide $accent;
-    margin: 0;
 }
 
 /* Nested content inside tasks is indented */
