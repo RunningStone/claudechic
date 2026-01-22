@@ -128,9 +128,6 @@ class ChatApp(App):
         ),
         Binding("escape", "escape", "Cancel", show=False),
         Binding("ctrl+r", "history_search", "History", priority=True, show=False),
-        # Diff mode navigation (priority so they work even when input has focus)
-        Binding("j", "diff_next", "Next file", priority=True, show=False),
-        Binding("k", "diff_prev", "Previous file", priority=True, show=False),
         # Agent switching: ctrl+1 through ctrl+9
         *[
             Binding(
