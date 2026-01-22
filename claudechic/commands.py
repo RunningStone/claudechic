@@ -291,6 +291,11 @@ Claude Chic is open source and written in Python with Textual.  It's easy to ext
 
 **Example:** Use simple quality of life features like shell support with `!ls`. or `!git diff`.
 
+For more information, read
+[the docs](https://matthewrocklin.com/claudechic),
+[GitHub](https://github.com/mrocklin/claudechic),
+or this [introductory video](https://www.youtube.com/watch?v=2HcORToX5sU).
+
 Enjoy!
 
 ---
