@@ -231,7 +231,8 @@ class Agent:
 
         if self.client:
             try:
-                await self.client.interrupt()
+                # disconnect() terminates gracefully and waits for session flush
+                await self.client.disconnect()
             except Exception:
                 pass
             self.client = None
