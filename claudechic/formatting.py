@@ -210,26 +210,24 @@ def _render_word_diff(old_line: str, new_line: str, result: Text) -> None:
     new_tokens = _tokenize(new_line)
     sm = difflib.SequenceMatcher(None, old_tokens, new_tokens)
 
-    # Build old line with subtle red background
-    result.append("- ", style="red on #2d0000")
+    # Build old line - use color only, no background
+    result.append("- ", style="red")
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         chunk = "".join(old_tokens[i1:i2])
         if tag == "equal":
-            result.append(chunk, style="on #2d0000")
+            result.append(chunk, style="red dim")
         elif tag in ("delete", "replace"):
-            # Brighter background for changed words instead of bold/underline
-            result.append(chunk, style="on #552222")
+            result.append(chunk, style="red bold")
     result.append("\n")
 
-    # Build new line with subtle green background
-    result.append("+ ", style="green on #002d00")
+    # Build new line - use color only, no background
+    result.append("+ ", style="green")
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         chunk = "".join(new_tokens[j1:j2])
         if tag == "equal":
-            result.append(chunk, style="on #002d00")
+            result.append(chunk, style="green dim")
         elif tag in ("insert", "replace"):
-            # Brighter background for changed words instead of bold/underline
-            result.append(chunk, style="on #225522")
+            result.append(chunk, style="green bold")
     result.append("\n")
 
 
@@ -248,19 +246,19 @@ def format_diff_text(old: str, new: str, max_len: int = 300) -> Text:
                 result.append(f"  {line}\n", style="dim")
         elif tag == "delete":
             for line in old_lines[i1:i2]:
-                result.append(f"- {line}\n", style="red on #2d0000")
+                result.append(f"- {line}\n", style="red")
         elif tag == "insert":
             for line in new_lines[j1:j2]:
-                result.append(f"+ {line}\n", style="green on #002d00")
+                result.append(f"+ {line}\n", style="green")
         elif tag == "replace":
             # For replaced lines, highlight word-level changes
             for old_line, new_line in zip(old_lines[i1:i2], new_lines[j1:j2]):
                 _render_word_diff(old_line, new_line, result)
             # Handle unequal line counts
             for line in old_lines[i1 + len(new_lines[j1:j2]) : i2]:
-                result.append(f"- {line}\n", style="red on #2d0000")
+                result.append(f"- {line}\n", style="red")
             for line in new_lines[j1 + len(old_lines[i1:i2]) : j2]:
-                result.append(f"+ {line}\n", style="green on #002d00")
+                result.append(f"+ {line}\n", style="green")
     return result
 
 

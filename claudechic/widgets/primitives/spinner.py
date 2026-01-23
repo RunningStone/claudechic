@@ -47,11 +47,18 @@ class Spinner(Static):
     @staticmethod
     @profile
     def _tick_all() -> None:
-        """Advance frame and refresh all spinners.
+        """Advance frame and refresh visible spinners only.
 
-        Note: We don't check visibility - refresh() on hidden widgets is cheap,
-        and the DOM-walking visibility check was more expensive than the savings.
+        We check display property and hidden class on immediate parent (O(1))
+        rather than walking the full DOM tree. Spinners in hidden ChatViews
+        are skipped to avoid triggering expensive layout work.
         """
         Spinner._frame = (Spinner._frame + 1) % len(Spinner.FRAMES)
         for spinner in list(Spinner._instances):
+            parent = spinner.parent
+            # Skip spinners or parents hidden via display property or hidden class
+            if not spinner.display or spinner.has_class("hidden"):
+                continue
+            if parent and (not parent.display or parent.has_class("hidden")):
+                continue
             spinner.refresh(layout=False)

@@ -14,12 +14,19 @@ from textual.widgets import Static
 from claudechic.formatting import get_lang_from_path
 
 
-# Colors - line backgrounds
-REMOVED_BG = "#301010"
-ADDED_BG = "#103010"
-# Word-level change highlights
-REMOVED_WORD_STYLE = "underline on #501818"
-ADDED_WORD_STYLE = "underline on #185018"
+# Theme-aware diff styles - dark and light variants (inspired by GitHub)
+DARK_THEME_STYLES = {
+    "removed_bg": "on #3d2020",  # Subtle dark red background
+    "added_bg": "on #203d20",  # Subtle dark green background
+    "removed_word": "underline on #5c3030",  # Brighter red for changed words
+    "added_word": "underline on #305c30",  # Brighter green for changed words
+}
+LIGHT_THEME_STYLES = {
+    "removed_bg": "on #ffeeee",  # Subtle light red background
+    "added_bg": "on #eeffee",  # Subtle light green background
+    "removed_word": "underline on #ffcccc",  # Brighter red for changed words
+    "added_word": "underline on #ccffcc",  # Brighter green for changed words
+}
 
 
 @lru_cache(maxsize=64)
@@ -189,6 +196,14 @@ class DiffWidget(HorizontalScroll):
 
     def on_resize(self) -> None:
         """Re-render diff when width changes (switch between unified/side-by-side)."""
+        self._refresh_content()
+
+    def _on_app_theme_changed(self) -> None:
+        """Re-render diff when theme changes."""
+        self._refresh_content()
+
+    def _refresh_content(self) -> None:
+        """Update the diff content widget."""
         try:
             content_widget = self.query_one(DiffContent)
             content_widget.update(self._render_diff())
@@ -202,16 +217,24 @@ class DiffWidget(HorizontalScroll):
         except Exception:
             return False
 
+    def _get_styles(self) -> dict[str, str]:
+        """Get theme-aware diff styles. Returns theme-aware colors."""
+        try:
+            is_dark = self.app.current_theme.dark
+        except Exception:
+            is_dark = True  # Default to dark theme
+        return DARK_THEME_STYLES if is_dark else LIGHT_THEME_STYLES
+
     def _render_diff(self) -> Content:
         """Build the complete diff display."""
         # For replace_all edits, show simple pattern replacement
         if self._replace_all:
             return Content.assemble(
-                Content.styled("- ", f"red on {REMOVED_BG}"),
-                Content.styled(self._old, f"underline on {REMOVED_BG}"),
+                Content.styled("- ", "red"),
+                Content.styled(self._old, "red underline"),
                 Content.styled("\n", ""),
-                Content.styled("+ ", f"green on {ADDED_BG}"),
-                Content.styled(self._new, f"underline on {ADDED_BG}"),
+                Content.styled("+ ", "green"),
+                Content.styled(self._new, "green underline"),
                 Content.styled("\n(all occurrences)", "dim"),
             )
 
@@ -265,6 +288,13 @@ class DiffWidget(HorizontalScroll):
             gutter_width,
         ) = prep
 
+        # Get theme-aware styles
+        styles = self._get_styles()
+        removed_bg = styles["removed_bg"]
+        added_bg = styles["added_bg"]
+        removed_word = styles["removed_word"]
+        added_word = styles["added_word"]
+
         def make_gutter(old_num: int | None, new_num: int | None) -> Content:
             old_str = (
                 str(old_num).rjust(gutter_width) if old_num else " " * gutter_width
@@ -273,6 +303,20 @@ class DiffWidget(HorizontalScroll):
                 str(new_num).rjust(gutter_width) if new_num else " " * gutter_width
             )
             return Content.styled(f"{old_str} {new_str} ", "#666666")
+
+        # Get minimum line width to fill background
+        try:
+            min_width = max(self.size.width - 2, 80)  # -2 for scrollbar
+        except Exception:
+            min_width = 120
+
+        def pad_line(content: Content, width: int) -> Content:
+            """Pad content with spaces to fill width."""
+            current_len = len(content)
+            if current_len >= width:
+                return content
+            padding = " " * (width - current_len)
+            return Content.assemble(content, Content(padding))
 
         parts: list[Content] = []
 
@@ -308,10 +352,14 @@ class DiffWidget(HorizontalScroll):
                             if i < len(old_highlighted)
                             else Content("")
                         )
-                        styled_code = _build_line_content(code, f"on {REMOVED_BG}")
-                        indicator = Content.styled("- ", f"red on {REMOVED_BG}")
+                        styled_code = _build_line_content(code, removed_bg)
+                        indicator = Content.styled("- ", "red")
+                        line_content = Content.assemble(gutter, indicator, styled_code)
+                        # Pad and apply background to entire line
+                        line_content = pad_line(line_content, min_width)
                         line = Content.assemble(
-                            gutter, indicator, styled_code, Content("\n")
+                            line_content.stylize(removed_bg, 0, len(line_content)),
+                            Content("\n"),
                         )
                         parts.append(line)
 
@@ -323,10 +371,14 @@ class DiffWidget(HorizontalScroll):
                             if j < len(new_highlighted)
                             else Content("")
                         )
-                        styled_code = _build_line_content(code, f"on {ADDED_BG}")
-                        indicator = Content.styled("+ ", f"green on {ADDED_BG}")
+                        styled_code = _build_line_content(code, added_bg)
+                        indicator = Content.styled("+ ", "green")
+                        line_content = Content.assemble(gutter, indicator, styled_code)
+                        # Pad and apply background to entire line
+                        line_content = pad_line(line_content, min_width)
                         line = Content.assemble(
-                            gutter, indicator, styled_code, Content("\n")
+                            line_content.stylize(added_bg, 0, len(line_content)),
+                            Content("\n"),
                         )
                         parts.append(line)
 
@@ -349,11 +401,15 @@ class DiffWidget(HorizontalScroll):
                             else Content("")
                         )
                         styled_code = _build_line_content(
-                            code, f"on {REMOVED_BG}", old_spans, REMOVED_WORD_STYLE
+                            code, removed_bg, old_spans, removed_word
                         )
-                        indicator = Content.styled("- ", f"red on {REMOVED_BG}")
+                        indicator = Content.styled("- ", "red")
+                        line_content = Content.assemble(gutter, indicator, styled_code)
+                        # Pad and apply background to entire line
+                        line_content = pad_line(line_content, min_width)
                         line = Content.assemble(
-                            gutter, indicator, styled_code, Content("\n")
+                            line_content.stylize(removed_bg, 0, len(line_content)),
+                            Content("\n"),
                         )
                         parts.append(line)
 
@@ -375,11 +431,15 @@ class DiffWidget(HorizontalScroll):
                             else Content("")
                         )
                         styled_code = _build_line_content(
-                            code, f"on {ADDED_BG}", new_spans, ADDED_WORD_STYLE
+                            code, added_bg, new_spans, added_word
                         )
-                        indicator = Content.styled("+ ", f"green on {ADDED_BG}")
+                        indicator = Content.styled("+ ", "green")
+                        line_content = Content.assemble(gutter, indicator, styled_code)
+                        # Pad and apply background to entire line
+                        line_content = pad_line(line_content, min_width)
                         line = Content.assemble(
-                            gutter, indicator, styled_code, Content("\n")
+                            line_content.stylize(added_bg, 0, len(line_content)),
+                            Content("\n"),
                         )
                         parts.append(line)
 
@@ -402,6 +462,13 @@ class DiffWidget(HorizontalScroll):
             gutter_width,
         ) = prep
         gutter_width = max(gutter_width, 3)  # Minimum width for side-by-side
+
+        # Get theme-aware styles
+        styles = self._get_styles()
+        removed_bg = styles["removed_bg"]
+        added_bg = styles["added_bg"]
+        removed_word = styles["removed_word"]
+        added_word = styles["added_word"]
 
         # Calculate column width - split available width between sides
         try:
@@ -491,9 +558,7 @@ class DiffWidget(HorizontalScroll):
                             if i < len(old_highlighted)
                             else Content("")
                         )
-                        left = make_left_col(
-                            self._old_start + i, old_code, f"on {REMOVED_BG}"
-                        )
+                        left = make_left_col(self._old_start + i, old_code, removed_bg)
                         right = make_right_col(None, Content(""))
                         line = Content.assemble(left, separator, right, Content("\n"))
                         parts.append(line)
@@ -508,9 +573,7 @@ class DiffWidget(HorizontalScroll):
                         )
                         left = make_left_col(None, Content(""))
                         left = pad_or_truncate(left, col_width)
-                        right = make_right_col(
-                            self._new_start + j, new_code, f"on {ADDED_BG}"
-                        )
+                        right = make_right_col(self._new_start + j, new_code, added_bg)
                         line = Content.assemble(left, separator, right, Content("\n"))
                         parts.append(line)
 
@@ -539,9 +602,9 @@ class DiffWidget(HorizontalScroll):
                                 old_spans = []
                             styled_old = _build_line_content(
                                 old_code,
-                                f"on {REMOVED_BG}",
+                                removed_bg,
                                 old_spans,
-                                REMOVED_WORD_STYLE,
+                                removed_word,
                             )
                             left = make_left_col(self._old_start + i, styled_old)
                         else:
@@ -567,9 +630,9 @@ class DiffWidget(HorizontalScroll):
                                 new_spans = []
                             styled_new = _build_line_content(
                                 new_code,
-                                f"on {ADDED_BG}",
+                                added_bg,
                                 new_spans,
-                                ADDED_WORD_STYLE,
+                                added_word,
                             )
                             right = make_right_col(self._new_start + j, styled_new)
                         else:

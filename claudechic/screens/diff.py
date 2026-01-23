@@ -60,7 +60,8 @@ class DiffScreen(Screen[list[HunkComment]]):
         changes = await get_changes(str(self._cwd))
 
         # Remove placeholder
-        self.query_one("#diff-empty").remove()
+        placeholder = self.query_one("#diff-empty")
+        await placeholder.remove()
 
         if not changes:
             self.mount(Static("No uncommitted changes", id="diff-empty"))

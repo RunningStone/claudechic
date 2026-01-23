@@ -54,8 +54,8 @@ claudechic/
     ├── prompts.py     # All prompt widgets (Selection, Question, Model, Worktree)
     ├── base/          # Mixins, protocols, and base classes
     │   ├── cursor.py  # PointerMixin, ClickableMixin
-    │   ├── copyable.py # CopyableMixin, CopyButton
     │   ├── clickable.py # ClickableLabel base class
+    │   ├── tool_base.py # ToolWidgetBase class
     │   └── tool_protocol.py # ToolWidget protocol
     ├── primitives/    # Low-level building blocks
     │   ├── button.py  # Button with click handling
