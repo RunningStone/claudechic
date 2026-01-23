@@ -236,6 +236,36 @@ class Agent:
             except Exception:
                 pass
             self.client = None
+        self._claude_pid = None
+
+        # IMPORTANT: This cleanup is critical - do not remove!
+        # See .ai-docs/anyio-cancel-scope-bug.md for full explanation.
+        # Yields to event loop so task_done callbacks can clean up cancel scopes,
+        # then forces cleanup of any remaining stale scopes.
+        # Without this, cancelled anyio CancelScopes retain done tasks,
+        # causing _deliver_cancellation to spin at ~56k calls/sec (25% CPU).
+        await asyncio.sleep(0)
+        self._cleanup_stale_cancel_scopes()
+
+    def _cleanup_stale_cancel_scopes(self) -> None:
+        """Remove done tasks from cancelled anyio CancelScopes.
+
+        Works around a bug where cancelled scopes keep retrying _deliver_cancellation
+        for tasks that are already done, causing 25% CPU spin.
+        """
+        import gc
+
+        try:
+            from anyio._backends._asyncio import CancelScope
+
+            for obj in gc.get_objects():
+                if isinstance(obj, CancelScope) and obj._cancel_called:
+                    if hasattr(obj, "_tasks"):
+                        done = [t for t in obj._tasks if t.done()]
+                        for t in done:
+                            obj._tasks.discard(t)
+        except Exception:
+            pass  # Best effort cleanup
 
     async def load_history(self, cwd: Path | None = None) -> None:
         """Load message history from session file into self.messages.

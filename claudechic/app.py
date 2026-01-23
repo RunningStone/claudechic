@@ -1571,7 +1571,7 @@ class ChatApp(App):
         # Remove chat view before closing (AgentManager.close removes from agents dict)
         chat_view = self._chat_views.pop(agent_id, None)
         if chat_view:
-            chat_view.remove()
+            await chat_view.remove()
         self._active_prompts.pop(agent_id, None)
 
         # Close via AgentManager (handles disconnect, removes from agents dict,

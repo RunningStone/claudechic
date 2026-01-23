@@ -295,7 +295,9 @@ class ChatView(AutoHideScroll):
 
     def clear(self) -> None:
         """Clear all content from the view."""
-        self.remove_children()
+        # Await removal in background to ensure task cleanup
+        await_remove = self.remove_children()
+        self.app.run_worker(await_remove, exclusive=False)
         self._current_response = None
         self._pending_tool_widgets.clear()
         self._active_task_widgets.clear()
