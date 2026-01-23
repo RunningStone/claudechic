@@ -115,8 +115,13 @@ class ToolUseWidget(BaseToolWidget):
                 tool_input = format_tool_input(
                     self.block.name, self.block.input, self._cwd
                 )
-                yield Static(tool_input, id="tool-input")
-                yield Static("─" * 40, id="tool-separator")
+                # Bash uses "$ command" format with blank line separator
+                if self.block.name == ToolName.BASH:
+                    yield Static(f"$ {tool_input}", id="tool-input")
+                    yield Static("", id="tool-separator")
+                else:
+                    yield Static(tool_input, id="tool-input")
+                    yield Static("─" * 40, id="tool-separator")
                 yield Static("", id="tool-output")
 
     def stop_spinner(self) -> None:
