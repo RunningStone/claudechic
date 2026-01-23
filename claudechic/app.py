@@ -1159,7 +1159,9 @@ class ChatApp(App):
                 self.resume_session(session_id)
             self.chat_input.focus()
 
-        self.push_screen(SessionScreen(), on_dismiss)
+        # Use current agent's cwd so sessions are filtered by the agent's project
+        cwd = self._agent.cwd if self._agent else None
+        self.push_screen(SessionScreen(cwd=cwd), on_dismiss)
 
     @work(group="reconnect", exclusive=True, exit_on_error=False)
     async def _reconnect_sdk(self, new_cwd: Path) -> None:

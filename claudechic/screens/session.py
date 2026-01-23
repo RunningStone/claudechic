@@ -1,5 +1,7 @@
 """Session browser screen."""
 
+from pathlib import Path
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -10,7 +12,15 @@ from claudechic.widgets.layout.sidebar import SessionItem
 
 
 class SessionScreen(Screen[str | None]):
-    """Full-screen session browser for resuming sessions."""
+    """Full-screen session browser for resuming sessions.
+
+    Args:
+        cwd: Project directory to filter sessions by. If None, uses Path.cwd().
+    """
+
+    def __init__(self, cwd: Path | None = None) -> None:
+        super().__init__()
+        self._cwd = cwd
 
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
@@ -91,7 +101,7 @@ class SessionScreen(Screen[str | None]):
     async def _fetch_sessions(self, search: str) -> list[tuple[str, str, float, int]]:
         from claudechic.sessions import get_recent_sessions
 
-        return await get_recent_sessions(search=search)
+        return await get_recent_sessions(search=search, cwd=self._cwd)
 
     def _update_list(self, search: str) -> None:
         self.run_worker(self._do_update(search))
