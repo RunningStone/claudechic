@@ -382,14 +382,11 @@ MarkdownFence {
     background: $surface;
 }
 
-/* Remove bottom margin from markdown elements in chat containers.
- * Note: Previously used :last-of-type but that's expensive on dynamic content
- * since it re-evaluates on every DOM change. Using a blanket rule instead -
- * the parent container's padding handles spacing. */
-ChatMessage MarkdownParagraph,
-ChatMessage MarkdownFence,
-ToolUseWidget MarkdownParagraph,
-ToolUseWidget MarkdownFence {
+/* Remove bottom margin from last element in markdown containers */
+ChatMessage MarkdownParagraph:last-of-type,
+ChatMessage MarkdownFence:last-of-type,
+ToolUseWidget MarkdownParagraph:last-of-type,
+ToolUseWidget MarkdownFence:last-of-type {
     margin-bottom: 0;
 }
 
