@@ -241,8 +241,8 @@ Agent status indicators: ○ (idle), ● gray (busy), ● orange (needs input)
 ## Testing
 
 ```bash
-uv run pytest tests/ -n auto -q  # Parallel (fast, ~3s)
-uv run pytest tests/ -v          # Sequential with verbose output
+uv run python -m pytest tests/ -n auto -q  # Parallel (fast, ~3s)
+uv run python -m pytest tests/ -v          # Sequential with verbose output
 ```
 
 Use parallel testing by default.
