@@ -49,16 +49,12 @@ class Spinner(Static):
     def _tick_all() -> None:
         """Advance frame and refresh visible spinners only.
 
-        We check display property and hidden class on immediate parent (O(1))
-        rather than walking the full DOM tree. Spinners in hidden ChatViews
-        are skipped to avoid triggering expensive layout work.
+        Uses region to check if spinner is actually visible on screen.
+        Spinners in hidden ChatViews have empty regions and are skipped.
         """
         Spinner._frame = (Spinner._frame + 1) % len(Spinner.FRAMES)
         for spinner in list(Spinner._instances):
-            parent = spinner.parent
-            # Skip spinners or parents hidden via display property or hidden class
-            if not spinner.display or spinner.has_class("hidden"):
-                continue
-            if parent and (not parent.display or parent.has_class("hidden")):
+            # Skip if not visible (region is empty when hidden or off-screen)
+            if not spinner.region.width:
                 continue
             spinner.refresh(layout=False)
