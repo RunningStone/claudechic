@@ -79,16 +79,19 @@ def process(frame, child, state, depth: int = 50) -> dict[str, Any] | None:
     """Accumulate a frame stack into the tree structure.
 
     Walks up the stack (via f_back) and adds counts at each level.
-    Skips frames matching OMIT_FILENAMES.
+    - At leaf level: skips omitted frames to find an interesting leaf
+    - At intermediate level: stops at omitted frames (trims framework boilerplate)
     """
     if depth <= 0 or frame is None:
         return state
 
-    # Skip omitted frames but continue walking
     if should_omit(frame):
-        prev = frame.f_back
-        if prev is not None:
-            return process(prev, child, state, depth - 1)
+        if child is None:
+            # Leaf level: keep walking to find interesting leaf
+            prev = frame.f_back
+            if prev is not None:
+                return process(prev, None, state, depth - 1)
+        # Intermediate or end of stack: stop here
         return state
 
     prev = frame.f_back
@@ -213,8 +216,10 @@ class Sampler(threading.Thread):
 
     def get_stats(self) -> dict[str, Any]:
         """Get sampler statistics."""
+        profile = self.get_merged_profile()
         return {
             "sample_count": self.sample_count,
+            "recorded_count": profile["count"],
             "high_cpu_count": self.high_cpu_count,
             "threshold": self.threshold,
             "log_entries": len(self.log),
