@@ -130,7 +130,7 @@ class ChatView(AutoHideScroll):
                 display_name = f"Screenshot #{i + 1}"
             else:
                 display_name = img.filename
-            widgets.append(ChatAttachment(img.filename, display_name))
+            widgets.append(ChatAttachment(img.path, display_name))
 
         return widgets
 
