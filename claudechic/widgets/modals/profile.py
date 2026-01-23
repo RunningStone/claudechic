@@ -8,7 +8,7 @@ from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button
 
-from claudechic.profiling import get_stats_table, get_stats_text, _stats
+from claudechic.profiling import get_stats_table, get_stats_text, reset_stats, _stats
 from claudechic.sampling import get_sampler, flatten
 
 
@@ -149,6 +149,11 @@ class ProfileModal(ModalScreen):
     ProfileModal #close-btn {
         min-width: 10;
     }
+
+    ProfileModal #reset-btn {
+        min-width: 10;
+        margin-right: 1;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -180,6 +185,7 @@ class ProfileModal(ModalScreen):
                     )
 
             with Horizontal(id="profile-footer"):
+                yield Button("Reset", id="reset-btn")
                 yield Button("Close", id="close-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -192,5 +198,12 @@ class ProfileModal(ModalScreen):
                 self.notify("Copied to clipboard")
             except Exception as e:
                 self.notify(f"Copy failed: {e}", severity="error")
+        elif event.button.id == "reset-btn":
+            reset_stats()
+            sampler = get_sampler()
+            if sampler:
+                sampler.reset()
+            self.notify("Profiling stats reset")
+            self.dismiss()
         elif event.button.id == "close-btn":
             self.dismiss()

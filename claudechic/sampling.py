@@ -220,6 +220,12 @@ class Sampler(threading.Thread):
             "log_entries": len(self.log),
         }
 
+    def reset(self) -> None:
+        """Clear all samples and reset counters."""
+        self.log.clear()
+        self.sample_count = 0
+        self.high_cpu_count = 0
+
 
 # Global sampler instance
 _sampler: Sampler | None = None

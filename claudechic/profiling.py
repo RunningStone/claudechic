@@ -93,6 +93,13 @@ def get_session_duration() -> float:
     return time.perf_counter() - _start_time
 
 
+def reset_stats() -> None:
+    """Reset all profiling statistics and restart session timer."""
+    global _start_time
+    _stats.clear()
+    _start_time = time.perf_counter()
+
+
 def get_stats_text() -> str:
     """Get statistics as plain text for copying."""
     if not _stats:
