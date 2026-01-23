@@ -41,6 +41,7 @@ from claudechic.messages import (
     CommandOutputMessage,
 )
 from claudechic.sessions import (
+    find_session_by_prefix,
     get_context_from_session,
     get_plan_path_for_session,
     get_recent_sessions,
@@ -554,11 +555,19 @@ class ChatApp(App):
         # Show connecting status
         self.status_footer.model = "connecting..."
 
-        # Resolve resume ID (handle __most_recent__ sentinel from CLI)
+        # Resolve resume ID (handle __most_recent__ sentinel or prefix from CLI)
         resume = self._resume_on_start
         if resume == "__most_recent__":
             sessions = await get_recent_sessions(limit=1)
             resume = sessions[0][0] if sessions else None
+        elif resume:
+            # Support prefix matching (e.g., first 8 chars)
+            resolved = find_session_by_prefix(resume, cwd=agent.cwd)
+            if resolved:
+                resume = resolved
+            else:
+                self.notify(f"No unique session matching '{resume}'", severity="error")
+                resume = None
 
         # Connect the agent to SDK
         options = self._make_options(

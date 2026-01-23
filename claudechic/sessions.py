@@ -18,6 +18,33 @@ def is_valid_uuid(s: str) -> bool:
     )
 
 
+def find_session_by_prefix(prefix: str, cwd: Path | None = None) -> str | None:
+    """Find a session ID by prefix match.
+
+    Args:
+        prefix: The prefix to match (e.g., first 8 chars of UUID)
+        cwd: Project directory. If None, uses current working directory.
+
+    Returns:
+        Full session ID if exactly one match, None otherwise.
+    """
+    # If it's already a full UUID, return as-is
+    if is_valid_uuid(prefix):
+        return prefix
+
+    sessions_dir = get_project_sessions_dir(cwd)
+    if not sessions_dir:
+        return None
+
+    prefix_lower = prefix.lower()
+    matches = []
+    for f in sessions_dir.glob("*.jsonl"):
+        if f.stem.lower().startswith(prefix_lower) and is_valid_uuid(f.stem):
+            matches.append(f.stem)
+
+    return matches[0] if len(matches) == 1 else None
+
+
 def get_project_sessions_dir(cwd: Path | None = None) -> Path | None:
     """Get the sessions directory for a project.
 

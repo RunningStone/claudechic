@@ -161,10 +161,18 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
 
 
 def _handle_resume(app: "ChatApp", command: str) -> bool:
-    """Handle /resume [session_id] command."""
+    """Handle /resume [session_id_or_prefix] command."""
+    from claudechic.sessions import find_session_by_prefix
+
     parts = command.split(maxsplit=1)
     if len(parts) > 1:
-        session_id = parts[1]
+        prefix = parts[1]
+        agent = app._agent
+        cwd = agent.cwd if agent else None
+        session_id = find_session_by_prefix(prefix, cwd)
+        if not session_id:
+            app.notify(f"No unique session matching '{prefix}'", severity="error")
+            return True
         app.run_worker(app._load_and_display_history(session_id))
         app.notify(f"Resuming {session_id[:8]}...")
         app.resume_session(session_id)
