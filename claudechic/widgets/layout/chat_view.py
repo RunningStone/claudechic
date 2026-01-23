@@ -170,7 +170,7 @@ class ChatView(AutoHideScroll):
         if tool.name == ToolName.TASK:
             return TaskWidget(block, collapsed=should_collapse, cwd=cwd)
         elif tool.name.startswith("mcp__chic__"):
-            return AgentToolWidget(block, cwd=cwd)
+            return AgentToolWidget(block, cwd=cwd, completed=completed)
         else:
             return ToolUseWidget(
                 block, collapsed=should_collapse, completed=completed, cwd=cwd

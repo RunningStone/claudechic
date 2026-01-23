@@ -415,10 +415,12 @@ class AgentToolWidget(BaseToolWidget):
             super().__init__()
             self.agent_name = agent_name
 
-    def __init__(self, block: ToolUseBlock, cwd: Path | None = None) -> None:
+    def __init__(
+        self, block: ToolUseBlock, cwd: Path | None = None, completed: bool = False
+    ) -> None:
         super().__init__()
         self.block = block
-        self.result: ToolResultBlock | None = None
+        self.result: ToolResultBlock | None = True if completed else None  # type: ignore[assignment]
         self._agent_name = block.input.get("name", "?")
         self._cwd = cwd
 
@@ -452,7 +454,8 @@ class AgentToolWidget(BaseToolWidget):
                 yield Button(f"Go to {self._agent_name}", classes="go-btn")
 
         elif tool_short == "ask_agent":
-            yield Spinner()
+            if not self.result:
+                yield Spinner()
             with QuietCollapsible(
                 title=self._make_title("Ask", prompt), collapsed=True
             ):
