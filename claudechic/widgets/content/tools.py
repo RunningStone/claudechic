@@ -27,7 +27,6 @@ from claudechic.formatting import (
 from claudechic.widgets.content.diff import DiffWidget
 from claudechic.widgets.content.message import ChatMessage
 from claudechic.widgets.primitives.spinner import Spinner
-from claudechic.widgets.base.copyable import CopyButton, CopyableMixin
 from claudechic.widgets.base.tool_base import BaseToolWidget
 
 log = logging.getLogger(__name__)
@@ -79,7 +78,7 @@ class EditPlanRequested(Message):
         self.plan_path = plan_path
 
 
-class ToolUseWidget(BaseToolWidget, CopyableMixin):
+class ToolUseWidget(BaseToolWidget):
     """A collapsible widget showing a tool use."""
 
     def __init__(
@@ -97,7 +96,6 @@ class ToolUseWidget(BaseToolWidget, CopyableMixin):
         self._header = format_tool_header(self.block.name, self.block.input, cwd)
 
     def compose(self) -> ComposeResult:
-        yield CopyButton("⧉", classes="copy-btn")
         if not self.result:
             yield Spinner()
         # Skill with no args: just show header, no collapsible
@@ -130,39 +128,7 @@ class ToolUseWidget(BaseToolWidget, CopyableMixin):
         except Exception:
             pass
 
-    def get_copyable_content(self) -> str:
-        """Get content suitable for copying."""
-        inp = self.block.input
-        parts = []
-        if self.block.name == ToolName.EDIT:
-            parts.append(f"File: {inp.get('file_path', '?')}")
-            if inp.get("old_string"):
-                parts.append(f"Old:\n```\n{inp['old_string']}\n```")
-            if inp.get("new_string"):
-                parts.append(f"New:\n```\n{inp['new_string']}\n```")
-        elif self.block.name == ToolName.BASH:
-            parts.append(f"Command:\n```\n{inp.get('command', '?')}\n```")
-        elif self.block.name == ToolName.WRITE:
-            parts.append(f"File: {inp.get('file_path', '?')}")
-            if inp.get("content"):
-                parts.append(f"Content:\n```\n{inp['content']}\n```")
-        elif self.block.name == ToolName.READ:
-            parts.append(f"File: {inp.get('file_path', '?')}")
-        else:
-            parts.append(json.dumps(inp, indent=2))
-        if self.result and self.result is not True and self.result.content:
-            content = (
-                self.result.content
-                if isinstance(self.result.content, str)
-                else str(self.result.content)
-            )
-            content = SYSTEM_REMINDER_PATTERN.sub("", content)
-            parts.append(f"Result:\n```\n{content}\n```")
-        return "\n\n".join(parts)
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if self.handle_copy_button(event):
-            return
         if "edit-plan-btn" in event.button.classes:
             event.stop()
             if hasattr(self, "_plan_path"):
@@ -352,7 +318,7 @@ class TaskWidget(BaseToolWidget):
             pass  # Widget may not be mounted
 
 
-class ShellOutputWidget(Static, CopyableMixin):
+class ShellOutputWidget(Static):
     """Collapsible widget showing inline shell command output."""
 
     can_focus = False
@@ -374,24 +340,11 @@ class ShellOutputWidget(Static, CopyableMixin):
             title = title[:57] + "..."
         if self.returncode != 0:
             title += f" (exit {self.returncode})"
-        yield CopyButton("⧉", classes="copy-btn")
         with QuietCollapsible(title=title, collapsed=self._collapsed):
             # Combine stderr + stdout, parse ANSI color codes
             output = "\n".join(filter(None, [self.stderr, self.stdout])).rstrip()
             if output:
                 yield Static(Text.from_ansi(output), id="shell-output")
-
-    def get_copyable_content(self) -> str:
-        """Get formatted content for copying to clipboard."""
-        parts = [f"$ {self.command}"]
-        if self.stdout:
-            parts.append(self.stdout)
-        if self.stderr:
-            parts.append(f"stderr:\n{self.stderr}")
-        return "\n".join(parts)
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.handle_copy_button(event)
 
 
 class AgentListWidget(Static):

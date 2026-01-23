@@ -14,7 +14,6 @@ from claudechic.widgets.base.cursor import PointerMixin, set_pointer
 from claudechic.errors import log_exception
 from claudechic.widgets.primitives.button import Button
 from claudechic.widgets.primitives.spinner import Spinner
-from claudechic.widgets.base.copyable import CopyButton, CopyableMixin
 
 
 class ThinkingIndicator(Spinner):
@@ -69,8 +68,8 @@ class SystemInfo(Static):
         yield Markdown(self._message, id="content")
 
 
-class ChatMessage(Static, PointerMixin, CopyableMixin):
-    """A single chat message with copy button.
+class ChatMessage(Static, PointerMixin):
+    """A single chat message.
 
     Uses Textual's MarkdownStream for efficient incremental rendering.
     Adds debouncing on top of MarkdownStream's internal batching to reduce
@@ -104,7 +103,6 @@ class ChatMessage(Static, PointerMixin, CopyableMixin):
         set_pointer("default")
 
     def compose(self) -> ComposeResult:
-        yield CopyButton("⧉", id="copy-btn", classes="copy-btn")
         if self._is_agent:
             # Wrap in container for nested border effect
             with Vertical(id="agent-inner"):
@@ -169,15 +167,9 @@ class ChatMessage(Static, PointerMixin, CopyableMixin):
             self.call_later(self._stream.stop)
             self._stream = None
 
-    def get_copyable_content(self) -> str:
-        """Get raw content for copying."""
+    def get_raw_content(self) -> str:
+        """Get raw content."""
         return self._content
-
-    # Alias for backwards compatibility
-    get_raw_content = get_copyable_content
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.handle_copy_button(event)
 
 
 class ChatAttachment(Button):
