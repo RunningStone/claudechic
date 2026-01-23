@@ -310,13 +310,12 @@ class DiffWidget(HorizontalScroll):
         except Exception:
             min_width = 120
 
-        def pad_line(content: Content, width: int) -> Content:
-            """Pad content with spaces to fill width."""
+        def extend_to_width(content: Content, width: int) -> Content:
+            """Extend content to fill width, preserving the last character's style."""
             current_len = len(content)
             if current_len >= width:
                 return content
-            padding = " " * (width - current_len)
-            return Content.assemble(content, Content(padding))
+            return content.extend_right(width - current_len)
 
         parts: list[Content] = []
 
@@ -355,12 +354,12 @@ class DiffWidget(HorizontalScroll):
                         styled_code = _build_line_content(code, removed_bg)
                         indicator = Content.styled("- ", "red")
                         line_content = Content.assemble(gutter, indicator, styled_code)
-                        # Pad and apply background to entire line
-                        line_content = pad_line(line_content, min_width)
-                        line = Content.assemble(
-                            line_content.stylize(removed_bg, 0, len(line_content)),
-                            Content("\n"),
+                        # Apply background and extend to fill width
+                        line_content = line_content.stylize(
+                            removed_bg, 0, len(line_content)
                         )
+                        line_content = extend_to_width(line_content, min_width)
+                        line = Content.assemble(line_content, Content("\n"))
                         parts.append(line)
 
                 elif tag == "insert":
@@ -374,12 +373,12 @@ class DiffWidget(HorizontalScroll):
                         styled_code = _build_line_content(code, added_bg)
                         indicator = Content.styled("+ ", "green")
                         line_content = Content.assemble(gutter, indicator, styled_code)
-                        # Pad and apply background to entire line
-                        line_content = pad_line(line_content, min_width)
-                        line = Content.assemble(
-                            line_content.stylize(added_bg, 0, len(line_content)),
-                            Content("\n"),
+                        # Apply background and extend to fill width
+                        line_content = line_content.stylize(
+                            added_bg, 0, len(line_content)
                         )
+                        line_content = extend_to_width(line_content, min_width)
+                        line = Content.assemble(line_content, Content("\n"))
                         parts.append(line)
 
                 elif tag == "replace":
@@ -405,12 +404,12 @@ class DiffWidget(HorizontalScroll):
                         )
                         indicator = Content.styled("- ", "red")
                         line_content = Content.assemble(gutter, indicator, styled_code)
-                        # Pad and apply background to entire line
-                        line_content = pad_line(line_content, min_width)
-                        line = Content.assemble(
-                            line_content.stylize(removed_bg, 0, len(line_content)),
-                            Content("\n"),
+                        # Apply background and extend to fill width
+                        line_content = line_content.stylize(
+                            removed_bg, 0, len(line_content)
                         )
+                        line_content = extend_to_width(line_content, min_width)
+                        line = Content.assemble(line_content, Content("\n"))
                         parts.append(line)
 
                     for idx, j in enumerate(range(j1, j2)):
@@ -435,12 +434,12 @@ class DiffWidget(HorizontalScroll):
                         )
                         indicator = Content.styled("+ ", "green")
                         line_content = Content.assemble(gutter, indicator, styled_code)
-                        # Pad and apply background to entire line
-                        line_content = pad_line(line_content, min_width)
-                        line = Content.assemble(
-                            line_content.stylize(added_bg, 0, len(line_content)),
-                            Content("\n"),
+                        # Apply background and extend to fill width
+                        line_content = line_content.stylize(
+                            added_bg, 0, len(line_content)
                         )
+                        line_content = extend_to_width(line_content, min_width)
+                        line = Content.assemble(line_content, Content("\n"))
                         parts.append(line)
 
         if not parts:
@@ -480,18 +479,15 @@ class DiffWidget(HorizontalScroll):
         col_width = max((total_width - 3) // 2, 40)  # -3 for separator
         code_width = col_width - gutter_width - 1
 
-        def pad_or_truncate(content: Content, width: int) -> Content:
-            """Pad content to width or truncate if too long."""
+        def fit_to_width(content: Content, width: int) -> Content:
+            """Fit content to width: truncate if too long, extend if too short."""
             text_len = len(content)
             if text_len >= width:
-                # Truncate - just take first `width` chars (preserving styles)
                 return content[:width]
-            # Pad with spaces
-            padding = " " * (width - text_len)
-            return Content.assemble(content, Content(padding))
+            return content.extend_right(width - text_len)
 
-        def make_left_col(line_num: int | None, code: Content, bg: str = "") -> Content:
-            """Build left column: gutter + code, padded."""
+        def make_col(line_num: int | None, code: Content, bg: str = "") -> Content:
+            """Build a column: gutter + code, fitted to width."""
             gutter = (
                 Content.styled(str(line_num).rjust(gutter_width) + " ", "#666666")
                 if line_num
@@ -499,21 +495,7 @@ class DiffWidget(HorizontalScroll):
             )
             if bg:
                 code = _build_line_content(code, bg)
-            padded = pad_or_truncate(code, code_width)
-            return Content.assemble(gutter, padded)
-
-        def make_right_col(
-            line_num: int | None, code: Content, bg: str = ""
-        ) -> Content:
-            """Build right column: gutter + code."""
-            gutter = (
-                Content.styled(str(line_num).rjust(gutter_width) + " ", "#666666")
-                if line_num
-                else Content.styled(" " * (gutter_width + 1), "#666666")
-            )
-            if bg:
-                code = _build_line_content(code, bg)
-            return Content.assemble(gutter, code)
+            return Content.assemble(gutter, fit_to_width(code, code_width))
 
         separator = Content.styled(" │ ", "dim")
         parts: list[Content] = []
@@ -540,8 +522,8 @@ class DiffWidget(HorizontalScroll):
                             if j < len(new_highlighted)
                             else Content("")
                         )
-                        left = make_left_col(self._old_start + i, old_code)
-                        right = make_right_col(self._new_start + j, new_code)
+                        left = make_col(self._old_start + i, old_code)
+                        right = make_col(self._new_start + j, new_code)
                         line = Content.assemble(
                             left.stylize("dim", 0, len(left)),
                             separator,
@@ -558,8 +540,8 @@ class DiffWidget(HorizontalScroll):
                             if i < len(old_highlighted)
                             else Content("")
                         )
-                        left = make_left_col(self._old_start + i, old_code, removed_bg)
-                        right = make_right_col(None, Content(""))
+                        left = make_col(self._old_start + i, old_code, removed_bg)
+                        right = make_col(None, Content(""))
                         line = Content.assemble(left, separator, right, Content("\n"))
                         parts.append(line)
 
@@ -571,9 +553,9 @@ class DiffWidget(HorizontalScroll):
                             if j < len(new_highlighted)
                             else Content("")
                         )
-                        left = make_left_col(None, Content(""))
-                        left = pad_or_truncate(left, col_width)
-                        right = make_right_col(self._new_start + j, new_code, added_bg)
+                        left = make_col(None, Content(""))
+                        left = fit_to_width(left, col_width)
+                        right = make_col(self._new_start + j, new_code, added_bg)
                         line = Content.assemble(left, separator, right, Content("\n"))
                         parts.append(line)
 
@@ -606,11 +588,11 @@ class DiffWidget(HorizontalScroll):
                                 old_spans,
                                 removed_word,
                             )
-                            left = make_left_col(self._old_start + i, styled_old)
+                            left = make_col(self._old_start + i, styled_old)
                         else:
-                            left = make_left_col(None, Content(""))
+                            left = make_col(None, Content(""))
 
-                        left = pad_or_truncate(left, col_width)
+                        left = fit_to_width(left, col_width)
 
                         # Right side (new)
                         if idx < new_count:
@@ -634,9 +616,9 @@ class DiffWidget(HorizontalScroll):
                                 new_spans,
                                 added_word,
                             )
-                            right = make_right_col(self._new_start + j, styled_new)
+                            right = make_col(self._new_start + j, styled_new)
                         else:
-                            right = make_right_col(None, Content(""))
+                            right = make_col(None, Content(""))
 
                         line = Content.assemble(left, separator, right, Content("\n"))
                         parts.append(line)
