@@ -14,18 +14,22 @@ from textual.widgets import Static
 from claudechic.formatting import get_lang_from_path
 
 
-# Theme-aware diff styles - dark and light variants (inspired by GitHub)
+# Theme-aware diff styles - dark and light variants
 DARK_THEME_STYLES = {
-    "removed_bg": "on #3d2020",  # Subtle dark red background
-    "added_bg": "on #203d20",  # Subtle dark green background
-    "removed_word": "underline on #5c3030",  # Brighter red for changed words
-    "added_word": "underline on #305c30",  # Brighter green for changed words
+    "removed_bg": "on #2a1a1a",  # Very subtle dark red background
+    "added_bg": "on #1a2a1a",  # Very subtle dark green background
+    "removed_word": "on #3d2525",  # Slightly brighter for changed words
+    "added_word": "on #253d25",  # Slightly brighter for changed words
+    "removed_indicator": "#664444",  # Dimmed red for - indicator
+    "added_indicator": "#446644",  # Dimmed green for + indicator
 }
 LIGHT_THEME_STYLES = {
-    "removed_bg": "on #ffeeee",  # Subtle light red background
-    "added_bg": "on #eeffee",  # Subtle light green background
-    "removed_word": "underline on #ffcccc",  # Brighter red for changed words
-    "added_word": "underline on #ccffcc",  # Brighter green for changed words
+    "removed_bg": "on #fff5f5",  # Very subtle light red background
+    "added_bg": "on #f5fff5",  # Very subtle light green background
+    "removed_word": "on #ffecec",  # Slightly brighter for changed words
+    "added_word": "on #ecffec",  # Slightly brighter for changed words
+    "removed_indicator": "#aa6666",  # Visible red for - indicator
+    "added_indicator": "#66aa66",  # Visible green for + indicator
 }
 
 
@@ -163,7 +167,6 @@ class DiffWidget(HorizontalScroll):
     DiffWidget {
         height: auto;
         max-height: 100%;
-        scrollbar-size: 1 1;
     }
     """
 
@@ -294,21 +297,21 @@ class DiffWidget(HorizontalScroll):
         added_bg = styles["added_bg"]
         removed_word = styles["removed_word"]
         added_word = styles["added_word"]
+        removed_indicator = styles["removed_indicator"]
+        added_indicator = styles["added_indicator"]
 
-        def make_gutter(old_num: int | None, new_num: int | None) -> Content:
-            old_str = (
-                str(old_num).rjust(gutter_width) if old_num else " " * gutter_width
+        def make_gutter(line_num: int | None) -> Content:
+            """Single line number column - shows relevant line number."""
+            num_str = (
+                str(line_num).rjust(gutter_width) if line_num else " " * gutter_width
             )
-            new_str = (
-                str(new_num).rjust(gutter_width) if new_num else " " * gutter_width
-            )
-            return Content.styled(f"{old_str} {new_str} ", "#666666")
+            return Content.styled(f"{num_str} ", "#555555")
 
-        # Get minimum line width to fill background
+        # Get width to fill background (use widget width, account for potential scrollbar)
         try:
-            min_width = max(self.size.width - 2, 80)  # -2 for scrollbar
+            min_width = self.size.width - 2
         except Exception:
-            min_width = 120
+            min_width = 80
 
         def extend_to_width(content: Content, width: int) -> Content:
             """Extend content to fill width, preserving the last character's style."""
@@ -321,15 +324,14 @@ class DiffWidget(HorizontalScroll):
 
         for group_idx, group in enumerate(grouped):
             if group_idx > 0:
-                sep_width = gutter_width * 2 + 2
-                sep = Content.styled(" " * sep_width + " ···\n", "dim")
-                parts.append(sep)
+                # Simple blank line between context groups within a hunk
+                parts.append(Content("\n"))
 
             for tag, i1, i2, j1, j2 in group:
                 if tag == "equal":
                     for di, i in enumerate(range(i1, i2)):
                         j = j1 + di
-                        gutter = make_gutter(self._old_start + i, self._new_start + j)
+                        gutter = make_gutter(self._new_start + j)
                         code = (
                             old_highlighted[i]
                             if i < len(old_highlighted)
@@ -337,7 +339,7 @@ class DiffWidget(HorizontalScroll):
                         )
                         line = Content.assemble(
                             gutter,
-                            Content("  "),
+                            Content.styled("  ", "dim"),
                             code.stylize("dim", 0, len(code)),
                             Content("\n"),
                         )
@@ -345,41 +347,37 @@ class DiffWidget(HorizontalScroll):
 
                 elif tag == "delete":
                     for i in range(i1, i2):
-                        gutter = make_gutter(self._old_start + i, None)
+                        gutter = make_gutter(self._old_start + i)
                         code = (
                             old_highlighted[i]
                             if i < len(old_highlighted)
                             else Content("")
                         )
                         styled_code = _build_line_content(code, removed_bg)
-                        indicator = Content.styled("- ", "red")
+                        indicator = Content.styled("- ", removed_indicator)
                         line_content = Content.assemble(gutter, indicator, styled_code)
-                        # Apply background and extend to fill width
                         line_content = line_content.stylize(
                             removed_bg, 0, len(line_content)
                         )
                         line_content = extend_to_width(line_content, min_width)
-                        line = Content.assemble(line_content, Content("\n"))
-                        parts.append(line)
+                        parts.append(Content.assemble(line_content, Content("\n")))
 
                 elif tag == "insert":
                     for j in range(j1, j2):
-                        gutter = make_gutter(None, self._new_start + j)
+                        gutter = make_gutter(self._new_start + j)
                         code = (
                             new_highlighted[j]
                             if j < len(new_highlighted)
                             else Content("")
                         )
                         styled_code = _build_line_content(code, added_bg)
-                        indicator = Content.styled("+ ", "green")
+                        indicator = Content.styled("+ ", added_indicator)
                         line_content = Content.assemble(gutter, indicator, styled_code)
-                        # Apply background and extend to fill width
                         line_content = line_content.stylize(
                             added_bg, 0, len(line_content)
                         )
                         line_content = extend_to_width(line_content, min_width)
-                        line = Content.assemble(line_content, Content("\n"))
-                        parts.append(line)
+                        parts.append(Content.assemble(line_content, Content("\n")))
 
                 elif tag == "replace":
                     for idx, i in enumerate(range(i1, i2)):
@@ -393,7 +391,7 @@ class DiffWidget(HorizontalScroll):
                         else:
                             old_spans = []
 
-                        gutter = make_gutter(self._old_start + i, None)
+                        gutter = make_gutter(self._old_start + i)
                         code = (
                             old_highlighted[i]
                             if i < len(old_highlighted)
@@ -402,15 +400,13 @@ class DiffWidget(HorizontalScroll):
                         styled_code = _build_line_content(
                             code, removed_bg, old_spans, removed_word
                         )
-                        indicator = Content.styled("- ", "red")
+                        indicator = Content.styled("- ", removed_indicator)
                         line_content = Content.assemble(gutter, indicator, styled_code)
-                        # Apply background and extend to fill width
                         line_content = line_content.stylize(
                             removed_bg, 0, len(line_content)
                         )
                         line_content = extend_to_width(line_content, min_width)
-                        line = Content.assemble(line_content, Content("\n"))
-                        parts.append(line)
+                        parts.append(Content.assemble(line_content, Content("\n")))
 
                     for idx, j in enumerate(range(j1, j2)):
                         new_line_text = new_lines[j] if j < len(new_lines) else ""
@@ -423,7 +419,7 @@ class DiffWidget(HorizontalScroll):
                         else:
                             new_spans = []
 
-                        gutter = make_gutter(None, self._new_start + j)
+                        gutter = make_gutter(self._new_start + j)
                         code = (
                             new_highlighted[j]
                             if j < len(new_highlighted)
@@ -432,15 +428,13 @@ class DiffWidget(HorizontalScroll):
                         styled_code = _build_line_content(
                             code, added_bg, new_spans, added_word
                         )
-                        indicator = Content.styled("+ ", "green")
+                        indicator = Content.styled("+ ", added_indicator)
                         line_content = Content.assemble(gutter, indicator, styled_code)
-                        # Apply background and extend to fill width
                         line_content = line_content.stylize(
                             added_bg, 0, len(line_content)
                         )
                         line_content = extend_to_width(line_content, min_width)
-                        line = Content.assemble(line_content, Content("\n"))
-                        parts.append(line)
+                        parts.append(Content.assemble(line_content, Content("\n")))
 
         if not parts:
             return Content.styled("No changes", "dim")
@@ -469,12 +463,11 @@ class DiffWidget(HorizontalScroll):
         removed_word = styles["removed_word"]
         added_word = styles["added_word"]
 
-        # Calculate column width - split available width between sides
+        # Calculate column width - use widget's actual width, account for potential scrollbar
         try:
-            total_width = self.app.size.width - 35  # Account for sidebar
+            total_width = self.size.width - 2
         except Exception:
-            total_width = 120
-        # Each side: gutter + space + code
+            total_width = 80
         # Layout: [gutter code] │ [gutter code]
         col_width = max((total_width - 3) // 2, 40)  # -3 for separator
         code_width = col_width - gutter_width - 1
@@ -486,7 +479,13 @@ class DiffWidget(HorizontalScroll):
                 return content[:width]
             return content.extend_right(width - text_len)
 
-        def make_col(line_num: int | None, code: Content, bg: str = "") -> Content:
+        def make_col(
+            line_num: int | None,
+            code: Content,
+            bg: str = "",
+            word_spans: list[tuple[int, int]] | None = None,
+            word_style: str = "",
+        ) -> Content:
             """Build a column: gutter + code, fitted to width."""
             gutter = (
                 Content.styled(str(line_num).rjust(gutter_width) + " ", "#666666")
@@ -494,18 +493,19 @@ class DiffWidget(HorizontalScroll):
                 else Content.styled(" " * (gutter_width + 1), "#666666")
             )
             if bg:
-                code = _build_line_content(code, bg)
-            return Content.assemble(gutter, fit_to_width(code, code_width))
+                code = _build_line_content(code, bg, word_spans, word_style)
+            col = Content.assemble(gutter, fit_to_width(code, code_width))
+            if bg:
+                col = col.stylize(bg, 0, len(col))
+            return col
 
         separator = Content.styled(" │ ", "dim")
         parts: list[Content] = []
 
         for group_idx, group in enumerate(grouped):
             if group_idx > 0:
-                sep_line = Content.styled(
-                    " " * col_width + " ··· " + " " * col_width + "\n", "dim"
-                )
-                parts.append(sep_line)
+                # Simple blank line between context groups within a hunk
+                parts.append(Content("\n"))
 
             for tag, i1, i2, j1, j2 in group:
                 if tag == "equal":
@@ -575,20 +575,19 @@ class DiffWidget(HorizontalScroll):
                                 else Content("")
                             )
                             old_text = old_lines[i] if i < len(old_lines) else ""
-                            # Get word diff spans if there's a matching new line
                             if idx < new_count:
                                 j = j1 + idx
                                 new_text = new_lines[j] if j < len(new_lines) else ""
                                 old_spans, _ = _word_diff_spans(old_text, new_text)
                             else:
                                 old_spans = []
-                            styled_old = _build_line_content(
+                            left = make_col(
+                                self._old_start + i,
                                 old_code,
                                 removed_bg,
                                 old_spans,
                                 removed_word,
                             )
-                            left = make_col(self._old_start + i, styled_old)
                         else:
                             left = make_col(None, Content(""))
 
@@ -603,20 +602,19 @@ class DiffWidget(HorizontalScroll):
                                 else Content("")
                             )
                             new_text = new_lines[j] if j < len(new_lines) else ""
-                            # Get word diff spans if there's a matching old line
                             if idx < old_count:
                                 i = i1 + idx
                                 old_text = old_lines[i] if i < len(old_lines) else ""
                                 _, new_spans = _word_diff_spans(old_text, new_text)
                             else:
                                 new_spans = []
-                            styled_new = _build_line_content(
+                            right = make_col(
+                                self._new_start + j,
                                 new_code,
                                 added_bg,
                                 new_spans,
                                 added_word,
                             )
-                            right = make_col(self._new_start + j, styled_new)
                         else:
                             right = make_col(None, Content(""))
 

@@ -169,13 +169,28 @@ class CommentLabel(Static):
     """
 
 
+class HunkSeparator(Static):
+    """Full-width horizontal rule between hunks."""
+
+    DEFAULT_CSS = """
+    HunkSeparator {
+        height: 1;
+        width: 100%;
+        margin: 1 0;
+        color: #444444;
+    }
+    """
+
+    def render(self):
+        return "─" * (self.size.width or 80)
+
+
 class HunkWidget(Static, can_focus=True):
     """Widget displaying a single hunk with syntax-highlighted diff."""
 
     DEFAULT_CSS = """
     HunkWidget {
         height: auto;
-        margin-bottom: 1;
         border-left: tall $panel;
         padding-left: 1;
     }
@@ -295,9 +310,11 @@ class FileDiffPanel(Vertical):
         color = "$primary" if self.change.status != "deleted" else "$error"
         yield Label(f"[{color}]{self.change.path}[/]", classes="file-header")
 
-        # Show each hunk as a separate widget
+        # Show each hunk as a separate widget with separators between
         if self.change.hunks:
             for i, hunk in enumerate(self.change.hunks):
+                if i > 0:
+                    yield HunkSeparator()
                 yield HunkWidget(
                     hunk,
                     self.change.path,
