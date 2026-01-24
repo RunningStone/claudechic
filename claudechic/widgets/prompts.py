@@ -225,10 +225,12 @@ class SelectionPrompt(BasePrompt):
         min_h = 1 + 1 + 1 + self._total_options() + 1
         self.styles.min_height = min_h
 
-        yield Static(self.title, classes="prompt-title")
+        yield Static(self.title, classes="prompt-title", markup=False)
         for i, (value, label) in enumerate(self.options):
             classes = "prompt-option selected" if i == 0 else "prompt-option"
-            yield Static(f"{i + 1}. {label}", classes=classes, id=f"opt-{i}")
+            yield Static(
+                f"{i + 1}. {label}", classes=classes, id=f"opt-{i}", markup=False
+            )
         # Text input option (if enabled)
         if self.text_option:
             text_idx = len(self.options)
@@ -237,6 +239,7 @@ class SelectionPrompt(BasePrompt):
                 f"{text_idx + 1}. {self.text_option[1]}",
                 classes=classes,
                 id=f"opt-{text_idx}",
+                markup=False,
             )
 
     def _total_options(self) -> int:
@@ -293,6 +296,7 @@ class QuestionPrompt(BasePrompt):
         yield Static(
             f"[{self.current_q + 1}/{len(self.questions)}] {q['question']}",
             classes="prompt-title",
+            markup=False,
         )
         for i, opt in enumerate(q.get("options", [])):
             classes = (
@@ -301,7 +305,7 @@ class QuestionPrompt(BasePrompt):
             label = opt.get("label", "?")
             desc = opt.get("description", "")
             text = f"{i + 1}. {label}" + (f" - {desc}" if desc else "")
-            yield Static(text, classes=classes, id=self._get_option_id(i))
+            yield Static(text, classes=classes, id=self._get_option_id(i), markup=False)
         # "Other" option
         other_idx = len(q.get("options", []))
         classes = "prompt-option prompt-placeholder"
@@ -311,6 +315,7 @@ class QuestionPrompt(BasePrompt):
             f"{other_idx + 1}. {self._text_option_placeholder()}",
             classes=classes,
             id=self._get_option_id(other_idx),
+            markup=False,
         )
 
     def _total_options(self) -> int:
