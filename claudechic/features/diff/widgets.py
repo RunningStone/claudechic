@@ -15,10 +15,10 @@ from claudechic.widgets.content.diff import DiffWidget
 from .git import FileChange, Hunk, HunkComment
 
 # Hunks larger than this will be split into smaller sub-hunks
-LARGE_HUNK_THRESHOLD = 30
+LARGE_HUNK_THRESHOLD = 10
 
 
-def _split_large_hunk(hunk: Hunk, context: int = 3) -> list[Hunk]:
+def _split_large_hunk(hunk: Hunk, context: int = 1) -> list[Hunk]:
     """Split a large hunk into smaller sub-hunks using difflib grouping.
 
     Returns the original hunk in a list if it's small or can't be split.
