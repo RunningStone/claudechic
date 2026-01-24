@@ -497,7 +497,7 @@ class TextAreaAutoComplete(Widget):
             self._complete(highlighted)
             return True
         elif key == "enter":
-            self._complete(highlighted)
+            self._complete(highlighted, submit=True)
             return True
         elif key == "escape":
             self.action_hide()
@@ -516,8 +516,13 @@ class TextAreaAutoComplete(Widget):
         if event.key == "escape":
             self.handle_key(event.key)
 
-    def _complete(self, option_index: int) -> None:
-        """Apply the selected completion."""
+    def _complete(self, option_index: int, submit: bool = False) -> None:
+        """Apply the selected completion.
+
+        Args:
+            option_index: Index of the option to complete
+            submit: If True, also trigger submit after completing (for Enter key)
+        """
         if not self.display or self.option_list.option_count == 0:
             return
 
@@ -539,6 +544,9 @@ class TextAreaAutoComplete(Widget):
         def hide_and_reset():
             self._completing = False
             self.action_hide()
+            # If submit requested, trigger the target's submit action
+            if submit and hasattr(self.target, "action_submit"):
+                self.target.action_submit()  # type: ignore[attr-defined]
 
         self.call_after_refresh(hide_and_reset)
 
