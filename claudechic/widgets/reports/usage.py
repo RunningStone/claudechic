@@ -87,7 +87,7 @@ class UsageReport(Widget):
         yield Static("[bold]Usage[/bold]", classes="title", markup=True)
 
         if self.usage.error:
-            yield Static(f"Error: {self.usage.error}", classes="error")
+            yield Static(f"Error: {self.usage.error}", classes="error", markup=False)
             return
 
         if self.usage.five_hour:

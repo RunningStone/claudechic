@@ -100,7 +100,7 @@ class ToolUseWidget(BaseToolWidget):
             yield Spinner()
         # Skill with no args: just show header, no collapsible
         if self.block.name == ToolName.SKILL and not self.block.input.get("args"):
-            yield Static(self._header, classes="skill-header")
+            yield Static(self._header, classes="skill-header", markup=False)
             return
         with QuietCollapsible(title=self._header, collapsed=self._initial_collapsed):
             if self.block.name == ToolName.EDIT:
@@ -118,12 +118,12 @@ class ToolUseWidget(BaseToolWidget):
                 )
                 # Bash uses "$ command" format with blank line separator
                 if self.block.name == ToolName.BASH:
-                    yield Static(f"$ {tool_input}", id="tool-input")
+                    yield Static(f"$ {tool_input}", id="tool-input", markup=False)
                     yield Static("", id="tool-separator")
                 else:
-                    yield Static(tool_input, id="tool-input")
+                    yield Static(tool_input, id="tool-input", markup=False)
                     yield Static("─" * 40, id="tool-separator")
-                yield Static("", id="tool-output")
+                yield Static("", id="tool-output", markup=False)
 
     def stop_spinner(self) -> None:
         """Stop and remove the spinner."""
@@ -404,7 +404,7 @@ class AgentListWidget(Static):
     def compose(self) -> ComposeResult:
         """Render agent list with aligned columns."""
         if not self._agents:
-            yield Static(self._content, classes="agent-fallback")
+            yield Static(self._content, classes="agent-fallback", markup=False)
             return
 
         # Pad names to align paths
@@ -486,7 +486,7 @@ class AgentToolWidget(BaseToolWidget):
             with QuietCollapsible(
                 title=f"{tool_short}: {self._agent_name}", collapsed=True
             ):
-                yield Static(json.dumps(self.block.input, indent=2))
+                yield Static(json.dumps(self.block.input, indent=2), markup=False)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if "go-btn" in event.button.classes:
