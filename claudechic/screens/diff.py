@@ -112,6 +112,10 @@ class DiffScreen(Screen[list[HunkComment]]):
                     hunk.start_editing()
             event.prevent_default()
             event.stop()
+        elif event.key == "q":
+            self.action_go_back()
+            event.prevent_default()
+            event.stop()
 
     def on_diff_file_item_selected(self, event: DiffFileItem.Selected) -> None:
         """Handle programmatic file selection - update sidebar highlight."""
