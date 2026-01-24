@@ -83,7 +83,11 @@ class FileStat:
 
 
 async def get_file_stats(cwd: str, target: str = "HEAD") -> list[FileStat]:
-    """Get simple file stats (additions/deletions) via git diff --numstat."""
+    """Get file stats (additions/deletions) for tracked changes and untracked files."""
+    stats = []
+    seen_paths: set[str] = set()
+
+    # Get tracked file changes via git diff
     proc = await asyncio.create_subprocess_exec(
         "git",
         "diff",
@@ -94,22 +98,37 @@ async def get_file_stats(cwd: str, target: str = "HEAD") -> list[FileStat]:
         stderr=asyncio.subprocess.PIPE,
     )
     stdout, _ = await proc.communicate()
-    if proc.returncode != 0:
-        return []
+    if proc.returncode == 0:
+        for line in stdout.decode().strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("\t")
+            if len(parts) < 3:
+                continue
+            # Format: additions\tdeletions\tpath
+            # Binary files show "-" for additions/deletions
+            adds = int(parts[0]) if parts[0] != "-" else 0
+            dels = int(parts[1]) if parts[1] != "-" else 0
+            path = parts[2]
+            stats.append(FileStat(path=path, additions=adds, deletions=dels))
+            seen_paths.add(path)
 
-    stats = []
-    for line in stdout.decode().strip().split("\n"):
-        if not line:
-            continue
-        parts = line.split("\t")
-        if len(parts) < 3:
-            continue
-        # Format: additions\tdeletions\tpath
-        # Binary files show "-" for additions/deletions
-        adds = int(parts[0]) if parts[0] != "-" else 0
-        dels = int(parts[1]) if parts[1] != "-" else 0
-        path = parts[2]
-        stats.append(FileStat(path=path, additions=adds, deletions=dels))
+    # Get untracked files
+    proc = await asyncio.create_subprocess_exec(
+        "git",
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        cwd=cwd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    if proc.returncode == 0:
+        for line in stdout.decode().strip().split("\n"):
+            if line and line not in seen_paths:
+                # New file - count lines as additions
+                stats.append(FileStat(path=line, additions=0, deletions=0))
 
     return stats
 

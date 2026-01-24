@@ -252,7 +252,9 @@ class ChatApp(App):
 
         # Make path relative to agent's working directory
         agent = self.agent_mgr.active if self.agent_mgr else None
-        cwd = Path(agent.cwd) if agent else None
+        if not agent:
+            return
+        cwd = Path(agent.cwd)
         rel_path = Path(make_relative(str(file_path), cwd))
 
         try:
@@ -278,6 +280,29 @@ class ChatApp(App):
         if self._files_section is None:
             self._files_section = self.query_one("#files-section", FilesSection)
         return self._files_section
+
+    async def _async_refresh_files(self, agent: Agent) -> None:
+        """Refresh files section from git for the given agent's directory."""
+        from claudechic.features.diff import get_file_stats
+
+        try:
+            section = self.files_section
+            # Clear existing file items (not the title)
+            await section.async_clear()
+
+            # Fetch fresh from git
+            stats = await get_file_stats(str(agent.cwd))
+            if stats:
+                files = {Path(s.path): (s.additions, s.deletions) for s in stats}
+                section.mount_all_files(files)
+            else:
+                section.add_class("hidden")
+        except Exception:
+            # Hide on error (not a git repo, etc)
+            try:
+                self.files_section.add_class("hidden")
+            except Exception:
+                pass
 
     @property
     def todo_panel(self) -> TodoPanel:
@@ -1712,23 +1737,10 @@ class ChatApp(App):
             # Show sidebar if now needed
             self._position_right_sidebar()
 
-            # Populate files section with uncommitted changes (async)
-            self.run_worker(self._populate_files_from_git(agent.cwd))
+            # Populate files section with uncommitted changes
+            asyncio.create_task(self._async_refresh_files(agent))
         except Exception as e:
             log.exception(f"Failed to create agent UI: {e}")
-
-    async def _populate_files_from_git(self, cwd: Path) -> None:
-        """Populate the files section with uncommitted git changes."""
-        from claudechic.features.diff import get_file_stats
-
-        try:
-            stats = await get_file_stats(str(cwd))
-            for stat in stats:
-                self.files_section.add_file(
-                    Path(stat.path), stat.additions, stat.deletions
-                )
-        except Exception:
-            pass  # Not a git repo or widget not ready
 
     def on_agent_switched(self, new_agent: Agent, old_agent: Agent | None) -> None:
         """Handle agent switch from AgentManager."""
@@ -1782,6 +1794,7 @@ class ChatApp(App):
             self._position_right_sidebar()
 
         # These happen outside batch (async/focus)
+        asyncio.create_task(self._async_refresh_files(new_agent))
         asyncio.create_task(self.status_footer.refresh_branch(str(new_agent.cwd)))
         self.chat_input.focus()
 

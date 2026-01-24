@@ -185,6 +185,9 @@ class FileItem(SidebarItem):
         min-height: 1;
         padding: 0 1 0 2;
     }
+    FileItem:hover {
+        background: $surface-lighten-1;
+    }
     """
 
     class Selected(Message):
@@ -249,35 +252,56 @@ class FilesSection(SidebarSection):
         for item in self._files.values():
             item.set_class(compact, "compact")
 
+    def _make_file_item(
+        self, file_path: Path, additions: int, deletions: int
+    ) -> FileItem:
+        """Create a FileItem with proper ID and styling."""
+        item = FileItem(file_path, additions, deletions)
+        safe_id = str(file_path).replace("/", "-").replace(".", "-").replace(" ", "-")
+        item.id = f"file-{safe_id}"
+        item.set_class(self._compact, "compact")
+        return item
+
     def add_file(self, file_path: Path, additions: int = 0, deletions: int = 0) -> None:
         """Add or update a file in the section."""
         if file_path in self._files:
-            # Update existing item
             item = self._files[file_path]
             item.additions += additions
             item.deletions += deletions
             item.refresh()
         else:
-            # Create new item
-            item = FileItem(file_path, additions, deletions)
-            # Sanitize path for CSS ID
-            safe_id = (
-                str(file_path).replace("/", "-").replace(".", "-").replace(" ", "-")
-            )
-            item.id = f"file-{safe_id}"
-            item.set_class(self._compact, "compact")
+            item = self._make_file_item(file_path, additions, deletions)
             self._files[file_path] = item
             self.mount(item)
-        # Show section when files exist
         if self._files:
             self.remove_class("hidden")
 
+    def mount_all_files(self, files: dict[Path, tuple[int, int]]) -> None:
+        """Mount multiple files at once."""
+        items = []
+        for file_path, (additions, deletions) in files.items():
+            if file_path not in self._files:
+                item = self._make_file_item(file_path, additions, deletions)
+                self._files[file_path] = item
+                items.append(item)
+        if items:
+            self.mount(*items)
+            self.remove_class("hidden")
+
     def clear(self) -> None:
-        """Remove all files from the section."""
+        """Remove all files from the section (sync)."""
         for item in self._files.values():
             item.remove()
         self._files.clear()
         self.add_class("hidden")
+
+    async def async_clear(self) -> None:
+        """Remove all files from the section (async, awaits removal)."""
+        if self._files:
+            items = list(self._files.values())
+            self._files.clear()
+            for item in items:
+                await item.remove()
 
 
 class PlanSection(SidebarSection):
