@@ -45,6 +45,7 @@ from claudechic.sessions import (
     get_plan_path_for_session,
     get_recent_sessions,
 )
+from claudechic.features.diff import EditFileRequested
 from claudechic.features.worktree import list_worktrees
 from claudechic.commands import handle_command
 from claudechic.features.worktree.commands import on_response_complete_finish
@@ -1345,6 +1346,18 @@ class ChatApp(App):
         """Handle edit plan button click in ExitPlanMode widget."""
         editor = os.environ.get("EDITOR", "vi")
         handle_command(self, f"/shell -i {editor} {event.plan_path}")
+
+    def on_edit_file_requested(self, event: EditFileRequested) -> None:
+        """Handle edit file icon click in diff view."""
+        editor = os.environ.get("EDITOR", "vi")
+        # Resolve path relative to current agent's cwd
+        cwd = (
+            self.agent_mgr.active.cwd
+            if self.agent_mgr and self.agent_mgr.active
+            else Path.cwd()
+        )
+        path = cwd / event.path
+        handle_command(self, f"/shell -i {editor} {path}")
 
     def _populate_worktrees(self) -> None:
         """Populate sidebar with ghost worktrees for feature branches."""

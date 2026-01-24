@@ -2,9 +2,11 @@
 
 import difflib
 
+from pathlib import Path
+
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Label, Static, TextArea
 
@@ -53,6 +55,36 @@ def _split_large_hunk(hunk: Hunk, context: int = 3) -> list[Hunk]:
     return sub_hunks
 
 
+class EditFileRequested(Message):
+    """Posted when user clicks edit icon to open file in editor."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__()
+        self.path = path
+
+
+class EditIcon(Static):
+    """Small edit icon that opens file in editor."""
+
+    DEFAULT_CSS = """
+    EditIcon {
+        width: 1;
+        color: $text-muted;
+    }
+    EditIcon:hover {
+        color: $primary;
+    }
+    """
+
+    def __init__(self, path: str, **kwargs) -> None:
+        super().__init__("✎", **kwargs)
+        self._path = path
+
+    def on_click(self, event) -> None:
+        event.stop()
+        self.post_message(EditFileRequested(Path(self._path)))
+
+
 class DiffFileItem(Static):
     """A file entry in the diff sidebar. Click to scroll to that file's panel."""
 
@@ -60,6 +92,12 @@ class DiffFileItem(Static):
     DiffFileItem {
         padding: 0 1;
         height: 1;
+    }
+    DiffFileItem Horizontal {
+        height: 1;
+    }
+    DiffFileItem .file-label {
+        width: 1fr;
     }
     """
 
@@ -91,12 +129,17 @@ class DiffFileItem(Static):
         color = "$primary" if self.status != "deleted" else "$error"
         # Show hunk count if > 1
         count_str = f" ({self.hunk_count})" if self.hunk_count > 1 else ""
-        # Truncate path from front if too long (leave room for indicator + count)
-        max_path_len = 24
+        # Truncate path from front if too long (leave room for indicator + count + edit icon)
+        max_path_len = 22
         display_path = self.path
         if len(display_path) > max_path_len:
             display_path = "…" + display_path[-(max_path_len - 1) :]
-        yield Label(f"[{color}]{indicator}[/] {display_path}[dim]{count_str}[/]")
+        with Horizontal():
+            yield Label(
+                f"[{color}]{indicator}[/] {display_path}[dim]{count_str}[/]",
+                classes="file-label",
+            )
+            yield EditIcon(self.path)
 
     def on_click(self) -> None:
         self.post_message(self.Clicked(self.path))
