@@ -45,9 +45,10 @@ class DiffScreen(Screen[list[HunkComment]]):
     }
     """
 
-    def __init__(self, cwd: Path) -> None:
+    def __init__(self, cwd: Path, target: str = "HEAD") -> None:
         super().__init__()
         self._cwd = cwd
+        self._target = target
         self._sidebar: DiffSidebar | None = None
         self._view: DiffView | None = None
 
@@ -57,14 +58,19 @@ class DiffScreen(Screen[list[HunkComment]]):
 
     async def on_mount(self) -> None:
         """Fetch changes and build the diff view."""
-        changes = await get_changes(str(self._cwd))
+        changes = await get_changes(str(self._cwd), self._target)
 
         # Remove placeholder
         placeholder = self.query_one("#diff-empty")
         await placeholder.remove()
 
         if not changes:
-            self.mount(Static("No uncommitted changes", id="diff-empty"))
+            msg = (
+                f"No changes vs {self._target}"
+                if self._target != "HEAD"
+                else "No uncommitted changes"
+            )
+            self.mount(Static(msg, id="diff-empty"))
             return
 
         # Build diff UI

@@ -73,13 +73,13 @@ class FileChange:
     hunks: list[Hunk] = field(default_factory=list)
 
 
-async def get_changes(cwd: str) -> list[FileChange]:
-    """Get all uncommitted changes (staged + unstaged) via git diff HEAD."""
+async def get_changes(cwd: str, target: str = "HEAD") -> list[FileChange]:
+    """Get all changes vs target (default HEAD) via git diff."""
     # Get list of changed files with status
     proc = await asyncio.create_subprocess_exec(
         "git",
         "diff",
-        "HEAD",
+        target,
         "--name-status",
         cwd=cwd,
         stdout=asyncio.subprocess.PIPE,
@@ -98,7 +98,7 @@ async def get_changes(cwd: str) -> list[FileChange]:
     proc = await asyncio.create_subprocess_exec(
         "git",
         "diff",
-        "HEAD",
+        target,
         "--no-ext-diff",
         cwd=cwd,
         stdout=asyncio.subprocess.PIPE,

@@ -1962,8 +1962,8 @@ class ChatApp(App):
 
     # ── Diff Mode ──────────────────────────────────────────────────────────────
 
-    def _toggle_diff_mode(self) -> None:
-        """Show diff screen for reviewing uncommitted changes."""
+    def _toggle_diff_mode(self, target: str | None = None) -> None:
+        """Show diff screen for reviewing changes vs target (default HEAD)."""
         from claudechic.features.diff import HunkComment, format_hunk_comments
         from claudechic.screens import DiffScreen
 
@@ -1977,4 +1977,4 @@ class ChatApp(App):
                 self.chat_input.text = format_hunk_comments(comments)
             self.chat_input.focus()
 
-        self.push_screen(DiffScreen(agent.cwd), on_dismiss)
+        self.push_screen(DiffScreen(agent.cwd, target or "HEAD"), on_dismiss)
