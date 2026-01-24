@@ -45,10 +45,13 @@ class DiffScreen(Screen[list[HunkComment]]):
     }
     """
 
-    def __init__(self, cwd: Path, target: str = "HEAD") -> None:
+    def __init__(
+        self, cwd: Path, target: str = "HEAD", focus_file: str | None = None
+    ) -> None:
         super().__init__()
         self._cwd = cwd
         self._target = target
+        self._focus_file = focus_file
         self._sidebar: DiffSidebar | None = None
         self._view: DiffView | None = None
 
@@ -82,7 +85,18 @@ class DiffScreen(Screen[list[HunkComment]]):
         container.mount(self._sidebar)
         container.mount(self._view)
 
-        self._view.focus()
+        # Focus on specific file if requested (defer to allow widgets to mount)
+        if self._focus_file and self._view:
+            self.call_after_refresh(self._focus_on_file)
+        else:
+            self._view.focus()
+
+    def _focus_on_file(self) -> None:
+        """Focus on the specified file after widgets are ready."""
+        if self._focus_file and self._view:
+            self._view.scroll_to_file(self._focus_file)
+            if self._sidebar:
+                self._sidebar.set_active(self._focus_file)
 
     def action_go_back(self) -> None:
         """Return to chat with collected comments."""

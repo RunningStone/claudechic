@@ -20,6 +20,7 @@ from claudechic.widgets import (
     TodoPanel,
     ProcessPanel,
     PlanSection,
+    FilesSection,
     HamburgerButton,
 )
 from claudechic.widgets.layout.footer import StatusFooter
@@ -60,6 +61,7 @@ class ChatScreen(Screen):
             with Vertical(id="right-sidebar", classes="hidden"):
                 yield AgentSection(id="agent-section")
                 yield PlanSection(id="plan-section", classes="hidden")
+                yield FilesSection(id="files-section", classes="hidden")
                 yield TodoPanel(id="todo-panel")
                 yield ProcessPanel(id="process-panel", classes="hidden")
         yield StatusFooter()

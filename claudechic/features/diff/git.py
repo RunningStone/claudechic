@@ -73,6 +73,47 @@ class FileChange:
     hunks: list[Hunk] = field(default_factory=list)
 
 
+@dataclass
+class FileStat:
+    """Simple file change stats (path + additions/deletions)."""
+
+    path: str
+    additions: int
+    deletions: int
+
+
+async def get_file_stats(cwd: str, target: str = "HEAD") -> list[FileStat]:
+    """Get simple file stats (additions/deletions) via git diff --numstat."""
+    proc = await asyncio.create_subprocess_exec(
+        "git",
+        "diff",
+        target,
+        "--numstat",
+        cwd=cwd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    if proc.returncode != 0:
+        return []
+
+    stats = []
+    for line in stdout.decode().strip().split("\n"):
+        if not line:
+            continue
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        # Format: additions\tdeletions\tpath
+        # Binary files show "-" for additions/deletions
+        adds = int(parts[0]) if parts[0] != "-" else 0
+        dels = int(parts[1]) if parts[1] != "-" else 0
+        path = parts[2]
+        stats.append(FileStat(path=path, additions=adds, deletions=dels))
+
+    return stats
+
+
 async def get_changes(cwd: str, target: str = "HEAD") -> list[FileChange]:
     """Get all changes vs target (default HEAD) via git diff."""
     # Get list of changed files with status

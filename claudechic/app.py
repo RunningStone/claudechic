@@ -78,6 +78,8 @@ from claudechic.widgets import (
     ChatView,
     PlanItem,
     PlanSection,
+    FileItem,
+    FilesSection,
     HamburgerButton,
     EditPlanRequested,
 )
@@ -146,6 +148,7 @@ class ChatApp(App):
         # Cached widget references (initialized lazily)
         self._agent_section: AgentSection | None = None
         self._plan_section: PlanSection | None = None
+        self._files_section: FilesSection | None = None
         self._todo_panel: TodoPanel | None = None
         self._process_panel: ProcessPanel | None = None
         self._context_bar: ContextBar | None = None
@@ -231,6 +234,32 @@ class ChatApp(App):
             return None
         return self.agent_mgr.get(agent_id)
 
+    def _track_edited_file(self, tool: ToolUse, file_path: Path) -> None:
+        """Track an edited file in the sidebar."""
+        from claudechic.formatting import make_relative
+
+        # Calculate additions/deletions from tool input
+        additions = 0
+        deletions = 0
+        if tool.name == "Edit":
+            old_str = tool.input.get("old_string", "")
+            new_str = tool.input.get("new_string", "")
+            deletions = old_str.count("\n") + (1 if old_str else 0)
+            additions = new_str.count("\n") + (1 if new_str else 0)
+        elif tool.name == "Write":
+            content = tool.input.get("content", "")
+            additions = content.count("\n") + (1 if content else 0)
+
+        # Make path relative to agent's working directory
+        agent = self.agent_mgr.active if self.agent_mgr else None
+        cwd = Path(agent.cwd) if agent else None
+        rel_path = Path(make_relative(str(file_path), cwd))
+
+        try:
+            self.files_section.add_file(rel_path, additions, deletions)
+        except Exception:
+            pass  # Widget may not exist yet
+
     # Cached widget accessors (lazy init on first access)
     @property
     def agent_section(self) -> AgentSection:
@@ -243,6 +272,12 @@ class ChatApp(App):
         if self._plan_section is None:
             self._plan_section = self.query_one("#plan-section", PlanSection)
         return self._plan_section
+
+    @property
+    def files_section(self) -> FilesSection:
+        if self._files_section is None:
+            self._files_section = self.query_one("#files-section", FilesSection)
+        return self._files_section
 
     @property
     def todo_panel(self) -> TodoPanel:
@@ -1306,6 +1341,10 @@ class ChatApp(App):
         editor = os.environ.get("EDITOR", "vi")
         handle_command(self, f"/shell -i {editor} {event.plan_path}")
 
+    def on_file_item_selected(self, event: FileItem.Selected) -> None:
+        """Handle file item click - open diff view focused on that file."""
+        self._toggle_diff_mode_for_file(str(event.file_path))
+
     def on_hamburger_button_sidebar_toggled(
         self, event: HamburgerButton.SidebarToggled
     ) -> None:
@@ -1672,8 +1711,24 @@ class ChatApp(App):
 
             # Show sidebar if now needed
             self._position_right_sidebar()
+
+            # Populate files section with uncommitted changes (async)
+            self.run_worker(self._populate_files_from_git(agent.cwd))
         except Exception as e:
             log.exception(f"Failed to create agent UI: {e}")
+
+    async def _populate_files_from_git(self, cwd: Path) -> None:
+        """Populate the files section with uncommitted git changes."""
+        from claudechic.features.diff import get_file_stats
+
+        try:
+            stats = await get_file_stats(str(cwd))
+            for stat in stats:
+                self.files_section.add_file(
+                    Path(stat.path), stat.additions, stat.deletions
+                )
+        except Exception:
+            pass  # Not a git repo or widget not ready
 
     def on_agent_switched(self, new_agent: Agent, old_agent: Agent | None) -> None:
         """Handle agent switch from AgentManager."""
@@ -1844,6 +1899,12 @@ class ChatApp(App):
             ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent.id)
         )
 
+        # Track edited files in sidebar
+        if not tool.is_error and tool.name in ("Edit", "Write"):
+            file_path = tool.input.get("file_path")
+            if file_path:
+                self._track_edited_file(tool, Path(file_path))
+
     def on_system_message(self, agent: Agent, message: SystemMessage) -> None:
         """Handle system message from agent - post Textual Message for UI."""
         self.post_message(SystemNotification(message, agent_id=agent.id))
@@ -1988,3 +2049,22 @@ class ChatApp(App):
             self.chat_input.focus()
 
         self.push_screen(DiffScreen(agent.cwd, target or "HEAD"), on_dismiss)
+
+    def _toggle_diff_mode_for_file(self, file_path: str) -> None:
+        """Show diff screen focused on a specific file."""
+        from claudechic.features.diff import HunkComment, format_hunk_comments
+        from claudechic.screens import DiffScreen
+
+        agent = self._agent
+        if not agent:
+            self.notify("No active agent", severity="error")
+            return
+
+        def on_dismiss(comments: list[HunkComment] | None) -> None:
+            if comments:
+                self.chat_input.text = format_hunk_comments(comments)
+            self.chat_input.focus()
+
+        self.push_screen(
+            DiffScreen(agent.cwd, "HEAD", focus_file=file_path), on_dismiss
+        )

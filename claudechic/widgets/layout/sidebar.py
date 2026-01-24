@@ -176,6 +176,110 @@ class PlanItem(SidebarItem):
         self.post_message(self.PlanRequested(self.plan_path))
 
 
+class FileItem(SidebarItem):
+    """An edited file in the sidebar."""
+
+    DEFAULT_CSS = """
+    FileItem {
+        height: 1;
+        min-height: 1;
+        padding: 0 1 0 2;
+    }
+    """
+
+    class Selected(Message):
+        """Posted when file is clicked."""
+
+        def __init__(self, file_path: Path) -> None:
+            self.file_path = file_path
+            super().__init__()
+
+    max_name_length: int = 14
+
+    def __init__(self, file_path: Path, additions: int = 0, deletions: int = 0) -> None:
+        super().__init__()
+        self.file_path = file_path
+        self.additions = additions
+        self.deletions = deletions
+
+    def _truncate_front(self, name: str) -> str:
+        """Truncate from front with ellipsis if too long."""
+        if len(name) > self.max_name_length:
+            return "…" + name[-(self.max_name_length - 1) :]
+        return name
+
+    def render(self) -> Text:
+        """Render the file item text."""
+        name = self._truncate_front(str(self.file_path))
+        parts: list[tuple[str, str]] = [(name, "dim")]
+        if self.additions:
+            parts.append((f" +{self.additions}", "dim green"))
+        if self.deletions:
+            parts.append((f" -{self.deletions}", "dim red"))
+        return Text.assemble(*parts)
+
+    def on_click(self, event) -> None:
+        self.post_message(self.Selected(self.file_path))
+
+
+class FilesSection(SidebarSection):
+    """Sidebar section for edited files."""
+
+    DEFAULT_CSS = """
+    FilesSection {
+        border-top: solid $panel;
+    }
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__("Files", *args, **kwargs)
+        self._files: dict[Path, FileItem] = {}  # path -> item
+        self._compact = False
+
+    @property
+    def item_count(self) -> int:
+        """Number of files in the section."""
+        return len(self._files)
+
+    def set_compact(self, compact: bool) -> None:
+        """Set compact mode for all items."""
+        if self._compact == compact:
+            return
+        self._compact = compact
+        for item in self._files.values():
+            item.set_class(compact, "compact")
+
+    def add_file(self, file_path: Path, additions: int = 0, deletions: int = 0) -> None:
+        """Add or update a file in the section."""
+        if file_path in self._files:
+            # Update existing item
+            item = self._files[file_path]
+            item.additions += additions
+            item.deletions += deletions
+            item.refresh()
+        else:
+            # Create new item
+            item = FileItem(file_path, additions, deletions)
+            # Sanitize path for CSS ID
+            safe_id = (
+                str(file_path).replace("/", "-").replace(".", "-").replace(" ", "-")
+            )
+            item.id = f"file-{safe_id}"
+            item.set_class(self._compact, "compact")
+            self._files[file_path] = item
+            self.mount(item)
+        # Show section when files exist
+        if self._files:
+            self.remove_class("hidden")
+
+    def clear(self) -> None:
+        """Remove all files from the section."""
+        for item in self._files.values():
+            item.remove()
+        self._files.clear()
+        self.add_class("hidden")
+
+
 class PlanSection(SidebarSection):
     """Sidebar section for plan files."""
 
