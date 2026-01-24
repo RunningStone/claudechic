@@ -1709,7 +1709,7 @@ class ChatApp(App):
 
         # Update footer
         self._update_footer_auto_edit()
-        self._update_footer_cwd(new_agent.cwd)
+        asyncio.create_task(self.status_footer.refresh_branch(str(new_agent.cwd)))
         self._update_footer_model(new_agent.model)
 
         # Update todo panel
@@ -1937,14 +1937,6 @@ class ChatApp(App):
             self.notify(f"{request.tool_name} allowed for this session")
 
         return result
-
-    def _update_footer_cwd(self, cwd: Path) -> None:
-        """Update footer to show cwd/branch info."""
-        try:
-            # refresh_branch is async, schedule it
-            asyncio.create_task(self.status_footer.refresh_branch(str(cwd)))
-        except Exception:
-            pass
 
     def _update_footer_model(self, model: str | None) -> None:
         """Update footer to show agent's model."""

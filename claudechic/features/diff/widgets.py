@@ -217,12 +217,15 @@ class HunkWidget(Static, can_focus=True):
     def compose(self) -> ComposeResult:
         old_content = "\n".join(self.hunk.old_lines)
         new_content = "\n".join(self.hunk.new_lines)
+        # Use hunk size as context_lines to preserve already-trimmed context
+        max_lines = max(len(self.hunk.old_lines), len(self.hunk.new_lines))
         yield DiffWidget(
             old=old_content,
             new=new_content,
             path=self.path,
             old_start=self.hunk.old_start,
             new_start=self.hunk.new_start,
+            context_lines=max_lines,
         )
 
     @property
