@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -72,7 +73,8 @@ def handle_worktree_command(app: "ChatApp", command: str) -> None:
         _switch_or_create_worktree(app, subcommand)
 
 
-def _handle_finish(app: "ChatApp") -> None:
+@work(group="finish_start", exclusive=True, exit_on_error=False)
+async def _handle_finish(app: "ChatApp") -> None:
     """Handle /worktree finish command.
 
     Phase-based approach:
@@ -80,18 +82,19 @@ def _handle_finish(app: "ChatApp") -> None:
     2. Resolution: handle uncommitted, merge/rebase
     3. Cleanup: remove worktree and branch
     """
+
     agent = app._agent
     if not agent:
         app.notify("No active agent", severity="error")
         return
 
-    success, message, info = get_finish_info(app.sdk_cwd)
+    success, message, info = await asyncio.to_thread(get_finish_info, app.sdk_cwd)
     if not success or info is None:
         app.notify(message, severity="error")
         return
 
     # Phase 1: Pre-flight diagnosis
-    status = diagnose_worktree(info)
+    status = await asyncio.to_thread(diagnose_worktree, info)
 
     # Store state on agent
     agent.finish_state = FinishState(
@@ -224,13 +227,15 @@ async def _run_resolution(app: "ChatApp", agent: "Agent") -> None:
         return
 
 
-def _run_cleanup(app: "ChatApp", agent: "Agent") -> None:
+@work(group="cleanup", exclusive=True, exit_on_error=False)
+async def _run_cleanup(app: "ChatApp", agent: "Agent") -> None:
     """Run Phase 3: Cleanup. Bash only, Claude if it fails."""
+
     state = agent.finish_state
     if not state:
         return
 
-    success, message = finish_cleanup(state.info)
+    success, message = await asyncio.to_thread(finish_cleanup, state.info)
     if success:
         _finish_complete(app, agent, message)
         return
@@ -272,18 +277,20 @@ def _finish_complete(app: "ChatApp", agent: "Agent", warning: str = "") -> None:
     _close_agents_for_branches(app, [branch_name])
 
 
-def on_response_complete_finish(app: "ChatApp", agent: "Agent") -> None:
+@work(group="finish_continue", exclusive=True, exit_on_error=False)
+async def on_response_complete_finish(app: "ChatApp", agent: "Agent") -> None:
     """Called from on_response_complete when finish_state is set.
 
     Continues the finish process after Claude completes a task.
     """
+
     state = agent.finish_state
     if not state:
         return
 
     if state.phase == FinishPhase.RESOLUTION:
         # Re-diagnose to see if Claude fixed things
-        state.status = diagnose_worktree(state.info)
+        state.status = await asyncio.to_thread(diagnose_worktree, state.info)
         action = determine_resolution_action(state.status)
 
         if action == ResolutionAction.NONE:
