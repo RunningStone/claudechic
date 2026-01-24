@@ -1,5 +1,7 @@
 """Diff view widgets - sidebar, main view, and file panels."""
 
+import difflib
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
@@ -9,6 +11,46 @@ from textual.widgets import Label, Static, TextArea
 from claudechic.widgets.content.diff import DiffWidget
 
 from .git import FileChange, Hunk, HunkComment
+
+# Hunks larger than this will be split into smaller sub-hunks
+LARGE_HUNK_THRESHOLD = 30
+
+
+def _split_large_hunk(hunk: Hunk, context: int = 3) -> list[Hunk]:
+    """Split a large hunk into smaller sub-hunks using difflib grouping.
+
+    Returns the original hunk in a list if it's small or can't be split.
+    """
+    max_lines = max(len(hunk.old_lines), len(hunk.new_lines))
+    if max_lines <= LARGE_HUNK_THRESHOLD:
+        return [hunk]
+
+    sm = difflib.SequenceMatcher(None, hunk.old_lines, hunk.new_lines)
+    groups = list(sm.get_grouped_opcodes(context))
+
+    if len(groups) <= 1:
+        return [hunk]
+
+    sub_hunks = []
+    for group in groups:
+        # Extract line ranges for this group
+        old_start_idx = group[0][1]  # i1 of first opcode
+        old_end_idx = group[-1][2]  # i2 of last opcode
+        new_start_idx = group[0][3]  # j1 of first opcode
+        new_end_idx = group[-1][4]  # j2 of last opcode
+
+        sub_hunks.append(
+            Hunk(
+                old_start=hunk.old_start + old_start_idx,
+                old_count=old_end_idx - old_start_idx,
+                new_start=hunk.new_start + new_start_idx,
+                new_count=new_end_idx - new_start_idx,
+                old_lines=hunk.old_lines[old_start_idx:old_end_idx],
+                new_lines=hunk.new_lines[new_start_idx:new_end_idx],
+            )
+        )
+
+    return sub_hunks
 
 
 class DiffFileItem(Static):
@@ -314,15 +356,20 @@ class FileDiffPanel(Vertical):
         yield Label(f"[{color}]{self.change.path}[/]", classes="file-header")
 
         # Show each hunk as a separate widget with separators between
+        # Large hunks are split into smaller sub-hunks for easier navigation
         if self.change.hunks:
-            for i, hunk in enumerate(self.change.hunks):
-                if i > 0:
-                    yield HunkSeparator()
-                yield HunkWidget(
-                    hunk,
-                    self.change.path,
-                    id=f"hunk-{_sanitize_id(self.change.path)}-{i}",
-                )
+            widget_idx = 0
+            for hunk in self.change.hunks:
+                sub_hunks = _split_large_hunk(hunk)
+                for sub_hunk in sub_hunks:
+                    if widget_idx > 0:
+                        yield HunkSeparator()
+                    yield HunkWidget(
+                        sub_hunk,
+                        self.change.path,
+                        id=f"hunk-{_sanitize_id(self.change.path)}-{widget_idx}",
+                    )
+                    widget_idx += 1
         else:
             yield Label("[dim]Binary file or no diff available[/]")
 
@@ -339,12 +386,17 @@ class DiffView(VerticalScroll):
     def __init__(self, changes: list[FileChange], **kwargs) -> None:
         super().__init__(**kwargs)
         self.changes = changes
-        # Build flat list of (file_idx, hunk_idx) for navigation
+        # Build flat list of (file_idx, widget_idx) for navigation
+        # Must account for large hunks being split into sub-hunks
         self._hunk_list: list[tuple[int, int]] = []
         for file_idx, change in enumerate(changes):
             if change.hunks:
-                for hunk_idx in range(len(change.hunks)):
-                    self._hunk_list.append((file_idx, hunk_idx))
+                widget_idx = 0
+                for hunk in change.hunks:
+                    sub_hunk_count = len(_split_large_hunk(hunk))
+                    for _ in range(sub_hunk_count):
+                        self._hunk_list.append((file_idx, widget_idx))
+                        widget_idx += 1
             else:
                 # File with no hunks (binary) - still navigable as a unit
                 self._hunk_list.append((file_idx, -1))
