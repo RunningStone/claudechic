@@ -27,6 +27,7 @@ from claudechic.widgets.content.diff import DiffWidget
 from claudechic.widgets.content.message import ChatMessage
 from claudechic.widgets.primitives.spinner import Spinner
 from claudechic.widgets.base.tool_base import BaseToolWidget
+from claudechic.widgets.base.cursor import ClickableMixin
 
 log = logging.getLogger(__name__)
 
@@ -318,7 +319,7 @@ class TaskWidget(BaseToolWidget):
             pass  # Widget may not be mounted
 
 
-class ShellOutputWidget(Static):
+class ShellOutputWidget(Static, ClickableMixin):
     """Collapsible widget showing inline shell command output."""
 
     can_focus = False
@@ -333,6 +334,14 @@ class ShellOutputWidget(Static):
         self.returncode = returncode
         lines = (stdout + stderr).count("\n") + 1
         self._collapsed = lines > self.COLLAPSE_THRESHOLD
+
+    def on_click(self) -> None:
+        """Toggle collapsible when clicking anywhere on the widget."""
+        try:
+            collapsible = self.query_one(QuietCollapsible)
+            collapsible.collapsed = not collapsible.collapsed
+        except Exception:
+            pass
 
     def compose(self) -> ComposeResult:
         title = self.command
