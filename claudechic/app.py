@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 from importlib.resources import files
 import logging
 import os
-import re
 import sys
 import time
 from pathlib import Path
@@ -88,29 +87,6 @@ from claudechic.profiling import profile
 from claudechic.sampling import start_sampler
 
 log = logging.getLogger(__name__)
-
-
-# Matches ask_agent: [Question from agent 'X' - please respond back using tell_agent, or ask_agent if you need more context]
-_AGENT_QUESTION_RE = re.compile(
-    r"^\[Question from agent '([^']+)' - please respond back using tell_agent, or ask_agent if you need more context\]\n\n"
-)
-# Matches tell_agent: [Message from agent 'X']
-_AGENT_MESSAGE_RE = re.compile(r"^\[Message from agent '([^']+)'\]\n\n")
-
-
-def _format_agent_prompt(prompt: str) -> tuple[str, bool]:
-    """Format inter-agent prompts for nicer display. Returns (formatted, is_agent)."""
-    match = _AGENT_QUESTION_RE.match(prompt)
-    if match:
-        agent_name = match.group(1)
-        rest = prompt[match.end() :]
-        return f"Question from **{agent_name}**:\n\n{rest}", True
-    match = _AGENT_MESSAGE_RE.match(prompt)
-    if match:
-        agent_name = match.group(1)
-        rest = prompt[match.end() :]
-        return f"From **{agent_name}**:\n\n{rest}", True
-    return prompt, False
 
 
 class ChatApp(App):
@@ -1912,10 +1888,7 @@ class ChatApp(App):
         if prompt.strip() == "/clear":
             return
 
-        # Format inter-agent messages nicely for display
-        display_prompt, is_agent = _format_agent_prompt(prompt)
-
-        chat_view.append_user_message(display_prompt, images, is_agent=is_agent)
+        chat_view.append_user_message(prompt, images)
         chat_view.start_response()
 
     async def _handle_agent_permission_ui(

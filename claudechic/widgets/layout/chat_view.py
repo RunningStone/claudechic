@@ -15,6 +15,7 @@ from claudechic.agent import (
     TextBlock,
 )
 from claudechic.enums import ToolName
+from claudechic.formatting import format_agent_prompt
 from claudechic.widgets.content.message import (
     ChatMessage,
     ChatAttachment,
@@ -101,8 +102,10 @@ class ChatView(AutoHideScroll):
         widgets: list[Widget] = []
         for item in self._agent.messages:
             if item.role == "user" and isinstance(item.content, UserContent):
+                # Format inter-agent messages (ask_agent/tell_agent)
+                text, is_agent = format_agent_prompt(item.content.text)
                 widgets.extend(
-                    self._create_user_widgets(item.content.text, item.content.images)
+                    self._create_user_widgets(text, item.content.images, is_agent)
                 )
             elif item.role == "assistant" and isinstance(
                 item.content, AssistantContent
@@ -180,11 +183,10 @@ class ChatView(AutoHideScroll):
     # Streaming API - called by ChatApp during live response
     # -----------------------------------------------------------------------
 
-    def append_user_message(
-        self, text: str, images: list[ImageAttachment], is_agent: bool = False
-    ) -> None:
+    def append_user_message(self, text: str, images: list[ImageAttachment]) -> None:
         """Append a user message to the view."""
-        self._mount_user_message(text, images, is_agent=is_agent)
+        formatted_text, is_agent = format_agent_prompt(text)
+        self._mount_user_message(formatted_text, images, is_agent=is_agent)
         self.scroll_if_tailing()
 
     def start_response(self) -> None:
