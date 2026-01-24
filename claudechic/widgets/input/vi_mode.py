@@ -45,6 +45,21 @@ class ViState:
 class ViHandler:
     """Handles vi-mode key processing for a TextArea widget."""
 
+    # Motion dispatch table: char -> (motion_name, uses_count)
+    # These work both for navigation and with operators (d, c, y)
+    MOTIONS: dict[str, tuple[str, bool]] = {
+        "h": ("left", True),
+        "j": ("down", True),
+        "k": ("up", True),
+        "l": ("right", True),
+        "w": ("word_right", True),
+        "b": ("word_left", True),
+        "e": ("word_end", True),
+        "$": ("line_end", False),
+        "0": ("line_start", False),
+        "G": ("doc_end", False),
+    }
+
     def __init__(self, text_area: TextArea) -> None:
         self.text_area = text_area
         self.state = ViState()
@@ -64,6 +79,39 @@ class ViHandler:
         if self.state.mode != mode:
             self.state.mode = mode
             self._notify_mode_change()
+
+    def _do_motion(self, motion: str, count: int = 1) -> None:
+        """Execute a motion, moving the cursor."""
+        ta = self.text_area
+        if motion == "left":
+            for _ in range(count):
+                ta.action_cursor_left()
+        elif motion == "down":
+            for _ in range(count):
+                ta.action_cursor_down()
+        elif motion == "up":
+            for _ in range(count):
+                ta.action_cursor_up()
+        elif motion == "right":
+            for _ in range(count):
+                ta.action_cursor_right()
+        elif motion == "word_right":
+            for _ in range(count):
+                ta.action_cursor_word_right()
+        elif motion == "word_left":
+            for _ in range(count):
+                ta.action_cursor_word_left()
+        elif motion == "word_end":
+            for _ in range(count):
+                self._move_to_word_end()
+        elif motion == "line_end":
+            ta.action_cursor_line_end()
+        elif motion == "line_start":
+            ta.action_cursor_line_start()
+        elif motion == "doc_start":
+            ta.move_cursor((0, 0))
+        elif motion == "doc_end":
+            ta.move_cursor(ta.document.end)
 
     def _set_selection(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         """Set text area selection using Selection class."""
@@ -199,75 +247,47 @@ class ViHandler:
             if character == "g":
                 state.pending_g = True
                 return True
-            op = state.pending_operator
-            count = state.get_count()
-            if character == "w":
-                self._execute_operator_motion(op, "word_right", count)
+            # Check motion dispatch table
+            if character and character in self.MOTIONS:
+                motion_name, uses_count = self.MOTIONS[character]
+                count = state.get_count() if uses_count else 1
+                self._execute_operator_motion(
+                    state.pending_operator, motion_name, count
+                )
                 state.reset_pending()
                 return True
-            if character == "b":
-                self._execute_operator_motion(op, "word_left", count)
-                state.reset_pending()
-                return True
-            if character == "$":
-                self._execute_operator_motion(op, "line_end", count)
-                state.reset_pending()
-                return True
-            if character == "0":
-                self._execute_operator_motion(op, "line_start", count)
-                state.reset_pending()
-                return True
-            if character == "G":
-                self._execute_operator_motion(op, "doc_end", count)
+            # Double operator (dd, cc, yy) - operate on line
+            if character == state.pending_operator:
+                self._execute_line_operator(state.pending_operator)
                 state.reset_pending()
                 return True
             # Unknown motion - cancel
             state.reset_pending()
             return True
 
-        # Navigation
-        if character == "h" or key == "left":
-            for _ in range(state.get_count()):
-                ta.action_cursor_left()
+        # Navigation - use dispatch table for common motions
+        if character and character in self.MOTIONS:
+            motion_name, uses_count = self.MOTIONS[character]
+            count = state.get_count() if uses_count else 1
+            self._do_motion(motion_name, count)
             state.reset_pending()
             return True
-        if character == "l" or key == "right":
-            for _ in range(state.get_count()):
-                ta.action_cursor_right()
+
+        # Arrow key navigation
+        if key == "left":
+            self._do_motion("left", state.get_count())
             state.reset_pending()
             return True
-        if character == "j" or key == "down":
-            for _ in range(state.get_count()):
-                ta.action_cursor_down()
+        if key == "right":
+            self._do_motion("right", state.get_count())
             state.reset_pending()
             return True
-        if character == "k" or key == "up":
-            for _ in range(state.get_count()):
-                ta.action_cursor_up()
+        if key == "down":
+            self._do_motion("down", state.get_count())
             state.reset_pending()
             return True
-        if character == "w":
-            for _ in range(state.get_count()):
-                ta.action_cursor_word_right()
-            state.reset_pending()
-            return True
-        if character == "b":
-            for _ in range(state.get_count()):
-                ta.action_cursor_word_left()
-            state.reset_pending()
-            return True
-        if character == "e":
-            # Move to end of word
-            for _ in range(state.get_count()):
-                self._move_to_word_end()
-            state.reset_pending()
-            return True
-        if character == "0":
-            ta.action_cursor_line_start()
-            state.reset_pending()
-            return True
-        if character == "$":
-            ta.action_cursor_line_end()
+        if key == "up":
+            self._do_motion("up", state.get_count())
             state.reset_pending()
             return True
         if character == "^":
@@ -294,13 +314,8 @@ class ViHandler:
             state.pending_motion = character
             return True
 
-        # Operators (d, c, y)
+        # Operators (d, c, y) - set pending operator
         if character is not None and character in "dcy":
-            if state.pending_operator == character:
-                # Double operator (dd, cc, yy) - operate on line
-                self._execute_line_operator(character)
-                state.reset_pending()
-                return True
             state.pending_operator = character
             return True
 
@@ -581,20 +596,7 @@ class ViHandler:
         start = ta.cursor_location
 
         # Execute motion (with count)
-        if motion == "word_right":
-            for _ in range(count):
-                ta.action_cursor_word_right()
-        elif motion == "word_left":
-            for _ in range(count):
-                ta.action_cursor_word_left()
-        elif motion == "line_end":
-            ta.action_cursor_line_end()
-        elif motion == "line_start":
-            ta.action_cursor_line_start()
-        elif motion == "doc_start":
-            ta.move_cursor((0, 0))
-        elif motion == "doc_end":
-            ta.move_cursor(ta.document.end)
+        self._do_motion(motion, count)
 
         end = ta.cursor_location
 

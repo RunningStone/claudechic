@@ -93,15 +93,13 @@ def is_new_install() -> bool:
     return _new_install
 
 
-def get_vi_mode() -> bool:
-    """Check if vi mode is enabled."""
-    return _load_config().get("editor", {}).get("vi_mode", False)
+def get_vim() -> bool:
+    """Check if vim mode is enabled."""
+    return _load_config().get("vim", False)
 
 
-def set_vi_mode(enabled: bool) -> None:
-    """Enable or disable vi mode."""
+def set_vim(enabled: bool) -> None:
+    """Enable or disable vim mode."""
     config = _load_config()
-    if "editor" not in config:
-        config["editor"] = {}
-    config["editor"]["vi_mode"] = enabled
+    config["vim"] = enabled
     _save_config()
