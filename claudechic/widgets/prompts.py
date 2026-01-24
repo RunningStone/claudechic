@@ -59,8 +59,9 @@ class BasePrompt(Static):
         self.remove()
 
     def on_mount(self) -> None:
-        """Auto-focus on mount to capture keys immediately."""
-        self.focus()
+        """Auto-focus on mount to capture keys immediately (only if visible)."""
+        if not self.has_class("hidden"):
+            self.focus()
 
     def on_blur(self) -> None:
         """Refocus when focus is lost - prompt must stay focused (unless hidden)."""
