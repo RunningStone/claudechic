@@ -184,12 +184,6 @@ class ChatApp(App):
         """Get active agent ID (from AgentManager)."""
         return self.agent_mgr.active_id if self.agent_mgr else None
 
-    @active_agent_id.setter
-    def active_agent_id(self, value: str | None) -> None:
-        """Set active agent ID (syncs to AgentManager)."""
-        if self.agent_mgr:
-            self.agent_mgr.active_id = value
-
     @property
     def client(self) -> ClaudeSDKClient | None:
         return self._agent.client if self._agent else None
@@ -1033,8 +1027,8 @@ class ChatApp(App):
     def action_switch_agent(self, position: int) -> None:
         """Switch to agent by position (1-indexed)."""
         agent_ids = list(self.agents.keys())
-        if 0 < position <= len(agent_ids):
-            self._switch_to_agent(agent_ids[position - 1])
+        if 0 < position <= len(agent_ids) and self.agent_mgr:
+            self.agent_mgr.switch(agent_ids[position - 1])
 
     def action_history_search(self) -> None:
         """Open reverse history search, or cycle if already open."""
@@ -1284,15 +1278,18 @@ class ChatApp(App):
         self._close_sidebar_overlay()
         if event.agent_id == self.active_agent_id:
             return
-        self._switch_to_agent(event.agent_id)
+        if self.agent_mgr:
+            self.agent_mgr.switch(event.agent_id)
 
     def on_agent_tool_widget_go_to_agent(
         self, event: AgentToolWidget.GoToAgent
     ) -> None:
         """Handle 'Go to agent' button click from AgentToolWidget."""
+        if not self.agent_mgr:
+            return
         for agent_id, agent in self.agents.items():
             if agent.name == event.agent_name:
-                self._switch_to_agent(agent_id)
+                self.agent_mgr.switch(agent_id)
                 return
         self.notify(f"Agent '{event.agent_name}' not found", severity="warning")
 
@@ -1370,59 +1367,6 @@ class ChatApp(App):
             self.notify("Cannot close the last agent", severity="error")
             return
         self._do_close_agent(event.agent_id)
-
-    def _switch_to_agent(self, agent_id: str) -> None:
-        """Switch to a different agent."""
-        if agent_id not in self.agents:
-            return
-        old_agent = self._agent
-
-        # Batch all class changes to trigger single CSS recalculation
-        with self.batch_update():
-            # Save current input and hide old agent's UI
-            if old_agent:
-                old_agent.pending_input = self.chat_input.text
-                old_chat_view = self._chat_views.get(old_agent.id)
-                if old_chat_view:
-                    old_chat_view.add_class("hidden")
-                old_prompt = self._active_prompts.get(old_agent.id)
-                if old_prompt:
-                    old_prompt.add_class("hidden")
-            # Switch active agent (setter syncs to AgentManager)
-            self.active_agent_id = agent_id
-            agent = self._agent
-            chat_view = self._chat_views.get(agent_id)
-            if chat_view:
-                chat_view.remove_class("hidden")
-            # Restore new agent's input
-            if agent:
-                self.chat_input.text = agent.pending_input
-            # Show new agent's prompt if it has one, otherwise show input
-            active_prompt = self._active_prompts.get(agent_id)
-            if active_prompt:
-                active_prompt.remove_class("hidden")
-                active_prompt.focus()
-                self.input_container.add_class("hidden")
-            else:
-                self.input_container.remove_class("hidden")
-            # Update sidebar selection
-            self.agent_section.set_active(agent_id)
-            # Update footer
-            self.status_footer.auto_edit = agent.auto_approve_edits if agent else False
-            self._update_footer_model(agent.model if agent else None)
-            # Update todo panel for new agent
-            self.todo_panel.update_todos(agent.todos if agent else [])
-            # Update context bar for new agent
-            self.refresh_context()
-            # Update plan button for new agent (use cached plan_path)
-            self.plan_section.set_plan(agent.plan_path if agent else None)
-            self._position_right_sidebar()
-
-        # These happen outside batch (async/focus)
-        asyncio.create_task(
-            self.status_footer.refresh_branch(str(agent.cwd) if agent else None)
-        )
-        self.chat_input.focus()
 
     async def _reconnect_agent(self, agent: "Agent", session_id: str) -> None:
         """Disconnect and reconnect an agent to reload its session."""
@@ -1603,7 +1547,6 @@ class ChatApp(App):
             return
 
         agent_name = agent.name
-        was_active = agent_id == self.active_agent_id
 
         # Remove chat view before closing (AgentManager.close removes from agents dict)
         chat_view = self._chat_views.pop(agent_id, None)
@@ -1612,12 +1555,8 @@ class ChatApp(App):
         self._active_prompts.pop(agent_id, None)
 
         # Close via AgentManager (handles disconnect, removes from agents dict,
-        # triggers on_agent_closed which updates sidebar visibility)
+        # triggers on_agent_closed, and switches to another agent if needed)
         await self.agent_mgr.close(agent_id)
-
-        # Switch to another agent if we closed the active one
-        if was_active and self.agents:
-            self._switch_to_agent(next(iter(self.agents)))
 
         self.notify(f"Agent '{agent_name}' closed")
 
@@ -1727,32 +1666,56 @@ class ChatApp(App):
         """Handle agent switch from AgentManager."""
         log.info(f"Switched to agent: {new_agent.name}")
 
-        # Hide old agent's chat view
-        if old_agent:
-            old_chat_view = self._chat_views.get(old_agent.id)
-            if old_chat_view:
-                old_chat_view.add_class("hidden")
+        # Batch all class changes to trigger single CSS recalculation
+        with self.batch_update():
+            # Save current input and hide old agent's UI
+            if old_agent:
+                old_agent.pending_input = self.chat_input.text
+                old_chat_view = self._chat_views.get(old_agent.id)
+                if old_chat_view:
+                    old_chat_view.add_class("hidden")
+                old_prompt = self._active_prompts.get(old_agent.id)
+                if old_prompt:
+                    old_prompt.add_class("hidden")
 
-        # Show new agent's chat view
-        new_chat_view = self._chat_views.get(new_agent.id)
-        if new_chat_view:
-            new_chat_view.remove_class("hidden")
+            # Show new agent's chat view
+            new_chat_view = self._chat_views.get(new_agent.id)
+            if new_chat_view:
+                new_chat_view.remove_class("hidden")
 
-        # Update sidebar
-        try:
-            self.agent_section.set_active(new_agent.id)
-        except Exception:
-            pass
+            # Restore new agent's input
+            self.chat_input.text = new_agent.pending_input
 
-        # Update footer
-        self._update_footer_auto_edit()
+            # Show new agent's prompt if it has one, otherwise show input
+            active_prompt = self._active_prompts.get(new_agent.id)
+            if active_prompt:
+                active_prompt.remove_class("hidden")
+                active_prompt.focus()
+                self.input_container.add_class("hidden")
+            else:
+                self.input_container.remove_class("hidden")
+
+            # Update sidebar
+            try:
+                self.agent_section.set_active(new_agent.id)
+            except Exception:
+                pass
+
+            # Update footer
+            self.status_footer.auto_edit = new_agent.auto_approve_edits
+            self._update_footer_model(new_agent.model)
+
+            # Update todo panel and context
+            self.todo_panel.update_todos(new_agent.todos)
+            self.refresh_context()
+
+            # Update plan button
+            self.plan_section.set_plan(new_agent.plan_path)
+            self._position_right_sidebar()
+
+        # These happen outside batch (async/focus)
         asyncio.create_task(self.status_footer.refresh_branch(str(new_agent.cwd)))
-        self._update_footer_model(new_agent.model)
-
-        # Update todo panel
-        self.todo_panel.update_todos(new_agent.todos)
-        self.refresh_context()
-        self._position_right_sidebar()
+        self.chat_input.focus()
 
     def on_agent_closed(self, agent_id: str, message_count: int = 0) -> None:
         """Handle agent closure from AgentManager."""

@@ -226,10 +226,11 @@ def _handle_agent(app: "ChatApp", command: str) -> bool:
 
     # Check if agent with this name exists - switch to it
     name = subcommand
-    existing = app.agent_mgr.find_by_name(name) if app.agent_mgr else None
-    if existing:
-        app._switch_to_agent(existing.id)
-        return True
+    if app.agent_mgr:
+        existing = app.agent_mgr.find_by_name(name)
+        if existing:
+            app.agent_mgr.switch(existing.id)
+            return True
 
     # Create new agent - parse optional --model flag (supports --model=x or --model x)
     cwd: Path | None = None

@@ -304,7 +304,8 @@ def _switch_or_create_worktree(app: "ChatApp", feature_name: str) -> None:
     # Check if we already have an agent for this worktree
     for agent in app.agents.values():
         if agent.worktree == feature_name:
-            app._switch_to_agent(agent.id)
+            if app.agent_mgr:
+                app.agent_mgr.switch(agent.id)
             app.notify(f"Switched to {feature_name}")
             return
 
@@ -335,8 +336,8 @@ def _close_agents_for_branches(app: "ChatApp", branches: list[str]) -> None:
                 main = next(
                     (a for a in app.agents.values() if a.worktree is None), None
                 )
-                if main:
-                    app._switch_to_agent(main.id)
+                if main and app.agent_mgr:
+                    app.agent_mgr.switch(main.id)
             app._do_close_agent(agent.id)
 
 
