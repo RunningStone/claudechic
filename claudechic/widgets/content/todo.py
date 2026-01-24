@@ -19,8 +19,15 @@ class TodoPanel(Static):
     def compose(self) -> ComposeResult:
         yield Static("Tasks", classes="todo-title")
 
+    def set_visible(self, visible: bool) -> None:
+        """Control visibility (only shows if has todos and visible=True)."""
+        if visible and self.todos:
+            self.remove_class("hidden")
+        else:
+            self.add_class("hidden")
+
     def update_todos(self, todos: list[dict]) -> None:
-        """Replace todos with new list."""
+        """Replace todos with new list. Visibility controlled by set_visible()."""
         self.todos = todos
         # Remove old items (keep title)
         for child in list(self.children):

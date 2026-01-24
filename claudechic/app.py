@@ -630,6 +630,7 @@ class ChatApp(App):
         processes = agent.get_background_processes()
         self.process_panel.update_processes(processes)
         self.status_footer.update_processes(processes)
+        self._position_right_sidebar()
 
     async def _load_and_display_history(
         self, session_id: str, cwd: Path | None = None
@@ -868,11 +869,8 @@ class ChatApp(App):
             self.right_sidebar.remove_class("overlay")
             self.hamburger_btn.remove_class("visible")
             self._sidebar_overlay_open = False
-            # Show/hide todo panel based on whether it has content
-            if self.todo_panel.todos:
-                self.todo_panel.remove_class("hidden")
-            else:
-                self.todo_panel.add_class("hidden")
+            # Layout sidebar contents based on available space
+            self._layout_sidebar_contents()
             # Wide enough to center chat while showing sidebar
             if width >= self.CENTERED_SIDEBAR_WIDTH:
                 main.remove_class("sidebar-shift")
@@ -888,10 +886,8 @@ class ChatApp(App):
                 self.hamburger_btn.remove_class("visible")
                 self.right_sidebar.remove_class("hidden")
                 self.right_sidebar.add_class("overlay")
-                if self.todo_panel.todos:
-                    self.todo_panel.remove_class("hidden")
-                else:
-                    self.todo_panel.add_class("hidden")
+                # Layout sidebar contents
+                self._layout_sidebar_contents()
             else:
                 # Sidebar closed - show hamburger
                 self.hamburger_btn.add_class("visible")
@@ -908,6 +904,71 @@ class ChatApp(App):
             self.hamburger_btn.remove_class("visible")
             self._sidebar_overlay_open = False
             main.remove_class("sidebar-shift")
+
+    def _layout_sidebar_contents(self) -> None:
+        """Coordinate sidebar section visibility and compaction based on available space.
+
+        Priority order (highest first): active agent > todos > other agents > processes > plan
+        """
+        # Get available height (terminal height minus footer)
+        height = self.size.height - 1  # StatusFooter is 1 line
+
+        # Count items in each section
+        agent_count = self.agent_section.item_count
+        todo_count = len(self.todo_panel.todos)
+        process_count = self.process_panel.process_count
+        has_plan = self.plan_section.has_plan
+
+        # Height costs (lines) - based on actual CSS
+        # AgentSection title: padding 1 1 1 1 = 3 lines (top + text + bottom)
+        AGENT_SECTION_TITLE = 3
+        AGENT_EXPANDED = 3  # height: 3 with padding
+        AGENT_COMPACT = 1  # height: 1 without padding
+        # TodoPanel: border-top(1) + padding(2) + title with padding(2) = 5 lines overhead
+        TODO_OVERHEAD = 5
+        TODO_ITEM = 1
+        # ProcessPanel: same structure as TodoPanel
+        PROCESS_OVERHEAD = 5
+        PROCESS_ITEM = 1
+        # PlanSection: border-top(1) + title(3) + item(3) = 7 lines
+        PLAN_TOTAL = 7
+
+        # Start with fixed costs: agent section title always present
+        used = AGENT_SECTION_TITLE
+
+        # Todos: high priority, always show if present
+        if todo_count:
+            used += TODO_OVERHEAD + todo_count * TODO_ITEM
+        self.todo_panel.set_visible(bool(todo_count))
+
+        remaining = height - used
+
+        # Agents: try expanded first, fall back to compact
+        agents_expanded = agent_count * AGENT_EXPANDED
+        agents_compact = agent_count * AGENT_COMPACT
+
+        if agents_expanded <= remaining:
+            self.agent_section.set_compact(False)
+            remaining -= agents_expanded
+        else:
+            self.agent_section.set_compact(True)
+            remaining -= agents_compact
+
+        # Processes: show if room
+        if (
+            process_count
+            and remaining >= PROCESS_OVERHEAD + process_count * PROCESS_ITEM
+        ):
+            self.process_panel.set_visible(True)
+            remaining -= PROCESS_OVERHEAD + process_count * PROCESS_ITEM
+        else:
+            self.process_panel.set_visible(False)
+
+        # Plan: lowest priority, show if room
+        if has_plan and remaining >= PLAN_TOTAL:
+            self.plan_section.set_visible(True)
+        else:
+            self.plan_section.set_visible(False)
 
     def on_response_complete(self, event: ResponseComplete) -> None:
         agent = self._get_agent(event.agent_id)

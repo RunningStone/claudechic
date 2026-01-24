@@ -515,12 +515,18 @@ async def test_process_panel_updates():
         ]
         panel.update_processes(processes)
 
-        # Should now be visible
+        # Processes added, but visibility controlled by set_visible()
+        assert panel.process_count == 2
+        assert panel.has_class("hidden")  # Still hidden until set_visible(True)
+
+        # Make visible
+        panel.set_visible(True)
         assert not panel.has_class("hidden")
 
         items = list(panel.query(ProcessItem))
         assert len(items) == 2
 
-        # Clear processes - should hide again
+        # Clear processes - set_visible(True) with no processes still hides
         panel.update_processes([])
+        panel.set_visible(True)
         assert panel.has_class("hidden")

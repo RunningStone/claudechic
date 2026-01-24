@@ -188,9 +188,16 @@ class PlanSection(SidebarSection):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__("Plan", *args, **kwargs)
         self._plan_item: PlanItem | None = None
+        self._plan_path: Path | None = None
+
+    @property
+    def has_plan(self) -> bool:
+        """Whether a plan is set (regardless of visibility)."""
+        return self._plan_path is not None
 
     def set_plan(self, plan_path: Path | None) -> None:
-        """Show or hide the plan."""
+        """Set the plan path. Visibility is controlled by set_visible()."""
+        self._plan_path = plan_path
         if plan_path:
             if self._plan_item is None:
                 self._plan_item = PlanItem(plan_path)
@@ -198,11 +205,17 @@ class PlanSection(SidebarSection):
             else:
                 self._plan_item.plan_path = plan_path
                 self._plan_item.refresh()
-            self.remove_class("hidden")
         else:
             if self._plan_item is not None:
                 self._plan_item.remove()
                 self._plan_item = None
+            self.add_class("hidden")
+
+    def set_visible(self, visible: bool) -> None:
+        """Control visibility (only shows if has plan and visible=True)."""
+        if visible and self._plan_path:
+            self.remove_class("hidden")
+        else:
             self.add_class("hidden")
 
 
@@ -333,11 +346,18 @@ class AgentSection(SidebarSection):
         super().__init__("Agents", *args, **kwargs)
         self._agents: dict[str, AgentItem] = {}
         self._worktrees: dict[str, WorktreeItem] = {}  # branch -> item
+        self._compact = False
 
-    def _update_compact_mode(self) -> None:
-        """Apply compact mode when there are many items."""
-        total = len(self._agents) + len(self._worktrees)
-        compact = total > 6
+    @property
+    def item_count(self) -> int:
+        """Total number of items (agents + worktrees)."""
+        return len(self._agents) + len(self._worktrees)
+
+    def set_compact(self, compact: bool) -> None:
+        """Set compact mode for all items."""
+        if self._compact == compact:
+            return
+        self._compact = compact
         for item in self._agents.values():
             item.set_class(compact, "compact")
         for item in self._worktrees.values():
@@ -356,16 +376,16 @@ class AgentSection(SidebarSection):
         item = AgentItem(agent_id, name, status)
         # Sanitize for Textual ID (no slashes allowed)
         item.id = f"agent-{agent_id.replace('/', '-')}"
+        # Apply current compact mode to new item
+        item.set_class(self._compact, "compact")
         self._agents[agent_id] = item
         self.mount(item)
-        self._update_compact_mode()
 
     def remove_agent(self, agent_id: str) -> None:
         """Remove an agent from the sidebar."""
         if agent_id in self._agents:
             self._agents[agent_id].remove()
             del self._agents[agent_id]
-            self._update_compact_mode()
 
     def set_active(self, agent_id: str) -> None:
         """Mark an agent as active (selected)."""
@@ -390,13 +410,13 @@ class AgentSection(SidebarSection):
             return
         item = WorktreeItem(branch, path)
         item.id = f"worktree-{branch}"
+        # Apply current compact mode to new item
+        item.set_class(self._compact, "compact")
         self._worktrees[branch] = item
         self.mount(item)
-        self._update_compact_mode()
 
     def remove_worktree(self, branch: str) -> None:
         """Remove a ghost worktree from the sidebar."""
         if branch in self._worktrees:
             self._worktrees[branch].remove()
             del self._worktrees[branch]
-            self._update_compact_mode()

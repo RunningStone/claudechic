@@ -51,11 +51,28 @@ class ProcessPanel(Widget):
 
     can_focus = False
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._processes: list[BackgroundProcess] = []
+
+    @property
+    def process_count(self) -> int:
+        """Number of processes."""
+        return len(self._processes)
+
     def compose(self) -> ComposeResult:
         yield Static("Processes", classes="process-title")
 
+    def set_visible(self, visible: bool) -> None:
+        """Control visibility (only shows if has processes and visible=True)."""
+        if visible and self._processes:
+            self.remove_class("hidden")
+        else:
+            self.add_class("hidden")
+
     def update_processes(self, processes: list[BackgroundProcess]) -> None:
-        """Replace processes with new list."""
+        """Replace processes with new list. Visibility controlled by set_visible()."""
+        self._processes = processes
         # Remove old items
         for item in self.query(ProcessItem):
             item.remove()
@@ -63,6 +80,3 @@ class ProcessPanel(Widget):
         # Add new items
         for proc in processes:
             self.mount(ProcessItem(proc))
-
-        # Show/hide based on whether we have processes
-        self.set_class(len(processes) == 0, "hidden")
