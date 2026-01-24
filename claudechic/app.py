@@ -568,10 +568,10 @@ class ChatApp(App):
         # Focus input immediately - UI is ready
         self.chat_input.focus()
 
-        # Initialize vi-mode if enabled in config
-        from claudechic.config import get_vi_mode
+        # Initialize vim mode if enabled in config
+        from claudechic.config import get_vim
 
-        if get_vi_mode():
+        if get_vim():
             self._update_vi_mode(True)
 
         # Connect SDK in background - UI renders while this happens
@@ -717,10 +717,10 @@ class ChatApp(App):
         self._handle_prompt(event.text)
 
     def on_chat_input_vi_mode_changed(self, event: ChatInput.ViModeChanged) -> None:
-        """Update footer when vi-mode changes."""
-        from claudechic.config import get_vi_mode
+        """Update footer when vim mode changes."""
+        from claudechic.config import get_vim
 
-        enabled = get_vi_mode()
+        enabled = get_vim()
         self.status_footer.update_vi_mode(event.mode if enabled else None, enabled)
 
     def _handle_prompt(self, prompt: str) -> None:

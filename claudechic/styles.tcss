@@ -103,28 +103,6 @@ ModelLabel:hover {
     color: $primary;
 }
 
-/* Vi mode indicator */
-#vi-mode-label {
-    width: auto;
-    padding: 0 1;
-    text-style: bold;
-}
-
-#vi-mode-label.vi-insert {
-    background: $success;
-    color: $background;
-}
-
-#vi-mode-label.vi-normal {
-    background: $primary;
-    color: $background;
-}
-
-#vi-mode-label.vi-visual {
-    background: $warning;
-    color: $background;
-}
-
 /* Shared block styling - all content blocks */
 ChatMessage, BaseToolWidget, ThinkingIndicator, ErrorMessage, SystemInfo, #input-container {
     background: transparent;

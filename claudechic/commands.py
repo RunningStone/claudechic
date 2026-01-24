@@ -521,12 +521,12 @@ def _handle_processes(app: "ChatApp") -> None:
 
 
 def _handle_vim(app: "ChatApp") -> bool:
-    """Toggle vi-mode for input."""
-    from claudechic.config import get_vi_mode, set_vi_mode
+    """Toggle vim mode for input."""
+    from claudechic.config import get_vim, set_vim
 
-    current = get_vi_mode()
+    current = get_vim()
     new_state = not current
-    set_vi_mode(new_state)
+    set_vim(new_state)
 
     # Update all ChatInput widgets
     app._update_vi_mode(new_state)

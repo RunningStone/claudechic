@@ -32,26 +32,6 @@ SHORTCUTS = [
     ("Up/Down", "Navigate input history"),
 ]
 
-# Vi mode keybindings (shown when vi mode is enabled)
-VI_MODE_KEYS = [
-    ("Esc", "Enter NORMAL mode"),
-    ("i / I", "Insert before cursor / at line start"),
-    ("a / A", "Insert after cursor / at line end"),
-    ("o / O", "Open line below / above"),
-    ("h / j / k / l", "Move left / down / up / right"),
-    ("w / b / e", "Move word forward / back / end"),
-    ("0 / $", "Move to line start / end"),
-    ("gg / G", "Go to input start / end"),
-    ("x", "Delete character"),
-    ("dd / D", "Delete line / to end of line"),
-    ("cc / C / cw", "Change line / to end / word"),
-    ("yy / yw", "Yank (copy) line / word"),
-    ("p / P", "Paste after / before cursor"),
-    ("u / Ctrl+R", "Undo / Redo"),
-    (".", "Repeat last change"),
-    ("v", "Enter VISUAL mode"),
-]
-
 # MCP tools from claudechic (mcp.py)
 MCP_TOOLS = [
     ("spawn_agent", "Create new Claude agent"),
@@ -206,14 +186,6 @@ async def format_help(agent: "Agent | None") -> str:
     lines.append("| Key | Action |")
     lines.append("|-----|--------|")
     for key, action in SHORTCUTS:
-        lines.append(f"| `{key}` | {action} |")
-    lines.append("")
-
-    # Vi mode
-    lines.append("## Vi Mode (toggle with `/vim`)\n")
-    lines.append("| Key | Action |")
-    lines.append("|-----|--------|")
-    for key, action in VI_MODE_KEYS:
         lines.append(f"| `{key}` | {action} |")
 
     return "\n".join(lines)

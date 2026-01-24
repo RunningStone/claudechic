@@ -35,7 +35,18 @@ class ModelLabel(ClickableLabel):
 
 
 class ViModeLabel(Static):
-    """Shows current vi mode: INSERT, NORMAL, VISUAL."""
+    """Shows current vim mode: INSERT, NORMAL, VISUAL."""
+
+    DEFAULT_CSS = """
+    ViModeLabel {
+        width: auto;
+        padding: 0 1;
+        text-style: bold;
+        &.vi-insert { background: $success; color: $background; }
+        &.vi-normal { background: $primary; color: $background; }
+        &.vi-visual { background: $warning; color: $background; }
+    }
+    """
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -47,7 +58,6 @@ class ViModeLabel(Static):
         self._mode = mode
         self._enabled = enabled
 
-        # Remove all mode classes
         self.remove_class("vi-insert", "vi-normal", "vi-visual", "hidden")
 
         if not enabled:
