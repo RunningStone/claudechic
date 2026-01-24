@@ -56,83 +56,101 @@ async def _send_prompt_to_agent(agent, prompt: str) -> None:
     await agent.send(prompt)
 
 
-@tool(
-    "spawn_agent",
-    "Create a new Claude agent in claudechic. The agent gets its own chat view and can work independently.",
-    {"name": str, "path": str, "prompt": str},
-)
-async def spawn_agent(args: dict[str, Any]) -> dict[str, Any]:
-    """Spawn a new agent, optionally with an initial prompt."""
-    if _app is None or _app.agent_mgr is None:
-        return _text_response("Error: App not initialized")
+def _make_spawn_agent(caller_name: str | None = None):
+    """Create spawn_agent tool with optional caller name bound."""
 
-    name = args["name"]
-    # Default to active agent's cwd (so agents inherit creator's directory)
-    default_cwd = _app.agent_mgr.active.cwd if _app.agent_mgr.active else Path.cwd()
-    path = Path(args.get("path", str(default_cwd))).resolve()
-    prompt = args.get("prompt")
+    @tool(
+        "spawn_agent",
+        "Create a new Claude agent in claudechic. The agent gets its own chat view and can work independently.",
+        {"name": str, "path": str, "prompt": str},
+    )
+    async def spawn_agent(args: dict[str, Any]) -> dict[str, Any]:
+        """Spawn a new agent, optionally with an initial prompt."""
+        if _app is None or _app.agent_mgr is None:
+            return _text_response("Error: App not initialized")
 
-    if not path.exists():
-        return _text_response(f"Error: Path '{path}' does not exist")
+        name = args["name"]
+        # Default to active agent's cwd (so agents inherit creator's directory)
+        default_cwd = _app.agent_mgr.active.cwd if _app.agent_mgr.active else Path.cwd()
+        path = Path(args.get("path", str(default_cwd))).resolve()
+        prompt = args.get("prompt")
 
-    # Check if agent with this name already exists
-    if _app.agent_mgr.find_by_name(name):
-        return _text_response(f"Error: Agent '{name}' already exists")
+        if not path.exists():
+            return _text_response(f"Error: Path '{path}' does not exist")
 
-    try:
-        # Create agent via AgentManager (handles SDK connection)
-        agent = await _app.agent_mgr.create(name=name, cwd=path, switch_to=False)
-    except Exception as e:
-        return _text_response(f"Error creating agent: {e}")
+        # Check if agent with this name already exists
+        if _app.agent_mgr.find_by_name(name):
+            return _text_response(f"Error: Agent '{name}' already exists")
 
-    result = f"Created agent '{name}' in {path}"
-
-    if prompt:
         try:
-            await _send_prompt_to_agent(agent, prompt)
-            result += f"\nSent initial prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+            # Create agent via AgentManager (handles SDK connection)
+            agent = await _app.agent_mgr.create(name=name, cwd=path, switch_to=False)
         except Exception as e:
-            result += f"\nWarning: Failed to send prompt: {e}"
+            return _text_response(f"Error creating agent: {e}")
 
-    return _text_response(result)
+        result = f"Created agent '{name}' in {path}"
+
+        if prompt:
+            # Wrap prompt with spawner info
+            if caller_name:
+                prompt = f"[Spawned by agent '{caller_name}']\n\n{prompt}"
+            try:
+                await _send_prompt_to_agent(agent, prompt)
+                result += f"\nSent initial prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+            except Exception as e:
+                result += f"\nWarning: Failed to send prompt: {e}"
+
+        return _text_response(result)
+
+    return spawn_agent
 
 
-@tool(
-    "spawn_worktree",
-    "Create a git worktree (feature branch) with a new agent. Useful for isolated feature development.",
-    {"name": str, "base_branch": str, "prompt": str},
-)
-async def spawn_worktree(args: dict[str, Any]) -> dict[str, Any]:
-    """Create a git worktree and spawn an agent in it."""
-    if _app is None or _app.agent_mgr is None:
-        return _text_response("Error: App not initialized")
+def _make_spawn_worktree(caller_name: str | None = None):
+    """Create spawn_worktree tool with optional caller name bound."""
 
-    name = args["name"]
-    prompt = args.get("prompt")
+    @tool(
+        "spawn_worktree",
+        "Create a git worktree (feature branch) with a new agent. Useful for isolated feature development.",
+        {"name": str, "base_branch": str, "prompt": str},
+    )
+    async def spawn_worktree(args: dict[str, Any]) -> dict[str, Any]:
+        """Create a git worktree and spawn an agent in it."""
+        if _app is None or _app.agent_mgr is None:
+            return _text_response("Error: App not initialized")
 
-    # Create the worktree
-    success, message, wt_path = start_worktree(name)
-    if not success or wt_path is None:
-        return _text_response(f"Error creating worktree: {message}")
+        name = args["name"]
+        prompt = args.get("prompt")
 
-    try:
-        # Create agent in the worktree via AgentManager
-        agent = await _app.agent_mgr.create(
-            name=name, cwd=wt_path, worktree=name, switch_to=False
-        )
-    except Exception as e:
-        return _text_response(f"Worktree created at {wt_path}, but agent failed: {e}")
+        # Create the worktree
+        success, message, wt_path = start_worktree(name)
+        if not success or wt_path is None:
+            return _text_response(f"Error creating worktree: {message}")
 
-    result = f"Created worktree '{name}' at {wt_path} with new agent"
-
-    if prompt:
         try:
-            await _send_prompt_to_agent(agent, prompt)
-            result += f"\nSent initial prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+            # Create agent in the worktree via AgentManager
+            agent = await _app.agent_mgr.create(
+                name=name, cwd=wt_path, worktree=name, switch_to=False
+            )
         except Exception as e:
-            result += f"\nWarning: Failed to send prompt: {e}"
+            return _text_response(
+                f"Worktree created at {wt_path}, but agent failed: {e}"
+            )
 
-    return _text_response(result)
+        result = f"Created worktree '{name}' at {wt_path} with new agent"
+
+        if prompt:
+            # Wrap prompt with spawner info
+            if caller_name:
+                prompt = f"[Spawned by agent '{caller_name}']\n\n{prompt}"
+            try:
+                await _send_prompt_to_agent(agent, prompt)
+                result += f"\nSent initial prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}"
+            except Exception as e:
+                result += f"\nWarning: Failed to send prompt: {e}"
+
+        return _text_response(result)
+
+    return spawn_worktree
 
 
 def _make_ask_agent(caller_name: str | None = None):
@@ -261,14 +279,14 @@ def create_chic_server(caller_name: str | None = None):
 
     Args:
         caller_name: Name of the agent that will use this server.
-            Used to identify the sender in ask_agent/tell_agent calls.
+            Used to identify the sender in spawn/ask/tell agent calls.
     """
     return create_sdk_mcp_server(
         name="chic",
         version="1.0.0",
         tools=[
-            spawn_agent,
-            spawn_worktree,
+            _make_spawn_agent(caller_name),
+            _make_spawn_worktree(caller_name),
             _make_ask_agent(caller_name),
             _make_tell_agent(caller_name),
             list_agents,

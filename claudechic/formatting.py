@@ -21,12 +21,14 @@ _AGENT_QUESTION_RE = re.compile(
 )
 # Matches tell_agent: [Message from agent 'X']
 _AGENT_MESSAGE_RE = re.compile(r"^\[Message from agent '([^']+)'\]\n\n")
+# Matches spawn_agent/spawn_worktree: [Spawned by agent 'X']
+_AGENT_SPAWNED_RE = re.compile(r"^\[Spawned by agent '([^']+)'\]\n\n")
 
 
 def format_agent_prompt(prompt: str) -> tuple[str, bool]:
     """Format inter-agent prompts for nicer display.
 
-    Detects messages from other agents (via ask_agent/tell_agent) and
+    Detects messages from other agents (via spawn/ask/tell_agent) and
     formats them with markdown styling.
 
     Returns:
@@ -42,6 +44,11 @@ def format_agent_prompt(prompt: str) -> tuple[str, bool]:
         agent_name = match.group(1)
         rest = prompt[match.end() :]
         return f"From **{agent_name}**:\n\n{rest}", True
+    match = _AGENT_SPAWNED_RE.match(prompt)
+    if match:
+        agent_name = match.group(1)
+        rest = prompt[match.end() :]
+        return f"Spawned by **{agent_name}**:\n\n{rest}", True
     return prompt, False
 
 
