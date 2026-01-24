@@ -14,6 +14,36 @@ from claudechic.enums import ToolName
 MAX_CONTEXT_TOKENS = 200_000  # Claude's context window
 MAX_HEADER_WIDTH = 70  # Max width for tool headers
 
+# Inter-agent message patterns
+# Matches ask_agent: [Question from agent 'X' - please respond...]
+_AGENT_QUESTION_RE = re.compile(
+    r"^\[Question from agent '([^']+)' - please respond back using tell_agent, or ask_agent if you need more context\]\n\n"
+)
+# Matches tell_agent: [Message from agent 'X']
+_AGENT_MESSAGE_RE = re.compile(r"^\[Message from agent '([^']+)'\]\n\n")
+
+
+def format_agent_prompt(prompt: str) -> tuple[str, bool]:
+    """Format inter-agent prompts for nicer display.
+
+    Detects messages from other agents (via ask_agent/tell_agent) and
+    formats them with markdown styling.
+
+    Returns:
+        (formatted_text, is_agent_message)
+    """
+    match = _AGENT_QUESTION_RE.match(prompt)
+    if match:
+        agent_name = match.group(1)
+        rest = prompt[match.end() :]
+        return f"Question from **{agent_name}**:\n\n{rest}", True
+    match = _AGENT_MESSAGE_RE.match(prompt)
+    if match:
+        agent_name = match.group(1)
+        rest = prompt[match.end() :]
+        return f"From **{agent_name}**:\n\n{rest}", True
+    return prompt, False
+
 
 def make_relative(path: str, cwd: Path | None) -> str:
     """Make path relative to cwd if possible, otherwise return as-is."""
