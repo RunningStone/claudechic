@@ -373,16 +373,17 @@ def _handle_shell(app: "ChatApp", command: str) -> bool:
             args = [shell]
     else:
         # Unix: use SHELL env var or fallback to /bin/sh
-        # Force color output, disable pagers for captured output
+        # Force color output
         env.update(
             {
                 "FORCE_COLOR": "1",
                 "CLICOLOR_FORCE": "1",
                 "TERM": "xterm-256color",
-                "BAT_PAGER": "",
-                "PAGER": "",
             }
         )
+        # Disable pagers only for captured (non-interactive) output
+        if not interactive:
+            env.update({"BAT_PAGER": "", "PAGER": ""})
         shell = os.environ.get("SHELL", "/bin/sh")
         if cmd:
             args = [shell, "-lc", cmd] if not interactive else [shell, "-c", cmd]
