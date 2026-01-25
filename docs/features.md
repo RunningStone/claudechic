@@ -11,6 +11,13 @@ Run shell commands without leaving the UI:
 !ls -la              # Output displayed in chat
 ```
 
+```bash
+!nvim README.md      # Interactive command
+!git log             # Drops into native shell
+```
+
+<video src="https://github.com/user-attachments/assets/85f3dbe0-9a88-436e-aa9d-c1ba012c1f0e" autoplay loop muted playsinline></video>
+
 Or use the explicit form:
 
 ```bash
