@@ -32,6 +32,8 @@ Review uncommitted changes before asking Claude to commit:
 
 Opens a full-screen diff view with syntax highlighting. You can add comments in the input area—when you submit, Claude sees both the diff and your comments. Press `Escape` to return to chat without sending.
 
+<video src="https://github.com/user-attachments/assets/3c0c262b-2a23-4486-92c4-b97705a0819d" autoplay loop muted playsinline></video>
+
 ## Vim Mode
 
 Toggle vi-style keybindings for the input area:
