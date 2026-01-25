@@ -528,6 +528,9 @@ def _handle_vim(app: "ChatApp") -> bool:
     new_state = not current
     set_vim(new_state)
 
+    if new_state:
+        _track_feature(app, "vim")
+
     # Update all ChatInput widgets
     app._update_vi_mode(new_state)
 
