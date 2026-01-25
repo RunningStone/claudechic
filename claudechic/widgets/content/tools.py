@@ -344,7 +344,7 @@ class ShellOutputWidget(Static, ClickableMixin):
             pass
 
     def compose(self) -> ComposeResult:
-        title = self.command
+        title = f" $ {self.command}"
         if len(title) > 60:
             title = title[:57] + "..."
         if self.returncode != 0:
