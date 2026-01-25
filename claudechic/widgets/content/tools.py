@@ -382,6 +382,7 @@ class PendingShellWidget(Static):
         color: $text;
         padding: 0 1;
         width: auto;
+        text-align: center;
     }
     PendingShellWidget .cancel-btn:hover {
         background: $error;
