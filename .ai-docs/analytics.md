@@ -16,7 +16,7 @@
 - `app_started` - in `on_mount()`, includes env context (version, terminal, os)
 - `app_closed` - in `_cleanup_and_exit()`, includes duration
 - `agent_created` - in `on_agent_created()` observer
-- `agent_closed` - in `on_agent_closed()` observer, includes message_count
+- `agent_closed` - in `on_agent_closed()` observer, includes message_count, features_used
 
 ## Design Decisions
 

@@ -198,13 +198,16 @@ class AgentManager:
         name = agent.name
         was_active = agent_id == self.active_id
         message_count = len(agent.messages)
+        features_used = agent.features_used.copy()
 
         # Disconnect
         await agent.disconnect()
         log.info(f"Closed agent '{name}' (id={agent_id})")
 
         if self.manager_observer:
-            self.manager_observer.on_agent_closed(agent_id, message_count)
+            self.manager_observer.on_agent_closed(
+                agent_id, message_count, features_used
+            )
 
         # Switch to another agent if we closed the active one
         if was_active and self.agents:

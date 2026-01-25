@@ -1798,7 +1798,12 @@ class ChatApp(App):
         asyncio.create_task(self.status_footer.refresh_branch(str(new_agent.cwd)))
         self.chat_input.focus()
 
-    def on_agent_closed(self, agent_id: str, message_count: int = 0) -> None:
+    def on_agent_closed(
+        self,
+        agent_id: str,
+        message_count: int = 0,
+        features_used: set[str] | None = None,
+    ) -> None:
         """Handle agent closure from AgentManager."""
         log.info(f"Agent closed: {agent_id}")
 
@@ -1806,12 +1811,14 @@ class ChatApp(App):
         metadata = self._agent_metadata.pop(agent_id, {})
         duration = time.time() - metadata.get("created_at", time.time())
         same_directory = metadata.get("same_directory", True)
+        features = list(features_used) if features_used else []
         self.run_worker(
             capture(
                 "agent_closed",
                 duration_seconds=int(duration),
                 same_directory=same_directory,
                 message_count=message_count,
+                features_used=features,
             )
         )
 

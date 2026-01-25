@@ -177,6 +177,11 @@ class Agent:
         # Plan file path (cached after first lookup)
         self.plan_path: Path | None = None
 
+        # Feature usage tracking (for analytics)
+        self.features_used: set[str] = set()
+        if worktree:
+            self.features_used.add("worktree")
+
         # UI state (managed by ChatApp, not widget references)
         self.pending_input: str = ""  # Saved input text when switching away
 

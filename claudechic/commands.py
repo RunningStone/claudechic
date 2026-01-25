@@ -79,12 +79,19 @@ def get_help_commands() -> list[tuple[str, str]]:
     return result
 
 
+def _track_feature(app: "ChatApp", feature: str) -> None:
+    """Track a feature as used by the current agent."""
+    if app._agent:
+        app._agent.features_used.add(feature)
+
+
 def handle_command(app: "ChatApp", prompt: str) -> bool:
     """Route slash commands. Returns True if handled, False to send to Claude."""
     cmd = prompt.strip()
 
     # Handle ! prefix for inline shell commands
     if cmd.startswith("!"):
+        _track_feature(app, "shell")
         return _handle_bang(app, cmd[1:].strip())
 
     if cmd == "/clear":
@@ -101,9 +108,11 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         return True
 
     if cmd.startswith("/agent"):
+        _track_feature(app, "agent")
         return _handle_agent(app, cmd)
 
     if cmd.startswith("/shell"):
+        _track_feature(app, "shell")
         return _handle_shell(app, cmd)
 
     if cmd == "/theme":
@@ -154,6 +163,7 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         return _handle_analytics(app, cmd)
 
     if cmd == "/diff" or cmd == "/d" or cmd.startswith("/diff "):
+        _track_feature(app, "diff")
         target = cmd.split(maxsplit=1)[1] if cmd.startswith("/diff ") else None
         app._toggle_diff_mode(target)
         return True

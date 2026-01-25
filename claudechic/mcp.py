@@ -46,6 +46,14 @@ def _find_agent_by_name(name: str):
     return None, f"Agent '{name}' not found. Use list_agents to see available agents."
 
 
+def _track_feature(feature: str) -> None:
+    """Track a feature as used by the active agent."""
+    if _app and _app.agent_mgr:
+        active = getattr(_app.agent_mgr, "active", None)
+        if active and hasattr(active, "features_used"):
+            active.features_used.add(feature)
+
+
 async def _send_prompt_to_agent(agent, prompt: str) -> None:
     """Send prompt directly to agent without switching UI.
 
@@ -68,6 +76,7 @@ def _make_spawn_agent(caller_name: str | None = None):
         """Spawn a new agent, optionally with an initial prompt."""
         if _app is None or _app.agent_mgr is None:
             return _text_response("Error: App not initialized")
+        _track_feature("spawn_agent")
 
         name = args["name"]
         # Default to active agent's cwd (so agents inherit creator's directory)
@@ -117,6 +126,7 @@ def _make_spawn_worktree(caller_name: str | None = None):
         """Create a git worktree and spawn an agent in it."""
         if _app is None or _app.agent_mgr is None:
             return _text_response("Error: App not initialized")
+        _track_feature("spawn_worktree")
 
         name = args["name"]
         prompt = args.get("prompt")
@@ -165,6 +175,7 @@ def _make_ask_agent(caller_name: str | None = None):
         """Send question to an agent. Non-blocking."""
         if _app is None or _app.agent_mgr is None:
             return _text_response("Error: App not initialized")
+        _track_feature("ask_agent")
 
         name = args["name"]
         prompt = args["prompt"]
@@ -201,6 +212,7 @@ def _make_tell_agent(caller_name: str | None = None):
         """Send message to an agent. Non-blocking, no reply expected."""
         if _app is None or _app.agent_mgr is None:
             return _text_response("Error: App not initialized")
+        _track_feature("tell_agent")
 
         name = args["name"]
         message = args["message"]

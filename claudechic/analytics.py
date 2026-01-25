@@ -17,7 +17,9 @@ POSTHOG_HOST = "https://us.i.posthog.com"
 POSTHOG_API_KEY = "phc_M0LMkbSaDsaXi5LeYE5A95Kz8hTHgsJ4POlqucehsse"
 
 
-async def capture(event: str, **properties: str | int | float | bool) -> None:
+async def capture(
+    event: str, **properties: str | int | float | bool | list[str]
+) -> None:
     """Capture an analytics event to PostHog.
 
     Fire-and-forget: failures are silently ignored.
