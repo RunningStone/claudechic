@@ -1,6 +1,6 @@
 [project]
 name = "claudechic"
-version = "0.3.2"
+version = "0.4.0"
 description = "Claude Chic - A stylish terminal UI for Claude Code"
 readme = "README.md"
 requires-python = ">=3.10"
