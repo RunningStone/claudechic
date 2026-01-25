@@ -288,6 +288,7 @@ class HunkWidget(Static, can_focus=True):
     }
     HunkWidget:focus {
         border-left: tall $primary;
+        background: $primary 15%;
     }
     """
 
