@@ -42,9 +42,9 @@ class ViModeLabel(Static):
         width: auto;
         padding: 0 1;
         text-style: bold;
-        &.vi-insert { background: $success; color: $background; }
-        &.vi-normal { background: $primary; color: $background; }
-        &.vi-visual { background: $warning; color: $background; }
+        &.vi-insert { color: $success; }
+        &.vi-normal { color: $primary; }
+        &.vi-visual { color: $warning; }
     }
     """
 
