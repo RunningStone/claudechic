@@ -6,6 +6,7 @@ nav:
   - Home: index.md
   - Multi-Agent: agents.md
   - Style: style.md
+  - Features: features.md
   - Architecture: architecture.md
   - Related Work: related.md
 
