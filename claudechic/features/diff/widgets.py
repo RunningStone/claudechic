@@ -373,6 +373,31 @@ class HunkWidget(Static, can_focus=True):
         self.stop_editing(save=False)
 
 
+class FileHeaderLabel(Static):
+    """Clickable file header that opens file in editor."""
+
+    DEFAULT_CSS = """
+    FileHeaderLabel {
+        background: $surface;
+        padding: 0 1;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    FileHeaderLabel:hover {
+        text-style: bold underline;
+    }
+    """
+
+    def __init__(self, path: str, status: str, **kwargs) -> None:
+        color = "$primary" if status != "deleted" else "$error"
+        super().__init__(f"[{color}]{path}[/]", **kwargs)
+        self._path = path
+
+    def on_click(self, event) -> None:
+        event.stop()
+        self.post_message(EditFileRequested(Path(self._path)))
+
+
 class FileDiffPanel(Vertical):
     """Panel showing all hunks for a single file."""
 
@@ -381,12 +406,6 @@ class FileDiffPanel(Vertical):
         margin-bottom: 2;
         height: auto;
     }
-    FileDiffPanel .file-header {
-        background: $surface;
-        padding: 0 1;
-        text-style: bold;
-        margin-bottom: 1;
-    }
     """
 
     def __init__(self, change: FileChange, **kwargs) -> None:
@@ -394,9 +413,7 @@ class FileDiffPanel(Vertical):
         self.change = change
 
     def compose(self) -> ComposeResult:
-        # Status color for header - primary color, red for deleted
-        color = "$primary" if self.change.status != "deleted" else "$error"
-        yield Label(f"[{color}]{self.change.path}[/]", classes="file-header")
+        yield FileHeaderLabel(self.change.path, self.change.status)
 
         # Show each hunk as a separate widget with separators between
         # Large hunks are split into smaller sub-hunks for easier navigation
