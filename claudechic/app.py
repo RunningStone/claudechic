@@ -1943,6 +1943,21 @@ class ChatApp(App):
     def on_complete(self, agent: Agent, result: ResultMessage | None) -> None:
         """Handle agent response completion."""
         log.info(f"Agent {agent.name} completed response")
+
+        # Check for API errors in the result
+        if result and result.is_error:
+            error_msg = result.result or "Unknown API error"
+            log.error(f"API error in response: {error_msg}")
+            # Show as system message in chat
+            chat_view = self._chat_views.get(agent.id)
+            if chat_view:
+                from claudechic.widgets.content.message import SystemInfo
+
+                chat_view.mount(
+                    SystemInfo(f"⚠️ API Error: {error_msg}", severity="error")
+                )
+                chat_view.scroll_if_tailing()
+
         # Post ResponseComplete message for existing UI handler
         self.post_message(ResponseComplete(result, agent_id=agent.id))
 
@@ -1982,6 +1997,13 @@ class ChatApp(App):
         self.post_message(
             ToolResultMessage(block, parent_tool_use_id=None, agent_id=agent.id)
         )
+
+        # Show tool errors prominently in chat
+        if tool.is_error:
+            error_preview = (tool.result or "Unknown error")[:200]
+            log.warning(f"Tool error [{tool.name}]: {error_preview}")
+            # Also show in UI as a system notification
+            self.notify(f"Tool error: {tool.name}", severity="warning", timeout=5)
 
         # Track edited files in sidebar
         if not tool.is_error and tool.name in ("Edit", "Write"):
