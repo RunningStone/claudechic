@@ -7,10 +7,11 @@ import uuid as uuid_mod
 from datetime import datetime, timezone
 
 import httpx
+from importlib.metadata import version
 
 from claudechic.config import get_analytics_enabled, get_analytics_id
 
-VERSION = "0.1.0"  # Keep in sync with __init__.py
+VERSION = version("claudechic")
 SESSION_ID = str(uuid_mod.uuid4())  # Unique per process
 
 POSTHOG_HOST = "https://us.i.posthog.com"
