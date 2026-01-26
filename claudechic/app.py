@@ -174,6 +174,9 @@ class ChatApp(App):
         self._hamburger_btn: HamburgerButton | None = None
         # Available models from SDK (populated in _update_slash_commands)
         self._available_models: list[dict] = []
+        # Track pending slash commands passed to Claude (for typo detection)
+        # agent_id -> command name (e.g., "/cleanup")
+        self._pending_slash_commands: dict[str, str] = {}
 
     # Properties to access active agent's state
     @property
@@ -1963,6 +1966,13 @@ class ChatApp(App):
         """Handle agent response completion."""
         log.info(f"Agent {agent.name} completed response")
 
+        # Check for unrecognized slash commands (passed through but no Skill invoked)
+        pending_cmd = self._pending_slash_commands.pop(agent.id, None)
+        if pending_cmd:
+            self.notify(
+                f"Unknown command: {pending_cmd}\nType /help for available commands."
+            )
+
         # Check for API errors in the result
         if result and result.is_error:
             error_msg = result.result or "Unknown API error"
@@ -2001,6 +2011,10 @@ class ChatApp(App):
 
     def on_tool_use(self, agent: Agent, tool: ToolUse) -> None:
         """Handle tool use from agent - post Textual Message for UI."""
+        # Clear pending slash command if Skill tool was invoked (valid command)
+        if tool.name == ToolName.SKILL:
+            self._pending_slash_commands.pop(agent.id, None)
+
         block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
         self.post_message(
             ToolUseMessage(block, parent_tool_use_id=None, agent_id=agent.id)
