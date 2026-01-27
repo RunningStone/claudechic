@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "claudechic"
-version = "0.4.6"
+dynamic = ["version"]
 description = "Claude Chic - A stylish terminal UI for Claude Code"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -58,3 +62,5 @@ claudechic = ["*.tcss", "*.md"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.setuptools_scm]
