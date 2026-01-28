@@ -268,17 +268,35 @@ class ChatInput(TextArea, PointerMixin):
 
     BINDINGS = [
         Binding("enter", "submit", "Send", priority=True, show=False),
+        # Newline: shift+enter (macOS), ctrl+j (cross-platform)
+        Binding("shift+enter", "newline", "Newline", priority=True, show=False),
         Binding("ctrl+j", "newline", "Newline", priority=True, show=False),
         Binding("up", "history_prev", "Previous", priority=True, show=False),
         Binding("down", "history_next", "Next", priority=True, show=False),
+        # Word deletion: alt+backspace/delete (cross-platform), ctrl+delete (some terminals)
+        # Note: ctrl+w for delete_word_left is inherited from TextArea
         Binding(
             "alt+backspace",
             "delete_word_left",
-            "Delete word",
+            "Delete word left",
             priority=True,
             show=False,
         ),
-        # Readline/emacs bindings (override Textual defaults where needed)
+        Binding(
+            "alt+delete",
+            "delete_word_right",
+            "Delete word right",
+            priority=True,
+            show=False,
+        ),
+        Binding(
+            "ctrl+delete",
+            "delete_word_right",
+            "Delete word right",
+            priority=True,
+            show=False,
+        ),
+        # Readline/emacs navigation
         Binding("ctrl+f", "cursor_right", "Forward char", priority=True, show=False),
         Binding("ctrl+b", "cursor_left", "Backward char", priority=True, show=False),
         Binding("ctrl+p", "cursor_up", "Previous line", priority=True, show=False),
