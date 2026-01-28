@@ -11,6 +11,7 @@ Exposes tools for Claude to manage agents within claudechic:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -21,6 +22,8 @@ from claudechic.features.worktree.git import start_worktree
 
 if TYPE_CHECKING:
     from claudechic.app import ChatApp
+
+log = logging.getLogger(__name__)
 
 # Global app reference, set by ChatApp.on_mount()
 _app: ChatApp | None = None
@@ -259,11 +262,14 @@ async def list_agents(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
         for i, agent in enumerate(_app.agent_mgr, 1):
             active = "*" if agent.id == _app.agent_mgr.active_id else " "
             wt = " (worktree)" if agent.worktree else ""
-            lines.append(f"{active}{i}. {agent.name} [{agent.status}] - {agent.cwd}{wt}")
+            lines.append(
+                f"{active}{i}. {agent.name} [{agent.status}] - {agent.cwd}{wt}"
+            )
 
         return _text_response("\n".join(lines))
     except Exception as e:
-        return _text_response(f"Error listing agents: {e}")
+        log.exception("list_agents failed")
+        return _text_response(f"Error: Failed to list agents: {e}")
 
 
 @tool(
@@ -295,7 +301,9 @@ async def close_agent(args: dict[str, Any]) -> dict[str, Any]:
 
         return _text_response(f"Closed agent '{agent_name}'")
     except Exception as e:
-        return _text_response(f"Error closing agent: {e}")
+        agent_name = args.get("name", "unknown") if args else "unknown"
+        log.exception(f"close_agent failed for '{agent_name}'")
+        return _text_response(f"Error: Failed to close agent '{agent_name}': {e}")
 
 
 def create_chic_server(caller_name: str | None = None):

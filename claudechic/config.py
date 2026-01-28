@@ -112,3 +112,24 @@ def set_vi_mode(enabled: bool) -> None:
     """Enable or disable vi mode."""
     _load_config()["vi-mode"] = enabled
     _save_config()
+
+
+def get_log_file() -> str | None:
+    """Get the log file path, or None if file logging is disabled.
+
+    Defaults to ~/claudechic.log. Set to null in config to disable.
+    """
+    config = _load_config()
+    config.setdefault("logging", {})
+    return config["logging"].get("file", str(Path.home() / "claudechic.log"))
+
+
+def get_log_notify_level() -> str | None:
+    """Get the minimum log level that triggers UI notifications.
+
+    Defaults to 'warning'. Valid values: debug, info, warning, error, critical.
+    Set to null/none to disable notifications.
+    """
+    config = _load_config()
+    config.setdefault("logging", {})
+    return config["logging"].get("notify-level", "warning")

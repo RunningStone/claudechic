@@ -87,7 +87,9 @@ from claudechic.widgets import (
 from claudechic.widgets.layout.footer import AutoEditLabel, ModelLabel, StatusFooter
 from claudechic.widgets.prompts import ModelPrompt
 from claudechic.errors import setup_logging  # noqa: F401 - used at startup
+from claudechic.errors import set_notify_callback as set_log_notify_callback
 from claudechic.profiling import profile
+from claudechic.tasks import create_safe_task
 from claudechic.sampling import start_sampler
 
 log = logging.getLogger(__name__)
@@ -109,26 +111,6 @@ def _categorize_cli_error(e: CLIConnectionError) -> str:
     if "not found" in msg.lower():
         return "cli_not_found"
     return "unknown"
-
-
-def create_safe_task(
-    coro, name: str | None = None
-) -> asyncio.Task:
-    """Create an asyncio task with exception handling to prevent crashes.
-
-    Wraps the coroutine to catch and log exceptions rather than allowing
-    them to propagate as unhandled task exceptions which can crash the app.
-    """
-
-    async def wrapper():
-        try:
-            return await coro
-        except asyncio.CancelledError:
-            raise  # Let cancellation propagate
-        except Exception:
-            log.exception(f"Task '{name or 'unnamed'}' failed")
-
-    return asyncio.create_task(wrapper(), name=name)
 
 
 class ChatApp(App):
@@ -591,6 +573,11 @@ class ChatApp(App):
             self.run_worker(capture("app_installed"))
         self.run_worker(capture("app_started", resumed=bool(self._resume_on_start)))
 
+        # Set up notification callback for log messages (warnings and errors)
+        set_log_notify_callback(
+            lambda msg, severity: self.notify(msg, severity=severity, timeout=5)
+        )
+
         # Start CPU sampling profiler
         start_sampler()
 
@@ -861,7 +848,8 @@ class ChatApp(App):
 
         # Start async send (returns immediately, callbacks handle UI)
         create_safe_task(
-            agent.send(prompt, display_as=display_as), name=f"send-{agent.id}"
+            agent.send(prompt, display_as=display_as),
+            name=f"send-{agent.id}",
         )
 
     def _show_thinking(self, agent_id: str | None = None) -> None:

@@ -26,21 +26,9 @@ from aiohttp import web
 if TYPE_CHECKING:
     from claudechic.app import ChatApp
 
+from claudechic.tasks import create_safe_task
+
 log = logging.getLogger(__name__)
-
-
-def _create_safe_task(coro, name: str | None = None) -> asyncio.Task:
-    """Create an asyncio task with exception handling to prevent crashes."""
-
-    async def wrapper():
-        try:
-            return await coro
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            log.exception(f"Task '{name or 'unnamed'}' failed")
-
-    return asyncio.create_task(wrapper(), name=name)
 
 _app: ChatApp | None = None
 _server: web.AppRunner | None = None
@@ -286,7 +274,7 @@ async def handle_exit(request: web.Request) -> web.Response:  # noqa: ARG001
         if _app:
             await _app._cleanup_and_exit()
 
-    _create_safe_task(do_exit(), name="exit-handler")
+    create_safe_task(do_exit(), name="exit-handler")
     return web.json_response({"status": "exiting"})
 
 

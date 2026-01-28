@@ -35,25 +35,12 @@ from claude_agent_sdk.types import (
 from claudechic.enums import AgentStatus, PermissionChoice, ToolName
 from claudechic.file_index import FileIndex
 from claudechic.permissions import PermissionRequest
+from claudechic.tasks import create_safe_task
 
 if TYPE_CHECKING:
     from claudechic.protocols import AgentObserver, PermissionHandler
 
 log = logging.getLogger(__name__)
-
-
-def _create_safe_task(coro, name: str | None = None) -> asyncio.Task:
-    """Create an asyncio task with exception handling to prevent crashes."""
-
-    async def wrapper():
-        try:
-            return await coro
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            log.exception(f"Task '{name or 'unnamed'}' failed")
-
-    return asyncio.create_task(wrapper(), name=name)
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +443,7 @@ class Agent:
                 followup = self._pending_followup
                 self._pending_followup = None
                 # Schedule follow-up query after a brief delay to let UI update
-                _create_safe_task(self._send_followup(followup), name="send-followup")
+                create_safe_task(self._send_followup(followup), name="send-followup")
 
         except asyncio.CancelledError:
             raise
