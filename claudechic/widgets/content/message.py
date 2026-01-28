@@ -370,6 +370,13 @@ class ChatInput(TextArea, PointerMixin):
 
         await super()._on_key(event)
 
+    def _safe_path_exists(self, path: Path) -> bool:
+        """Check if path exists, handling OSError for paths too long."""
+        try:
+            return path.exists()
+        except OSError:
+            return False
+
     def _is_image_path(self, text: str) -> list:
         """Check if text contains image file paths."""
         images = []
@@ -381,7 +388,10 @@ class ChatInput(TextArea, PointerMixin):
                 if part.startswith("file://"):
                     part = part[7:]
                 path = Path(part)
-                if path.exists() and path.suffix.lower() in self.IMAGE_EXTENSIONS:
+                if (
+                    self._safe_path_exists(path)
+                    and path.suffix.lower() in self.IMAGE_EXTENSIONS
+                ):
                     images.append(path)
             return images
 
@@ -392,7 +402,10 @@ class ChatInput(TextArea, PointerMixin):
             for part in parts:
                 part = part.replace("\\ ", " ")
                 path = Path(part)
-                if path.exists() and path.suffix.lower() in self.IMAGE_EXTENSIONS:
+                if (
+                    self._safe_path_exists(path)
+                    and path.suffix.lower() in self.IMAGE_EXTENSIONS
+                ):
                     images.append(path)
             return images
 
@@ -400,7 +413,10 @@ class ChatInput(TextArea, PointerMixin):
         for line in text.splitlines():
             line = line.strip()
             path = Path(line)
-            if path.exists() and path.suffix.lower() in self.IMAGE_EXTENSIONS:
+            if (
+                self._safe_path_exists(path)
+                and path.suffix.lower() in self.IMAGE_EXTENSIONS
+            ):
                 images.append(path)
         return images
 
