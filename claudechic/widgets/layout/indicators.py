@@ -7,17 +7,22 @@ from textual.reactive import reactive
 from textual.widgets import Static
 from rich.text import Text
 
-from claudechic.widgets.base.cursor import ClickableMixin
 from claudechic.formatting import MAX_CONTEXT_TOKENS
 from claudechic.profiling import profile, timed
 from claudechic.processes import BackgroundProcess
 
 
-class IndicatorWidget(Static, ClickableMixin):
+class IndicatorWidget(Static):
     """Base class for clickable indicator widgets in the footer.
 
-    Inherits from Static (for render()) and ClickableMixin (for pointer cursor).
+    Pointer cursor is set via CSS (pointer: pointer).
     Override on_click() to handle click events.
+    """
+
+    DEFAULT_CSS = """
+    IndicatorWidget {
+        pointer: pointer;
+    }
     """
 
     can_focus = True

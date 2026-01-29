@@ -27,7 +27,6 @@ from claudechic.widgets.content.diff import DiffWidget
 from claudechic.widgets.content.message import ChatMessage
 from claudechic.widgets.primitives.spinner import Spinner
 from claudechic.widgets.base.tool_base import BaseToolWidget
-from claudechic.widgets.base.cursor import ClickableMixin
 
 log = logging.getLogger(__name__)
 
@@ -319,8 +318,14 @@ class TaskWidget(BaseToolWidget):
             pass  # Widget may not be mounted
 
 
-class ShellOutputWidget(Static, ClickableMixin):
+class ShellOutputWidget(Static):
     """Collapsible widget showing inline shell command output."""
+
+    DEFAULT_CSS = """
+    ShellOutputWidget {
+        pointer: pointer;
+    }
+    """
 
     can_focus = False
     # Threshold for auto-collapsing

@@ -6,13 +6,15 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from claudechic.processes import BackgroundProcess
-from claudechic.widgets.base.cursor import ClickableMixin
 
 
-class ProcessItem(Static, ClickableMixin):
+class ProcessItem(Static):
     """Single process item with PID and command. Click to view details."""
 
     DEFAULT_CSS = """
+    ProcessItem {
+        pointer: pointer;
+    }
     ProcessItem:hover {
         background: $panel;
     }

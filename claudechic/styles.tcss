@@ -34,11 +34,6 @@ Screen {
     display: none;
 }
 
-/* Clickable elements highlight on hover */
-.clickable:hover {
-    background: $surface;
-}
-
 /* Scrollbar styling - only for scroll containers (not all widgets) */
 VerticalScroll, HorizontalScroll, AutoHideScroll, ScrollableContainer {
     scrollbar-background: $surface;
@@ -141,6 +136,11 @@ SystemInfo.system-warning {
 
 SystemInfo.system-error {
     border-left: thick $error;
+}
+
+/* Chat messages - text cursor for selection */
+ChatMessage {
+    pointer: text;
 }
 
 /* User messages - vibrant orange, extra spacing */
@@ -328,6 +328,7 @@ ShellOutputWidget #shell-output {
     padding: 1 2;  /* Vertical padding for space around cursor */
     border-left: wide $primary;
     background: $primary 10%;
+    pointer: text;
 }
 
 #input-container.hidden {
@@ -343,6 +344,7 @@ ShellOutputWidget #shell-output {
     border: none;
     padding: 0 1 0 0;  /* No left padding - container provides it */
     background: transparent;
+    pointer: text;
 }
 
 #input .text-area--cursor-line {

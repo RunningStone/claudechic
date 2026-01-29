@@ -53,8 +53,7 @@ claudechic/
 └── widgets/
     ├── __init__.py    # Re-exports all widgets for backward compat
     ├── prompts.py     # All prompt widgets (Selection, Question, Model, Worktree)
-    ├── base/          # Mixins, protocols, and base classes
-    │   ├── cursor.py  # PointerMixin, ClickableMixin
+    ├── base/          # Protocols and base classes
     │   ├── clickable.py # ClickableLabel base class
     │   ├── tool_base.py # ToolWidgetBase class
     │   └── tool_protocol.py # ToolWidget protocol

@@ -10,7 +10,6 @@ from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Markdown, TextArea, Static
 
-from claudechic.widgets.base.cursor import PointerMixin, set_pointer
 from claudechic.errors import log_exception
 from claudechic.widgets.primitives.button import Button
 from claudechic.widgets.primitives.spinner import Spinner
@@ -69,15 +68,15 @@ class SystemInfo(Static):
         yield Markdown(self._message, id="content")
 
 
-class ChatMessage(Static, PointerMixin):
+class ChatMessage(Static):
     """A single chat message.
 
     Uses Textual's MarkdownStream for efficient incremental rendering.
     Adds debouncing on top of MarkdownStream's internal batching to reduce
     the frequency of markdown parsing during fast streaming.
-    """
 
-    pointer_style = "text"
+    Text cursor is set via CSS (pointer: text).
+    """
 
     can_focus = False
 
@@ -98,12 +97,6 @@ class ChatMessage(Static, PointerMixin):
     def _is_streaming(self) -> bool:
         """Check if we're actively streaming content."""
         return bool(self._pending_text) or self._flush_timer is not None
-
-    def on_enter(self) -> None:
-        set_pointer(self.pointer_style)
-
-    def on_leave(self) -> None:
-        set_pointer("default")
 
     def compose(self) -> ComposeResult:
         # Only render initial content - streaming content goes through MarkdownStream
@@ -281,10 +274,11 @@ class ImageAttachments(Horizontal):
             event.stop()
 
 
-class ChatInput(TextArea, PointerMixin):
-    """Text input that submits on Enter, newline on Shift+Enter, history with Up/Down."""
+class ChatInput(TextArea):
+    """Text input that submits on Enter, newline on Shift+Enter, history with Up/Down.
 
-    pointer_style = "text"
+    Text cursor is set via CSS (pointer: text).
+    """
 
     BINDINGS = [
         Binding("enter", "submit", "Send", priority=True, show=False),

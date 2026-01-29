@@ -13,11 +13,10 @@ from textual.widgets import Static, Label, ListItem
 from rich.text import Text
 
 from claudechic.enums import AgentStatus
-from claudechic.widgets.base.cursor import ClickableMixin, PointerMixin
 from claudechic.widgets.primitives.button import Button
 
 
-class SidebarItem(Widget, ClickableMixin):
+class SidebarItem(Widget):
     """Base class for clickable sidebar items."""
 
     DEFAULT_CSS = """
@@ -25,6 +24,7 @@ class SidebarItem(Widget, ClickableMixin):
         height: 3;
         min-height: 3;
         padding: 1 1 1 2;
+        pointer: pointer;
     }
     SidebarItem.compact {
         height: 1;
@@ -91,8 +91,14 @@ def _format_time_ago(mtime: float) -> str:
         return f"{weeks} week{'s' if weeks != 1 else ''} ago"
 
 
-class SessionItem(ListItem, PointerMixin):
+class SessionItem(ListItem):
     """A session in the session picker sidebar."""
+
+    DEFAULT_CSS = """
+    SessionItem {
+        pointer: pointer;
+    }
+    """
 
     def __init__(
         self, session_id: str, title: str, mtime: float, msg_count: int = 0

@@ -3,16 +3,17 @@
 from textual.message import Message
 from textual.widgets import Static
 
-from claudechic.widgets.base.cursor import ClickableMixin
 
-
-class Button(Static, ClickableMixin):
+class Button(Static):
     """Simple clickable label with hand cursor and hover state.
 
-    For widgets that render text directly. For containers that
-    compose children, use ClickableMixin directly on your Widget subclass.
-
     Emits Button.Pressed on click for parent handlers.
+    """
+
+    DEFAULT_CSS = """
+    Button {
+        pointer: pointer;
+    }
     """
 
     class Pressed(Message):

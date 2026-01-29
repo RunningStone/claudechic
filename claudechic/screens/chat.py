@@ -23,14 +23,13 @@ from claudechic.widgets import (
     FilesSection,
     HamburgerButton,
 )
-from claudechic.widgets.base.cursor import PointerMixin
 from claudechic.widgets.layout.footer import StatusFooter
 
 
-class InputContainer(PointerMixin, Vertical):
-    """Input container with text cursor on hover."""
+class InputContainer(Vertical):
+    """Input container with text cursor on hover (via CSS pointer: text)."""
 
-    pointer_style = "text"
+    pass
 
 
 if TYPE_CHECKING:

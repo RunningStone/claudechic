@@ -2,10 +2,8 @@
 
 from textual.widgets import Static
 
-from claudechic.widgets.base.cursor import ClickableMixin
 
-
-class ClickableLabel(Static, ClickableMixin):
+class ClickableLabel(Static):
     """A static label that is clickable with pointer cursor.
 
     Base class for labels that respond to clicks. Override on_click()
@@ -20,4 +18,8 @@ class ClickableLabel(Static, ClickableMixin):
                 self.post_message(self.Clicked())
     """
 
-    pass
+    DEFAULT_CSS = """
+    ClickableLabel {
+        pointer: pointer;
+    }
+    """

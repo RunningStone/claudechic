@@ -16,7 +16,7 @@ dependencies = [
     "psutil>=5.9.0",
     "pyperclip>=1.11.0",
     "pyyaml>=6.0",
-    "textual>=7.1.0",
+    "textual>=7.4.0",
     "textual-autocomplete>=4.0.6",
 ]
 authors = [{ name = "Matthew Rocklin", email = "mrocklin@gmail.com" }]
