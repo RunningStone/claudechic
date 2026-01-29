@@ -54,7 +54,7 @@ from claudechic.permissions import PermissionRequest, PermissionResponse
 from claudechic.agent import Agent, ImageAttachment, ToolUse
 from claudechic.agent_manager import AgentManager
 from claudechic.analytics import capture
-from claudechic.config import get_theme, set_theme, is_new_install
+from claudechic.config import CONFIG, NEW_INSTALL, save as save_config
 from claudechic.enums import AgentStatus, PermissionChoice, ToolName
 from claudechic.mcp import set_app, create_chic_server
 from claudechic.file_index import FileIndex
@@ -592,7 +592,7 @@ class ChatApp(App):
     async def on_mount(self) -> None:
         # Track app start (and install if new user)
         self._app_start_time = time.time()
-        if is_new_install():
+        if NEW_INSTALL:
             self.run_worker(capture("app_installed"))
         self.run_worker(capture("app_started", resumed=bool(self._resume_on_start)))
 
@@ -618,7 +618,7 @@ class ChatApp(App):
 
         # Register and activate custom theme (use saved preference or default to chic)
         self.register_theme(CHIC_THEME)
-        self.theme = get_theme() or "chic"
+        self.theme = CONFIG.get("theme") or "chic"
 
         # Warn if running in YOLO mode
         if self._skip_permissions:
@@ -648,9 +648,7 @@ class ChatApp(App):
         self.chat_input.focus()
 
         # Initialize vi mode if enabled in config
-        from claudechic.config import get_vi_mode
-
-        if get_vi_mode():
+        if CONFIG.get("vi-mode"):
             self._update_vi_mode(True)
 
         # Connect SDK in background - UI renders while this happens
@@ -658,8 +656,9 @@ class ChatApp(App):
 
     def watch_theme(self, theme: str) -> None:
         """Save theme preference when changed."""
-        if theme != get_theme():
-            set_theme(theme)
+        if theme != CONFIG.get("theme"):
+            CONFIG["theme"] = theme
+            save_config()
 
     @work(exclusive=True, group="connect")
     async def _connect_initial_client(self) -> None:
@@ -804,9 +803,7 @@ class ChatApp(App):
 
     def on_chat_input_vi_mode_changed(self, event: ChatInput.ViModeChanged) -> None:
         """Update footer when vi mode changes."""
-        from claudechic.config import get_vi_mode
-
-        enabled = get_vi_mode()
+        enabled = CONFIG.get("vi-mode", False)
         self.status_footer.update_vi_mode(event.mode if enabled else None, enabled)
 
     def _handle_prompt(self, prompt: str) -> None:

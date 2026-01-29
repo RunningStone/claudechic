@@ -14,7 +14,7 @@ from claudechic.agent import (
     ToolUse,
     TextBlock,
 )
-from claudechic.config import _load_config
+from claudechic.config import CONFIG
 from claudechic.enums import AgentStatus, ToolName
 from claudechic.formatting import format_agent_prompt
 from claudechic.widgets.content.message import (
@@ -42,7 +42,7 @@ COLLAPSE_BY_DEFAULT = {
 }
 
 # How many recent tools to keep expanded (0 = collapse all)
-RECENT_TOOLS_EXPANDED = _load_config().get("recent-tools-expanded", 2)
+RECENT_TOOLS_EXPANDED = CONFIG.get("recent-tools-expanded", 2)
 
 
 class ChatView(AutoHideScroll):

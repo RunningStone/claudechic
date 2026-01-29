@@ -66,7 +66,7 @@ def mock_sdk():
     with ExitStack() as stack:
         # Disable analytics to avoid httpx AsyncClient connection leaks
         stack.enter_context(
-            patch("claudechic.analytics.get_analytics_enabled", return_value=False)
+            patch.dict("claudechic.analytics.CONFIG", {"analytics": {"enabled": False}})
         )
         stack.enter_context(
             patch("claudechic.app.ClaudeSDKClient", return_value=mock_client)

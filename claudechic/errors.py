@@ -9,9 +9,10 @@ from __future__ import annotations
 import logging
 import sys
 import traceback
+from pathlib import Path
 from typing import Callable, Literal
 
-from claudechic.config import get_log_file, get_log_notify_level
+from claudechic.config import CONFIG
 
 # Configure module logger
 log = logging.getLogger("claudechic")
@@ -84,7 +85,9 @@ def setup_logging(level: int = logging.DEBUG) -> None:
     log.propagate = False  # Avoid duplicates if root logger is configured
 
     # File handler (if configured)
-    log_file = get_log_file()
+    log_file = CONFIG.get("logging", {}).get(
+        "file", str(Path.home() / "claudechic.log")
+    )
     if log_file:
         try:
             file_handler = logging.FileHandler(log_file, mode="a")
@@ -98,7 +101,7 @@ def setup_logging(level: int = logging.DEBUG) -> None:
             log_file = None
 
     # Notification handler (if configured)
-    notify_level_str = get_log_notify_level()
+    notify_level_str = CONFIG.get("logging", {}).get("notify-level", "warning")
     if notify_level_str:
         notify_level = getattr(logging, notify_level_str.upper(), logging.WARNING)
         notify_handler = NotifyHandler()

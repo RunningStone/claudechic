@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 from importlib.metadata import version
 
-from claudechic.config import get_analytics_enabled, get_analytics_id
+from claudechic.config import CONFIG
 
 VERSION = version("claudechic")
 SESSION_ID = str(uuid_mod.uuid4())  # Unique per process
@@ -63,7 +63,7 @@ async def capture(
     Fire-and-forget: failures are silently ignored.
     Respects analytics opt-out setting.
     """
-    if not get_analytics_enabled():
+    if not CONFIG["analytics"]["enabled"]:
         return
 
     # Build properties - session_id on all events, context only on app_started
@@ -96,7 +96,7 @@ async def capture(
     payload = {
         "api_key": POSTHOG_API_KEY,
         "event": event,
-        "distinct_id": get_analytics_id(),
+        "distinct_id": CONFIG["analytics"]["id"],
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "properties": props,
     }

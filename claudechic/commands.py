@@ -637,11 +637,12 @@ def _handle_processes(app: "ChatApp") -> None:
 
 def _handle_vim(app: "ChatApp") -> bool:
     """Toggle vim mode for input."""
-    from claudechic.config import get_vi_mode, set_vi_mode
+    from claudechic.config import CONFIG, save
 
-    current = get_vi_mode()
+    current = CONFIG.get("vi-mode", False)
     new_state = not current
-    set_vi_mode(new_state)
+    CONFIG["vi-mode"] = new_state
+    save()
 
     # Update all ChatInput widgets
     app._update_vi_mode(new_state)
@@ -653,28 +654,26 @@ def _handle_vim(app: "ChatApp") -> bool:
 
 def _handle_analytics(app: "ChatApp", command: str) -> bool:
     """Handle /analytics commands: opt-in, opt-out."""
-    from claudechic.config import (
-        get_analytics_enabled,
-        get_analytics_id,
-        set_analytics_enabled,
-    )
+    from claudechic.config import CONFIG, save
 
     parts = command.split()
     subcommand = parts[1] if len(parts) > 1 else ""
 
     if subcommand == "opt-in":
-        set_analytics_enabled(True)
+        CONFIG["analytics"]["enabled"] = True
+        save()
         app.notify("Analytics enabled")
         return True
 
     if subcommand == "opt-out":
-        set_analytics_enabled(False)
+        CONFIG["analytics"]["enabled"] = False
+        save()
         app.notify("Analytics disabled")
         return True
 
     # Show current status
-    enabled = get_analytics_enabled()
-    user_id = get_analytics_id()
+    enabled = CONFIG["analytics"]["enabled"]
+    user_id = CONFIG["analytics"]["id"]
     status = "enabled" if enabled else "disabled"
     app.notify(f"Analytics {status}, ID: {user_id[:8]}...")
     return True
