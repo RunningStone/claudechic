@@ -7,6 +7,7 @@ Exposes tools for Claude to manage agents within claudechic:
 - tell_agent: Send message to existing agent (no reply expected)
 - list_agents: List current agents and their status
 - close_agent: Close an agent by name
+- finish_worktree: Finish current agent's worktree (commit, rebase, merge, cleanup)
 """
 
 from __future__ import annotations
@@ -19,7 +20,20 @@ from typing import TYPE_CHECKING, Any
 from claude_agent_sdk import tool, create_sdk_mcp_server
 
 from claudechic.analytics import capture
-from claudechic.features.worktree.git import start_worktree
+from claudechic.features.worktree.git import (
+    FinishPhase,
+    FinishState,
+    ResolutionAction,
+    clean_gitignored_files,
+    determine_resolution_action,
+    diagnose_worktree,
+    fast_forward_merge,
+    finish_cleanup,
+    get_cleanup_fix_prompt,
+    get_finish_info,
+    get_finish_prompt,
+    start_worktree,
+)
 from claudechic.tasks import create_safe_task
 
 if TYPE_CHECKING:
@@ -286,6 +300,153 @@ async def list_agents(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
 
 
 @tool(
+    "finish_worktree",
+    "When you're done working in a worktree, call this to clean it up. Handles committing, rebasing onto the base branch, merging, and removing the worktree. Prefer this over manual git worktree commands.",
+    {},
+)
+async def finish_worktree(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
+    """Start the worktree finish flow for the current agent."""
+    try:
+        if _app is None or _app.agent_mgr is None:
+            return _text_response("Error: App not initialized")
+        _track_mcp_tool("finish_worktree")
+
+        agent = _app.agent_mgr.active
+        if agent is None:
+            return _text_response("Error: No active agent")
+
+        if agent.worktree is None:
+            return _text_response(
+                "Error: Current agent is not in a worktree. "
+                "Use this tool only from a worktree agent."
+            )
+
+        # Get finish info
+        success, message, info = get_finish_info(agent.cwd)
+        if not success or info is None:
+            return _text_response(f"Error: {message}")
+
+        # Diagnose current state
+        status = diagnose_worktree(info)
+
+        # Store state on agent for continuation after Claude actions
+        agent.finish_state = FinishState(
+            info=info,
+            phase=FinishPhase.RESOLUTION,
+            status=status,
+        )
+
+        # Process resolution actions, returning instructions for Claude
+        return await _process_finish_resolution(agent, info, status)
+
+    except Exception as e:
+        log.exception("finish_worktree failed")
+        return _text_response(f"Error: {e}")
+
+
+async def _process_finish_resolution(
+    agent: Any, info: Any, status: Any
+) -> dict[str, Any]:
+    """Process the finish resolution phase, handling automatic actions.
+
+    Returns MCP response - either success or instructions for Claude.
+    """
+    # Guard against infinite loops (e.g., gitignored files keep reappearing)
+    max_iterations = 10
+
+    for _ in range(max_iterations):
+        action = determine_resolution_action(status)
+
+        if action == ResolutionAction.NONE:
+            return await _do_cleanup(agent, info)
+
+        if action == ResolutionAction.CLEAN_GITIGNORED:
+            success, error = clean_gitignored_files(info.worktree_dir)
+            if not success:
+                agent.finish_state = None
+                return _text_response(f"Error cleaning gitignored files: {error}")
+            # Re-diagnose and loop
+            status = diagnose_worktree(info)
+            agent.finish_state.status = status
+            continue
+
+        if action == ResolutionAction.PROMPT_UNCOMMITTED:
+            return _text_response(
+                "There are uncommitted changes. Please commit all changes with a "
+                "descriptive message, then call finish_worktree again to continue."
+            )
+
+        if action == ResolutionAction.FAST_FORWARD:
+            success, error = fast_forward_merge(info)
+            if success:
+                return await _do_cleanup(agent, info)
+            # Fast-forward failed, fall through to rebase
+            return _text_response(
+                f"Fast-forward merge failed: {error}\n\n"
+                + get_finish_prompt(info)
+                + "\n\nAfter completing, call finish_worktree again."
+            )
+
+        if action == ResolutionAction.REBASE:
+            return _text_response(
+                get_finish_prompt(info)
+                + "\n\nAfter completing the rebase and merge, call finish_worktree again."
+            )
+
+        # Unknown action
+        agent.finish_state = None
+        return _text_response("Error: Unknown resolution action")
+
+    # Max iterations reached
+    agent.finish_state = None
+    return _text_response("Error: Too many resolution iterations, aborting")
+
+
+async def _do_cleanup(agent: Any, info: Any) -> dict[str, Any]:
+    """Attempt cleanup and return appropriate response."""
+    import asyncio
+
+    success, warning = await asyncio.to_thread(finish_cleanup, info)
+    if success:
+        branch = info.branch_name
+        agent.finish_state = None
+        _close_worktree_agent(agent)
+        msg = f"Successfully finished worktree '{branch}'"
+        if warning:
+            msg += f" ({warning})"
+        return _text_response(msg)
+
+    # Cleanup failed - ask Claude to fix
+    agent.finish_state.phase = FinishPhase.CLEANUP
+    return _text_response(
+        f"Cleanup failed: {warning}\n\n"
+        + get_cleanup_fix_prompt(warning, info.worktree_dir)
+        + "\n\nAfter fixing, call finish_worktree again to retry."
+    )
+
+
+def _close_worktree_agent(agent: Any) -> None:
+    """Close a worktree agent after successful finish."""
+    if _app is None or _app.agent_mgr is None:
+        return
+
+    # Don't close if it's the last agent
+    if len(_app.agent_mgr) <= 1:
+        return
+
+    # Switch to main agent first if this is the active one
+    if _app.agent_mgr.active_id == agent.id:
+        main = next(
+            (a for a in _app.agent_mgr if a.worktree is None),
+            None,
+        )
+        if main:
+            _app.agent_mgr.switch(main.id)
+
+    _app._do_close_agent(agent.id)
+
+
+@tool(
     "close_agent",
     "Close an agent by name. Cannot close the last remaining agent.",
     {"name": str},
@@ -336,5 +497,6 @@ def create_chic_server(caller_name: str | None = None):
             _make_tell_agent(caller_name),
             list_agents,
             close_agent,
+            finish_worktree,
         ],
     )

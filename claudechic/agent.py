@@ -33,6 +33,7 @@ from claude_agent_sdk.types import (
 )
 
 from claudechic.enums import AgentStatus, PermissionChoice, ToolName
+from claudechic.features.worktree.git import FinishState
 from claudechic.file_index import FileIndex
 from claudechic.permissions import PermissionRequest
 from claudechic.tasks import create_safe_task
@@ -174,7 +175,7 @@ class Agent:
         self.model: str | None = None  # Model override (None = SDK default)
 
         # Worktree finish state (for /worktree finish flow)
-        self.finish_state: Any = None
+        self.finish_state: FinishState | None = None
 
         # Plan file path (cached after first lookup)
         self.plan_path: Path | None = None
