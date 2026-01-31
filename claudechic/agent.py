@@ -703,6 +703,8 @@ Key Rules:
                 self._set_permission_mode_local("default")
             elif tool.name == ToolName.ENTER_PLAN_MODE and not tool.is_error:
                 self._set_permission_mode_local("plan")
+                # Fetch plan path asynchronously (needed for ExitPlanMode later)
+                create_safe_task(self._fetch_plan_path(), name="fetch-plan-path")
 
             if self.observer:
                 self.observer.on_message_updated(self)
@@ -868,6 +870,13 @@ Key Rules:
             if self.observer:
                 self.observer.on_permission_mode_changed(self)
 
+    async def _fetch_plan_path(self) -> None:
+        """Fetch and cache the plan path for this session."""
+        if self.session_id and not self.plan_path:
+            self.plan_path = await get_plan_path_for_session(
+                self.session_id, cwd=self.cwd, must_exist=False
+            )
+
     async def set_permission_mode(self, mode: str) -> None:
         """Update permission mode via SDK and emit event.
 
@@ -878,10 +887,8 @@ Key Rules:
         if self.permission_mode != mode:
             self.permission_mode = mode
             # Fetch plan path when entering plan mode
-            if mode == "plan" and self.session_id and not self.plan_path:
-                self.plan_path = await get_plan_path_for_session(
-                    self.session_id, cwd=self.cwd, must_exist=False
-                )
+            if mode == "plan":
+                await self._fetch_plan_path()
             # Only call SDK if connected (client exists and has active connection)
             if self.client and self.session_id:
                 await self.client.set_permission_mode(mode)
