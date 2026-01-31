@@ -1077,7 +1077,7 @@ class ChatApp(App):
         """Show/hide right sidebar and adjust centering based on terminal width."""
         # Show sidebar when wide enough and we have multiple agents, worktrees, or todos
         agent_count = len(self.agent_mgr) if self.agent_mgr else 0
-        has_content = (
+        has_content = bool(
             agent_count > 1 or self.agent_section._worktrees or self.todo_panel.todos
         )
         width = self.size.width
@@ -1088,47 +1088,33 @@ class ChatApp(App):
             a.status == AgentStatus.NEEDS_INPUT for a in self.agents.values()
         )
 
-        if width >= self.SIDEBAR_MIN_WIDTH and has_content:
-            # Wide enough - show sidebar inline, hide hamburger
-            self.right_sidebar.remove_class("hidden")
-            self.right_sidebar.remove_class("overlay")
-            self.hamburger_btn.remove_class("visible")
-            self._sidebar_overlay_open = False
-            # Layout sidebar contents based on available space
-            self._layout_sidebar_contents()
-            # Wide enough to center chat while showing sidebar
-            if width >= self.CENTERED_SIDEBAR_WIDTH:
-                main.remove_class("sidebar-shift")
-            else:
-                # Shift left to make room for sidebar
-                main.add_class("sidebar-shift")
-        elif has_content:
-            # Narrow but has content - show hamburger, sidebar as overlay when open
-            main.remove_class("sidebar-shift")
+        # Compute desired state
+        show_sidebar_inline = width >= self.SIDEBAR_MIN_WIDTH and has_content
+        show_overlay = (
+            has_content and not show_sidebar_inline and self._sidebar_overlay_open
+        )
+        show_hamburger = (
+            has_content and not show_sidebar_inline and not self._sidebar_overlay_open
+        )
+        sidebar_shift = show_sidebar_inline and width < self.CENTERED_SIDEBAR_WIDTH
+        hide_sidebar = not (show_sidebar_inline or show_overlay)
 
-            if self._sidebar_overlay_open:
-                # Sidebar open - hide hamburger, show sidebar
-                self.hamburger_btn.remove_class("visible")
-                self.right_sidebar.remove_class("hidden")
-                self.right_sidebar.add_class("overlay")
-                # Layout sidebar contents
-                self._layout_sidebar_contents()
-            else:
-                # Sidebar closed - show hamburger
-                self.hamburger_btn.add_class("visible")
-                if needs_attention:
-                    self.hamburger_btn.add_class("needs-attention")
-                else:
-                    self.hamburger_btn.remove_class("needs-attention")
-                self.right_sidebar.add_class("hidden")
-                self.right_sidebar.remove_class("overlay")
-        else:
-            # No content - hide everything
-            self.right_sidebar.add_class("hidden")
-            self.right_sidebar.remove_class("overlay")
-            self.hamburger_btn.remove_class("visible")
+        # Apply classes - set_class is a no-op if state already matches
+        self.right_sidebar.set_class(hide_sidebar, "hidden")
+        self.right_sidebar.set_class(show_overlay, "overlay")
+        self.hamburger_btn.set_class(show_hamburger, "visible")
+        self.hamburger_btn.set_class(
+            show_hamburger and needs_attention, "needs-attention"
+        )
+        main.set_class(sidebar_shift, "sidebar-shift")
+
+        # Reset overlay state when not applicable
+        if not has_content or show_sidebar_inline:
             self._sidebar_overlay_open = False
-            main.remove_class("sidebar-shift")
+
+        # Layout sidebar contents when visible
+        if show_sidebar_inline or show_overlay:
+            self._layout_sidebar_contents()
 
     COMPACT_HEIGHT = 20  # Enable compact mode below this height
 
@@ -1142,10 +1128,8 @@ class ChatApp(App):
                 self.query_one("#input-container"),
                 *self.query(".chat-view"),
             ]:
-                if compact:
-                    widget.add_class("compact-height")
-                else:
-                    widget.remove_class("compact-height")
+                # set_class is a no-op if state already matches
+                widget.set_class(compact, "compact-height")
         except Exception:
             pass  # Widgets not yet mounted
 
@@ -2069,55 +2053,55 @@ class ChatApp(App):
         """Handle agent switch from AgentManager."""
         log.info(f"Switched to agent: {new_agent.name}")
 
-        # Batch all class changes to trigger single CSS recalculation
-        with self.batch_update():
-            # Save current input and hide old agent's UI
-            if old_agent:
-                old_agent.pending_input = self.chat_input.text
-                old_chat_view = self._chat_views.get(old_agent.id)
-                if old_chat_view:
-                    old_chat_view.add_class("hidden")
-                old_prompt = self._active_prompts.get(old_agent.id)
-                if old_prompt:
-                    old_prompt.add_class("hidden")
+        # Use update=False to defer CSS recalculation, refresh_css at end
+        if old_agent:
+            old_agent.pending_input = self.chat_input.text
+            old_chat_view = self._chat_views.get(old_agent.id)
+            if old_chat_view:
+                old_chat_view.add_class("hidden", update=False)
+            old_prompt = self._active_prompts.get(old_agent.id)
+            if old_prompt:
+                old_prompt.add_class("hidden", update=False)
 
-            # Show new agent's chat view
-            new_chat_view = self._chat_views.get(new_agent.id)
-            if new_chat_view:
-                new_chat_view.remove_class("hidden")
-                new_chat_view.flush_deferred_updates()
+        # Show new agent's chat view
+        new_chat_view = self._chat_views.get(new_agent.id)
+        if new_chat_view:
+            new_chat_view.remove_class("hidden", update=False)
+            new_chat_view.flush_deferred_updates()
 
-            # Restore new agent's input
-            self.chat_input.text = new_agent.pending_input
+        # Restore new agent's input
+        self.chat_input.text = new_agent.pending_input
 
-            # Show new agent's prompt if it has one, otherwise show input
-            active_prompt = self._active_prompts.get(new_agent.id)
-            if active_prompt:
-                active_prompt.remove_class("hidden")
-                active_prompt.focus()
-                self.input_container.add_class("hidden")
-            else:
-                self.input_container.remove_class("hidden")
+        # Show new agent's prompt if it has one, otherwise show input
+        active_prompt = self._active_prompts.get(new_agent.id)
+        if active_prompt:
+            active_prompt.remove_class("hidden", update=False)
+            active_prompt.focus()
+            self.input_container.add_class("hidden", update=False)
+        else:
+            self.input_container.remove_class("hidden", update=False)
 
-            # Update sidebar
-            try:
-                self.agent_section.set_active(new_agent.id)
-            except Exception:
-                pass
+        try:
+            self.agent_section.set_active(new_agent.id)
+        except Exception:
+            pass
 
-            # Update footer
-            self.status_footer.permission_mode = new_agent.permission_mode
-            self._update_footer_model(new_agent.model)
+        # Update footer
+        self.status_footer.permission_mode = new_agent.permission_mode
+        self._update_footer_model(new_agent.model)
 
-            # Update todo panel and context
-            self.todo_panel.update_todos(new_agent.todos)
-            self.refresh_context()
+        # Update todo panel and context
+        self.todo_panel.update_todos(new_agent.todos)
+        self.refresh_context()
 
-            # Update plan button
-            self.plan_section.set_plan(new_agent.plan_path)
-            self._position_right_sidebar()
+        # Update plan button
+        self.plan_section.set_plan(new_agent.plan_path)
+        self._position_right_sidebar()
 
-        # These happen outside batch (async/focus)
+        # Single CSS refresh at the end
+        self.refresh_css(animate=False)
+
+        # These happen outside (async/focus)
         create_safe_task(self._async_refresh_files(new_agent), name="refresh-files")
         create_safe_task(
             self.status_footer.refresh_branch(str(new_agent.cwd)), name="refresh-branch"

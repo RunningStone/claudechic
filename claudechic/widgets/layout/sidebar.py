@@ -531,11 +531,9 @@ class AgentSection(SidebarSection):
 
     def set_active(self, agent_id: str) -> None:
         """Mark an agent as active (selected)."""
+        # Use update=False to defer CSS recalculation (caller will refresh)
         for aid, item in self._agents.items():
-            if aid == agent_id:
-                item.add_class("active")
-            else:
-                item.remove_class("active")
+            item.set_class(aid == agent_id, "active", update=False)
 
     def update_status(self, agent_id: str, status: AgentStatus) -> None:
         """Update an agent's status."""
