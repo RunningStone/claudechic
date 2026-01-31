@@ -776,7 +776,28 @@ class ChatApp(App):
                     self._update_footer_model(agent.model if agent else None)
         except Exception as e:
             log.warning(f"Failed to fetch SDK commands: {e}")
+        self._refresh_autocomplete_agents()
         self.refresh_context()
+
+    def _refresh_autocomplete_agents(self) -> None:
+        """Refresh autocomplete with current agent names."""
+        autocomplete = self.query_one_optional(TextAreaAutoComplete)
+        if not autocomplete:
+            return
+        # Get current commands (may include SDK commands)
+        base = (
+            list(autocomplete.slash_commands)
+            if autocomplete.slash_commands
+            else list(self.LOCAL_COMMANDS)
+        )
+        # Remove old agent completions
+        base = [c for c in base if not c.startswith("/agent ")]
+        # Add current agent names
+        if self.agent_mgr:
+            for agent in self.agent_mgr.agents.values():
+                base.append(f"/agent {agent.name}")
+                base.append(f"/agent close {agent.name}")
+        autocomplete.slash_commands = base
 
     @work(exclusive=True, group="file_index")
     async def _refresh_file_index(self) -> None:
@@ -1791,6 +1812,50 @@ class ChatApp(App):
             label = f"Worktree '{name}'" if worktree else f"Agent '{name}'"
             self.notify(f"{label} ready")
 
+    def _execute_plan_fresh(self, agent: Agent) -> None:
+        """Clear context and execute plan in fresh session."""
+        plan_info = agent.pending_plan_execution
+        agent.pending_plan_execution = None
+
+        if not plan_info:
+            return
+
+        plan_content = plan_info["plan"]
+        mode = plan_info["mode"]
+        # Get plan path from info (may have been found via fallback)
+        plan_path = plan_info.get("plan_path") or agent.plan_path
+
+        async def clear_and_run():
+            # Interrupt any ongoing response
+            await agent.interrupt()
+
+            # Clear UI
+            chat_view = self._chat_views.get(agent.id)
+            if chat_view:
+                chat_view.clear()
+
+            # Reconnect with fresh session (like /clear)
+            await agent.disconnect()
+            options = self._make_options(
+                cwd=agent.cwd, agent_name=agent.name, model=agent.model
+            )
+            await agent.connect(options)
+
+            # Restore plan path for execution session and show in sidebar
+            agent.plan_path = plan_path
+            self.plan_section.set_plan(plan_path)
+            self._layout_sidebar_contents()
+
+            # Set permission mode and send plan
+            await agent.set_permission_mode(mode)
+            prompt = f"Execute this plan:\n\n{plan_content}"
+            await agent.send(prompt)
+
+            self.refresh_context()
+            self.notify("Executing plan in fresh session")
+
+        self.run_worker(clear_and_run())
+
     def _close_agent(self, target: str | None) -> None:
         """Close an agent by name, position, or current if no target."""
         if len(self.agents) <= 1:
@@ -2279,6 +2344,10 @@ class ChatApp(App):
             request._answers = answers  # type: ignore[attr-defined]
             return PermissionResponse(PermissionChoice.ALLOW)
 
+        # Special handling for ExitPlanMode - custom options
+        if request.tool_name == ToolName.EXIT_PLAN_MODE:
+            return await self._handle_exit_plan_mode_permission(request, agent)
+
         # Regular permission prompt
         if request.tool_name in self.AUTO_EDIT_TOOLS:
             # For edit tools, offer auto-edit mode (superset of allow_session)
@@ -2337,6 +2406,71 @@ class ChatApp(App):
         )
 
         return result
+
+    async def _handle_exit_plan_mode_permission(
+        self, request: PermissionRequest, agent: Agent
+    ) -> PermissionResponse:
+        """Handle ExitPlanMode with plan-specific options."""
+        # Get plan content and path - try multiple sources
+        plan_content: str | None = request.tool_input.get("plan")
+        plan_path = agent.plan_path
+
+        if not plan_content and plan_path and plan_path.exists():
+            plan_content = plan_path.read_text()
+
+        # Fallback: most recently modified plan file
+        if not plan_content:
+            plans_dir = Path.home() / ".claude" / "plans"
+            if plans_dir.exists():
+                plan_files = sorted(
+                    plans_dir.glob("*.md"),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
+                )
+                if plan_files:
+                    plan_path = plan_files[0]
+                    plan_content = plan_path.read_text()
+
+        options = [
+            ("clear_auto", "Yes, clear context and auto-approve edits"),
+            ("auto", "Yes, auto-approve edits"),
+            ("manual", "Yes, manually approve edits"),
+        ]
+        text_option = ("deny", "No, stay in plan mode")
+
+        async with self._show_prompt(
+            SelectionPrompt("Execute plan?", options, text_option), agent
+        ) as prompt:
+            choice = await prompt.wait()
+
+        # Track the response
+        self.run_worker(
+            capture(
+                "permission_response",
+                tool="ExitPlanMode",
+                choice=choice,
+                agent_id=agent.analytics_id,
+            )
+        )
+
+        if choice == "clear_auto":
+            # Execute plan in fresh session immediately
+            agent.pending_plan_execution = {
+                "plan": plan_content or "No plan content found.",
+                "mode": "acceptEdits",
+                "plan_path": plan_path,
+            }
+            self._execute_plan_fresh(agent)
+            return PermissionResponse(PermissionChoice.DENY)
+        elif choice == "auto":
+            await agent.set_permission_mode("acceptEdits")
+            self.notify("Auto-edit enabled (Shift+Tab to disable)")
+            return PermissionResponse(PermissionChoice.ALLOW)
+        elif choice == "manual":
+            await agent.set_permission_mode("default")
+            return PermissionResponse(PermissionChoice.ALLOW)
+        else:
+            return PermissionResponse(PermissionChoice.DENY)
 
     def _update_footer_model(self, model: str | None) -> None:
         """Update footer to show agent's model."""

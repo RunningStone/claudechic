@@ -201,6 +201,9 @@ class Agent:
         # Background task output files: command -> output_file path
         self._background_outputs: dict[str, str] = {}
 
+        # Pending plan execution (set when "clear context + auto-approve" chosen)
+        self.pending_plan_execution: dict | None = None  # {"plan": str, "mode": str}
+
     @property
     def analytics_id(self) -> str:
         """ID for analytics events (session_id if connected, else internal id)."""
