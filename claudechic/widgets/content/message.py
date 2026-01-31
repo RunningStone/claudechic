@@ -35,6 +35,42 @@ class ThinkingIndicator(Spinner):
             self.set_classes(classes)
 
 
+class ConnectingIndicator(Vertical):
+    """Centered indicator shown while connecting to SDK."""
+
+    can_focus = False
+    DEFAULT_CSS = """
+    ConnectingIndicator {
+        width: 100%;
+        height: 1fr;
+        align: center middle;
+    }
+    ConnectingIndicator > Vertical {
+        width: auto;
+        height: auto;
+        padding: 2 4;
+        border: round $surface;
+    }
+    ConnectingIndicator Static {
+        width: auto;
+        text-align: center;
+        color: $text-muted;
+    }
+    ConnectingIndicator .connecting-title {
+        text-style: bold;
+        padding-bottom: 1;
+    }
+    ConnectingIndicator Spinner {
+        width: auto;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Static("Connecting to Claude...", classes="connecting-title")
+            yield Spinner("Establishing session")
+
+
 class ErrorMessage(Static):
     """Error message displayed in the chat view with red styling."""
 

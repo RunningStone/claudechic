@@ -156,6 +156,28 @@ class AgentManager:
 
         return agent
 
+    async def connect_agent(
+        self,
+        agent: Agent,
+        *,
+        resume: str | None = None,
+        model: str | None = None,
+    ) -> None:
+        """Connect an existing unconnected agent to the SDK.
+
+        Use this after create_unconnected() to establish the SDK connection.
+
+        Args:
+            agent: The agent to connect (must be in self.agents)
+            resume: Session ID to resume
+            model: Model override (None = SDK default)
+        """
+        agent.model = model
+        options = self._options_factory(
+            cwd=agent.cwd, resume=resume, agent_name=agent.name, model=model
+        )
+        await agent.connect(options, resume=resume)
+
     def _wire_agent_callbacks(self, agent: Agent) -> None:
         """Wire up agent observer and permission handler."""
         agent.observer = self.agent_observer

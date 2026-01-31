@@ -65,6 +65,7 @@ from claudechic.widgets import (
     ContextBar,
     ChatMessage,
     ChatInput,
+    ConnectingIndicator,
     ImageAttachments,
     ErrorMessage,
     AgentToolWidget,
@@ -1783,6 +1784,22 @@ class ChatApp(App):
             self.notify("Agent manager not initialized", severity="error")
             return
 
+        # Create agent immediately for instant UI feedback
+        agent = self.agent_mgr.create_unconnected(
+            name=name,
+            cwd=cwd,
+            worktree=worktree,
+            switch_to=switch_to,
+        )
+
+        # Show "connecting..." in footer and centered indicator in chat view
+        self.status_footer.model = "connecting..."
+        chat_view = self._chat_views.get(agent.id)
+        connecting_indicator = None
+        if chat_view:
+            connecting_indicator = ConnectingIndicator()
+            chat_view.mount(connecting_indicator)
+
         try:
             # Resolve resume ID if auto_resume
             resume_id = None
@@ -1793,18 +1810,22 @@ class ChatApp(App):
                     best = max(sessions, key=lambda s: s[3])
                     resume_id = best[0]
 
-            # Create agent via AgentManager (handles SDK connection, UI callbacks)
-            await self.agent_mgr.create(
-                name=name,
-                cwd=cwd,
-                worktree=worktree,
-                resume=resume_id,
-                switch_to=switch_to,
-                model=model,
-            )
+            # Connect to SDK (the slow part)
+            await self.agent_mgr.connect_agent(agent, resume=resume_id, model=model)
         except Exception as e:
             self.show_error(f"Failed to create agent '{name}'", e)
+            await self.agent_mgr.close(agent.id)
+            # Reset footer if no agents left (close() switches otherwise)
+            if not self.agent_mgr.agents:
+                self.status_footer.model = ""
             return
+        finally:
+            # Always remove the connecting indicator
+            if connecting_indicator:
+                connecting_indicator.remove()
+
+        # Update footer with connected agent's model
+        self._update_footer_model(agent.model)
 
         if resume_id:
             await self._load_and_display_history(resume_id, cwd=cwd)
