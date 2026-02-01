@@ -868,7 +868,7 @@ Key Rules:
                 self.observer.on_status_changed(self)
 
     # Valid permission modes
-    PERMISSION_MODES = {"default", "acceptEdits", "plan"}
+    PERMISSION_MODES = {"default", "acceptEdits", "plan", "planSwarm"}
 
     def _set_permission_mode_local(self, mode: str) -> None:
         """Update permission mode locally without calling SDK.

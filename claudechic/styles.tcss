@@ -102,6 +102,10 @@ ModelLabel:hover {
     color: $secondary;
 }
 
+.footer-label.plan-swarm-mode {
+    color: $error;
+}
+
 /* Shared block styling - all content blocks */
 ChatMessage, BaseToolWidget, ThinkingIndicator, ErrorMessage, SystemInfo, #input-container {
     background: transparent;

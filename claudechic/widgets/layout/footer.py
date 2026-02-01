@@ -136,18 +136,26 @@ class StatusFooter(Static):
         if label := self.query_one_optional(
             "#permission-mode-label", PermissionModeLabel
         ):
-            if value == "plan":
+            if value == "planSwarm":
+                label.update("Plan swarm")
+                label.set_class(False, "active")
+                label.set_class(False, "plan-mode")
+                label.set_class(True, "plan-swarm-mode")
+            elif value == "plan":
                 label.update("Plan mode")
                 label.set_class(False, "active")
                 label.set_class(True, "plan-mode")
+                label.set_class(False, "plan-swarm-mode")
             elif value == "acceptEdits":
                 label.update("Auto-edit: on")
                 label.set_class(True, "active")
                 label.set_class(False, "plan-mode")
+                label.set_class(False, "plan-swarm-mode")
             else:  # default
                 label.update("Auto-edit: off")
                 label.set_class(False, "active")
                 label.set_class(False, "plan-mode")
+                label.set_class(False, "plan-swarm-mode")
 
     def update_processes(self, processes: list[BackgroundProcess]) -> None:
         """Update the process indicator."""

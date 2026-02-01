@@ -504,14 +504,21 @@ class ChatApp(App):
                 self.input_container.remove_class("hidden")
 
     def action_cycle_permission_mode(self) -> None:
-        """Cycle permission mode: default -> acceptEdits -> plan -> default."""
+        """Cycle permission mode: default -> acceptEdits -> plan -> default.
+
+        planSwarm is not in the cycle - use /plan-swarm to enter, shift-tab to exit.
+        """
         if self._agent:
-            # Cycle through modes
             agent = self._agent  # Capture for closure
             modes = ["default", "acceptEdits", "plan"]
             current = agent.permission_mode
-            next_idx = (modes.index(current) + 1) % len(modes)
-            next_mode = modes[next_idx]
+
+            # If in planSwarm, exit to default (not in normal cycle)
+            if current == "planSwarm":
+                next_mode = "default"
+            else:
+                next_idx = (modes.index(current) + 1) % len(modes)
+                next_mode = modes[next_idx]
 
             # Schedule the async call
             async def set_mode():
@@ -913,6 +920,13 @@ class ChatApp(App):
         self.run_worker(
             capture("message_sent", agent_id=agent.analytics_id if agent else "unknown")
         )
+
+        # If in planSwarm mode, this is the task - spawn agents and send orchestrator prompt
+        if agent and agent.permission_mode == "planSwarm":
+            from claudechic.commands import start_plan_swarm
+
+            start_plan_swarm(self, prompt)
+            return
 
         # User message will be mounted by _on_agent_prompt_sent callback
         self._send_to_active_agent(prompt)
@@ -1767,7 +1781,7 @@ class ChatApp(App):
         if result and result != agent.model:
             self._set_agent_model(result)
 
-    @work(group="new_agent", exclusive=True, exit_on_error=False)
+    @work(group="new_agent", exclusive=False, exit_on_error=False)
     async def _create_new_agent(
         self,
         name: str,
