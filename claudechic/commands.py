@@ -262,6 +262,10 @@ def handle_command(app: "ChatApp", prompt: str) -> bool:
         )
         return True
 
+    # Check if it's a built-in SDK command (works, no tracking needed)
+    if cmd_name in SDK_PASSTHROUGH_COMMANDS:
+        return False
+
     # Check if it's a user-defined command (won't trigger Skill tool)
     agent = app._agent
     cwd = agent.cwd if agent else Path.cwd()
@@ -307,6 +311,15 @@ CLAUDE_CLI_COMMANDS = frozenset(
         "/doctor",
         "/cost",
         "/terminal-setup",
+    }
+)
+
+# Built-in SDK commands that work in claudechic (pass through, no tracking)
+SDK_PASSTHROUGH_COMMANDS = frozenset(
+    {
+        "/compact",
+        "/context",
+        "/init",
     }
 )
 
