@@ -97,6 +97,10 @@ class AgentObserver(Protocol):
         """Called when a user prompt is sent."""
         ...
 
+    def on_thinking_chunk(self, agent: Agent, text: str, new_block: bool) -> None:
+        """Called for each streaming thinking chunk."""
+        ...
+
 
 class PermissionHandler(Protocol):
     """Handler for permission UI interactions.

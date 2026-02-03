@@ -20,6 +20,7 @@ from claude_agent_sdk import (
     ClaudeSDKClient,
     ResultMessage,
     SystemMessage,
+    ThinkingBlock,
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
@@ -162,6 +163,7 @@ class Agent:
         self.messages: list[ChatItem] = []
         self._current_assistant: AssistantContent | None = None
         self._current_text_buffer: str = ""
+        self._thinking_started: bool = False  # Track if we've started a thinking block
 
         # Permission queue
         self.pending_prompts: deque[PermissionRequest] = deque()
@@ -399,6 +401,7 @@ class Agent:
         self._current_assistant = None
         self._current_text_buffer = ""
         self._needs_new_message = True
+        self._thinking_started = False  # Reset for new response
         self._thinking_hidden = False  # Reset for new response
         self._interrupted = False  # Clear interrupt flag for new query
 
@@ -539,6 +542,10 @@ Key Rules:
                     had_tool_use[parent_id] = True
                 elif isinstance(block, ToolResultBlock):
                     self._handle_tool_result(block)
+                elif isinstance(block, ThinkingBlock):
+                    # Skip - thinking is handled via streaming (thinking_delta events)
+                    # AssistantMessage contains the complete ThinkingBlock after streaming
+                    pass
 
         elif isinstance(message, UserMessage):
             # UserMessage can contain tool results or command output
@@ -602,6 +609,13 @@ Key Rules:
             self.observer.on_message_updated(self)
             self.observer.on_text_chunk(self, text, new_message, parent_tool_use_id)
 
+    def _handle_thinking_chunk(self, thinking: str) -> None:
+        """Handle incoming thinking chunk."""
+        new_block = not self._thinking_started
+        self._thinking_started = True
+        if self.observer:
+            self.observer.on_thinking_chunk(self, thinking, new_block)
+
     def _handle_stream_event(self, event: StreamEvent) -> None:
         """Handle streaming event from SDK."""
         ev = event.event
@@ -610,13 +624,18 @@ Key Rules:
 
         if ev_type == "content_block_delta":
             delta = ev.get("delta", {})
-            if delta.get("type") == "text_delta":
+            delta_type = delta.get("type")
+            if delta_type == "text_delta":
                 text = delta.get("text", "")
                 if text:
                     # Start new message after tool use or at start of response
                     new_msg = self._needs_new_message
                     self._needs_new_message = False
                     self._handle_text_chunk(text, new_msg, parent_id)
+            elif delta_type == "thinking_delta":
+                thinking = delta.get("thinking", "")
+                if thinking:
+                    self._handle_thinking_chunk(thinking)
 
     def _update_current_text_block(self) -> None:
         """Update the current TextBlock with accumulated text (for streaming)."""

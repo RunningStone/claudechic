@@ -12,6 +12,7 @@ from textual.widgets import Markdown, TextArea, Static
 
 from claudechic.errors import log_exception
 from claudechic.widgets.primitives.button import Button
+from claudechic.widgets.primitives.collapsible import QuietCollapsible
 from claudechic.widgets.primitives.spinner import Spinner
 from claudechic.widgets.input.vi_mode import ViHandler, ViMode
 
@@ -33,6 +34,94 @@ class ThinkingIndicator(Spinner):
             self.id = id
         if classes:
             self.set_classes(classes)
+
+
+class ThinkingWidget(Static):
+    """Widget displaying Claude's extended thinking content.
+
+    Shows a spinner while streaming, then transitions to a collapsible block.
+    Can be expanded at any time to see the thinking content as it streams.
+    """
+
+    can_focus = False
+    DEFAULT_CSS = """
+    ThinkingWidget {
+        width: 100%;
+        margin: 0 2 1 0;
+        padding: 0 2 0 2;
+        border-left: wide $panel;
+    }
+    ThinkingWidget:hover {
+        border-left: wide $panel-lighten-2;
+    }
+    ThinkingWidget QuietCollapsible {
+        padding: 0;
+    }
+    ThinkingWidget .thinking-content {
+        color: $text-muted;
+        padding: 1 0;
+    }
+    ThinkingWidget Spinner {
+        width: auto;
+        height: 1;
+    }
+    """
+
+    def __init__(self, collapsed: bool = True) -> None:
+        super().__init__()
+        self._content = ""
+        self._collapsed = collapsed
+        self._markdown: Markdown | None = None
+        self._stream = None
+        self._streaming = True  # Start in streaming mode
+        self._collapsible: QuietCollapsible | None = None
+
+    def compose(self) -> ComposeResult:
+        self.add_class("streaming")
+        # Use spinner in title while streaming
+        self._collapsible = QuietCollapsible(
+            title="💭 Thinking...", collapsed=self._collapsed
+        )
+        with self._collapsible:
+            yield Spinner("thinking")  # Spinner shown while streaming
+            # Start with any content that arrived before compose ran
+            self._markdown = Markdown(self._content, classes="thinking-content")
+            yield self._markdown
+        # Mark how much content was rendered initially
+        self._rendered_length = len(self._content)
+
+    def append_content(self, text: str) -> None:
+        """Append thinking text using streaming."""
+        self._content += text
+        # Stream to markdown if compose() has run (markdown exists)
+        # Note: We check _markdown not is_mounted because mount() may not be awaited
+        if self._markdown:
+            if self._stream is None:
+                self._stream = Markdown.get_stream(self._markdown)
+                # Stream any content that arrived after initial render
+                pending = self._content[getattr(self, "_rendered_length", 0) :]
+                if pending:
+                    self.call_later(self._stream.write, pending)
+                    self._rendered_length = len(self._content)
+            else:
+                self.call_later(self._stream.write, text)
+
+    def flush(self) -> None:
+        """Flush stream and transition from spinner to collapsible."""
+        if self._stream:
+            self.call_later(self._stream.stop)
+            self._stream = None
+
+        self._streaming = False
+        self.remove_class("streaming")
+
+        # Remove spinner, keep just the markdown content
+        if spinner := self.query_one_optional(Spinner):
+            spinner.remove()
+
+        # Collapse now that streaming is done (user can click to expand)
+        if self._collapsible:
+            self._collapsible.collapsed = True
 
 
 class ConnectingIndicator(Vertical):

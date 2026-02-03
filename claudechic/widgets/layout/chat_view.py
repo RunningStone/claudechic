@@ -21,6 +21,7 @@ from claudechic.widgets.content.message import (
     ChatMessage,
     ChatAttachment,
     ThinkingIndicator,
+    ThinkingWidget,
     SystemInfo,
 )
 from claudechic.widgets.primitives.scroll import AutoHideScroll
@@ -79,6 +80,7 @@ class ChatView(AutoHideScroll):
         self._active_task_widgets: dict[str, TaskWidget] = {}
         self._recent_tools: list[ToolUseWidget | TaskWidget | AgentToolWidget] = []
         self._thinking_indicator: ThinkingIndicator | None = None
+        self._thinking_widget: ThinkingWidget | None = None
 
         # Deferred update tracking for hidden views
         self._needs_rerender: bool = False
@@ -343,7 +345,40 @@ class ChatView(AutoHideScroll):
             self._needs_rerender = True
             return
         self._hide_thinking()
+        self._flush_thinking()
         self._current_response = None
+
+    def append_thinking(self, text: str, new_block: bool) -> None:
+        """Append streaming thinking content to the view.
+
+        Args:
+            text: The thinking text chunk to append
+            new_block: Whether this starts a new thinking block
+        """
+        # Defer if hidden - will re-render from agent.messages when shown
+        if self.is_hidden:
+            self._needs_rerender = True
+            return
+
+        # Hide the basic ThinkingIndicator - ThinkingWidget replaces it
+        self._hide_thinking()
+
+        # Create or reuse thinking widget
+        if new_block or self._thinking_widget is None:
+            # Flush any previous thinking widget
+            self._flush_thinking()
+            # Start expanded so user can see thinking as it streams
+            self._thinking_widget = ThinkingWidget(collapsed=False)
+            self.mount(self._thinking_widget)
+
+        self._thinking_widget.append_content(text)
+        self.scroll_if_tailing()
+
+    def _flush_thinking(self) -> None:
+        """Flush thinking widget stream on completion."""
+        if self._thinking_widget is not None:
+            self._thinking_widget.flush()
+            self._thinking_widget = None
 
     def append_text(
         self, text: str, new_message: bool, parent_tool_id: str | None
@@ -479,6 +514,7 @@ class ChatView(AutoHideScroll):
         self._active_task_widgets.clear()
         self._recent_tools.clear()
         self._thinking_indicator = None
+        self._thinking_widget = None
 
     # -----------------------------------------------------------------------
     # Helpers

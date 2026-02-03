@@ -619,6 +619,10 @@ class ChatApp(App):
         if os.environ.get("VIRTUAL_ENV"):
             env["VIRTUAL_ENV"] = ""
 
+        # Extended thinking: configurable, default to a reasonable budget
+        max_thinking_tokens = CONFIG.get("max-thinking-tokens")
+        # Only enable if explicitly set in config (extended thinking has cost implications)
+
         return ClaudeAgentOptions(
             permission_mode="bypassPermissions"
             if self._skip_permissions
@@ -633,6 +637,7 @@ class ChatApp(App):
             include_partial_messages=True,
             stderr=self._handle_sdk_stderr,
             hooks=self._plan_mode_hooks(),
+            max_thinking_tokens=max_thinking_tokens,
         )
 
     async def on_mount(self) -> None:
@@ -2291,6 +2296,12 @@ class ChatApp(App):
         chat_view = self._chat_views.get(agent.id)
         if chat_view:
             chat_view.append_text(text, new_message, parent_tool_use_id)
+
+    def on_thinking_chunk(self, agent: Agent, text: str, new_block: bool) -> None:
+        """Handle thinking chunk from agent - update UI directly."""
+        chat_view = self._chat_views.get(agent.id)
+        if chat_view:
+            chat_view.append_thinking(text, new_block)
 
     def on_tool_use(self, agent: Agent, tool: ToolUse) -> None:
         """Handle tool use from agent - post Textual Message for UI."""
