@@ -5,6 +5,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 
 @dataclass
@@ -28,12 +29,17 @@ class UsageInfo:
 def get_oauth_token() -> str | None:
     """Get OAuth access token from system credential store.
 
-    Currently only supports macOS Keychain. Returns None on other platforms.
+    Supports macOS Keychain and Linux credentials file.
     """
-    # Only macOS is supported (uses security command for Keychain access)
-    if sys.platform != "darwin":
-        return None
+    if sys.platform == "darwin":
+        return _get_oauth_token_macos()
+    else:
+        # Linux and other platforms use credentials file
+        return _get_oauth_token_file()
 
+
+def _get_oauth_token_macos() -> str | None:
+    """Get OAuth token from macOS Keychain."""
     try:
         result = subprocess.run(
             [
@@ -49,6 +55,18 @@ def get_oauth_token() -> str | None:
         if result.returncode != 0:
             return None
         creds = json.loads(result.stdout)
+        return creds.get("claudeAiOauth", {}).get("accessToken")
+    except Exception:
+        return None
+
+
+def _get_oauth_token_file() -> str | None:
+    """Get OAuth token from credentials file (Linux/other platforms)."""
+    try:
+        creds_path = Path.home() / ".claude" / ".credentials.json"
+        if not creds_path.exists():
+            return None
+        creds = json.loads(creds_path.read_text())
         return creds.get("claudeAiOauth", {}).get("accessToken")
     except Exception:
         return None
@@ -73,11 +91,15 @@ async def fetch_usage() -> UsageInfo:
 
     token = get_oauth_token()
     if not token:
-        if sys.platform != "darwin":
+        if sys.platform == "darwin":
+            return UsageInfo(None, None, None, error="No OAuth token found in keychain")
+        else:
             return UsageInfo(
-                None, None, None, error="Usage tracking only available on macOS"
+                None,
+                None,
+                None,
+                error="No OAuth token found in ~/.claude/.credentials.json",
             )
-        return UsageInfo(None, None, None, error="No OAuth token found in keychain")
 
     # Run curl in subprocess to avoid adding httpx/aiohttp dependency
     try:
