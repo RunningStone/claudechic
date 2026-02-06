@@ -54,12 +54,27 @@ def _():
 
 
 @app.cell
-def _(httpx, os):
+def _(datetime, httpx, os):
     API_KEY = os.environ.get("POSTHOG_API_KEY")
     if not API_KEY:
         raise ValueError("Set POSTHOG_API_KEY environment variable")
 
+    SINCE = "2026-01-23"
+
+    # Full date range from SINCE to today, so all charts share the same x-axis
+    from datetime import timedelta  # marimo cells are isolated; import here
+
+    _start = datetime.strptime(SINCE, "%Y-%m-%d").date()
+    _today = datetime.now().date()
+    ALL_DATES = [
+        (_start + timedelta(days=i)).isoformat()
+        for i in range((_today - _start).days + 1)
+    ]
+
     def hogql(query: str) -> list[dict]:
+        # PostHog HogQL defaults to 100 rows — always raise the limit
+        if "LIMIT" not in query.upper():
+            query = query.rstrip().rstrip(";") + " LIMIT 10000"
         r = httpx.post(
             "https://us.i.posthog.com/api/projects/@current/query/",
             headers={"Authorization": f"Bearer {API_KEY}"},
@@ -71,7 +86,7 @@ def _(httpx, os):
         columns = data["columns"]
         return [dict(zip(columns, row)) for row in data["results"]]
 
-    return (hogql,)
+    return ALL_DATES, SINCE, hogql
 
 
 @app.cell
@@ -84,12 +99,13 @@ def _(mo):
 
 
 @app.cell
-def _(COLORS, alt, hogql):
-    installs_raw = hogql("""
-        SELECT toDate(timestamp) as install_date, distinct_id as user_id
+def _(ALL_DATES, COLORS, SINCE, alt, hogql):
+    installs_raw = hogql(f"""
+        SELECT toString(toDate(timestamp)) as install_date, distinct_id as user_id
         FROM events WHERE event = 'app_installed'
-            AND timestamp >= '2026-01-23'
+            AND timestamp >= '{SINCE}'
     """)
+    # Lifetime message counts (no date filter) — we want total engagement per user
     message_counts = hogql("""
         SELECT distinct_id as user_id, count() as message_count
         FROM events WHERE event = 'message_sent' GROUP BY distinct_id
@@ -121,7 +137,11 @@ def _(COLORS, alt, hogql):
         alt.Chart(alt.Data(values=installs_data))
         .mark_bar()
         .encode(
-            x=alt.X("install_date:O", title="Install Date"),
+            x=alt.X(
+                "install_date:O",
+                title="Install Date",
+                scale=alt.Scale(domain=ALL_DATES),
+            ),
             y=alt.Y("count():Q", title="New Installs"),
             color=alt.Color(
                 "engagement:N",
@@ -140,12 +160,12 @@ def _(COLORS, alt, hogql):
 
 
 @app.cell
-def _(COLORS, alt, hogql):
-    versions_data = hogql("""
-        SELECT toDate(timestamp) as day, properties.claudechic_version as version,
+def _(ALL_DATES, COLORS, SINCE, alt, hogql):
+    versions_data = hogql(f"""
+        SELECT toString(toDate(timestamp)) as day, properties.claudechic_version as version,
                count(DISTINCT distinct_id) as users
         FROM events WHERE event = 'app_started' AND properties.claudechic_version IS NOT NULL
-            AND timestamp >= '2026-01-23'
+            AND timestamp >= '{SINCE}'
         GROUP BY day, version ORDER BY day, users DESC
     """)
     versions_sorted = sorted(set(r["version"] for r in versions_data), reverse=True)
@@ -153,7 +173,7 @@ def _(COLORS, alt, hogql):
         alt.Chart(alt.Data(values=versions_data))
         .mark_bar()
         .encode(
-            x=alt.X("day:O", title="Date"),
+            x=alt.X("day:O", title="Date", scale=alt.Scale(domain=ALL_DATES)),
             y=alt.Y("users:Q", title="Users", stack="zero"),
             color=alt.Color(
                 "version:N",
@@ -169,19 +189,19 @@ def _(COLORS, alt, hogql):
 
 
 @app.cell
-def _(COLORS, alt, hogql):
-    terminal_data = hogql("""
-        SELECT toDate(timestamp) as day, properties.term_program as terminal,
+def _(ALL_DATES, COLORS, SINCE, alt, hogql):
+    terminal_data = hogql(f"""
+        SELECT toString(toDate(timestamp)) as day, properties.term_program as terminal,
                count(DISTINCT distinct_id) as users
         FROM events WHERE event = 'app_started' AND properties.term_program IS NOT NULL
-            AND timestamp >= '2026-01-23'
+            AND timestamp >= '{SINCE}'
         GROUP BY day, terminal ORDER BY day
     """)
     terminal_chart = (
         alt.Chart(alt.Data(values=terminal_data))
         .mark_bar()
         .encode(
-            x=alt.X("day:O", title="Date"),
+            x=alt.X("day:O", title="Date", scale=alt.Scale(domain=ALL_DATES)),
             y=alt.Y("users:Q", title="Users", stack="zero"),
             color=alt.Color(
                 "terminal:N", title="Terminal", scale=alt.Scale(range=COLORS["palette"])
@@ -193,19 +213,19 @@ def _(COLORS, alt, hogql):
 
 
 @app.cell
-def _(COLORS, alt, hogql):
-    os_data = hogql("""
-        SELECT toDate(timestamp) as day, properties.os as os,
+def _(ALL_DATES, COLORS, SINCE, alt, hogql):
+    os_data = hogql(f"""
+        SELECT toString(toDate(timestamp)) as day, properties.os as os,
                count(DISTINCT distinct_id) as users
         FROM events WHERE event = 'app_started' AND properties.os IS NOT NULL
-            AND timestamp >= '2026-01-23'
+            AND timestamp >= '{SINCE}'
         GROUP BY day, os ORDER BY day
     """)
     os_chart = (
         alt.Chart(alt.Data(values=os_data))
         .mark_bar()
         .encode(
-            x=alt.X("day:O", title="Date"),
+            x=alt.X("day:O", title="Date", scale=alt.Scale(domain=ALL_DATES)),
             y=alt.Y("users:Q", title="Users", stack="zero"),
             color=alt.Color(
                 "os:N", title="OS", scale=alt.Scale(range=COLORS["palette"])
@@ -217,12 +237,12 @@ def _(COLORS, alt, hogql):
 
 
 @app.cell
-def _(alt, hogql):
+def _(ALL_DATES, SINCE, alt, hogql):
     from collections import defaultdict as _defaultdict
 
-    messages_per_user = hogql("""
+    messages_per_user = hogql(f"""
         SELECT toString(toDate(timestamp)) as day, distinct_id as user_id, count() as messages
-        FROM events WHERE event = 'message_sent' AND timestamp >= '2026-01-23'
+        FROM events WHERE event = 'message_sent' AND timestamp >= '{SINCE}'
         GROUP BY day, user_id ORDER BY day
     """)
     _by_day = _defaultdict(list)
@@ -238,8 +258,10 @@ def _(alt, hogql):
         c = f + 1 if f + 1 < len(s) else f
         return s[f] + (s[c] - s[f]) * (k - f)
 
+    # Days with no message_sent events show as 0 (not gaps)
     _pdata = []
-    for _day, _counts in sorted(_by_day.items()):
+    for _day in ALL_DATES:
+        _counts = _by_day.get(_day, [])
         _pdata.append(
             {"day": _day, "percentile": "p10", "messages": _percentile(_counts, 10)}
         )
@@ -254,7 +276,7 @@ def _(alt, hogql):
         alt.Chart(alt.Data(values=_pdata))
         .mark_bar()
         .encode(
-            x=alt.X("day:O", title="Date"),
+            x=alt.X("day:O", title="Date", scale=alt.Scale(domain=ALL_DATES)),
             y=alt.Y("messages:Q", title="Messages/User"),
             color=alt.Color(
                 "percentile:N",
@@ -273,12 +295,12 @@ def _(alt, hogql):
 
 
 @app.cell
-def _(COLORS, alt, hogql):
-    _pkg_data = hogql("""
+def _(COLORS, SINCE, alt, hogql):
+    _pkg_data = hogql(f"""
         SELECT distinct_id as user_id, any(properties.has_uv) as has_uv,
                any(properties.has_conda) as has_conda
         FROM events WHERE event = 'app_started'
-            AND timestamp >= '2026-01-23'
+            AND timestamp >= '{SINCE}'
             AND distinct_id NOT LIKE '%mrocklin%'
         GROUP BY distinct_id
     """)
@@ -312,12 +334,12 @@ def _(COLORS, alt, hogql):
 
 
 @app.cell
-def _(COLORS, alt, hogql):
-    _cmd_data = hogql("""
+def _(COLORS, SINCE, alt, hogql):
+    _cmd_data = hogql(f"""
         SELECT properties.command as command, count() as uses
         FROM events WHERE event = 'command_used' AND properties.command IS NOT NULL
             AND distinct_id NOT LIKE '%mrocklin%'
-            AND timestamp >= '2026-01-23'
+            AND timestamp >= '{SINCE}'
         GROUP BY command ORDER BY uses DESC
     """)
     command_chart = (
