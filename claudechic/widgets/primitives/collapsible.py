@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Callable, Sequence
 
+from textual.markup import escape as escape_markup
 from textual.widget import Widget
 from textual.widgets import Collapsible
 
@@ -45,7 +46,7 @@ class QuietCollapsible(Collapsible):
         # Content will be created lazily on first expand
         if content_factory is not None and collapsed:
             super().__init__(
-                title=title,
+                title=escape_markup(title),
                 collapsed=collapsed,
                 collapsed_symbol=collapsed_symbol,
                 expanded_symbol=expanded_symbol,
@@ -58,7 +59,7 @@ class QuietCollapsible(Collapsible):
             # Normal case: pass children through (includes context manager usage)
             super().__init__(
                 *children,
-                title=title,
+                title=escape_markup(title),
                 collapsed=collapsed,
                 collapsed_symbol=collapsed_symbol,
                 expanded_symbol=expanded_symbol,
