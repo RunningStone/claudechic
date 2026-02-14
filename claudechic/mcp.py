@@ -280,6 +280,20 @@ def _make_tell_agent(caller_name: str | None = None):
     return tell_agent
 
 
+def _make_whoami(caller_name: str | None = None):
+    """Create whoami tool that returns this agent's name."""
+
+    @tool(
+        "whoami",
+        "Returns the name of the current agent.",
+        {},
+    )
+    async def whoami(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
+        return _text_response(caller_name or "unknown")
+
+    return whoami
+
+
 @tool(
     "list_agents",
     "List all agents currently running in claudechic with their status and working directory.",
@@ -501,6 +515,7 @@ def create_chic_server(caller_name: str | None = None):
         _make_spawn_worktree(caller_name),
         _make_ask_agent(caller_name),
         _make_tell_agent(caller_name),
+        _make_whoami(caller_name),
         list_agents,
         close_agent,
     ]

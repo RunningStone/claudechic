@@ -13,7 +13,8 @@ When invoked:
      - Review recent changes (git diff, recent commits, modified files)
      - Think critically - look for bugs, edge cases, unclear code, missing tests
      - Consider maintainability and design
-     - Use `tell_agent` to send its findings back to the calling agent when done
+     - Use `tell_agent` to send its findings back to you when done
+     - IMPORTANT: Include your agent name (provided below) in the prompt so the reviewer knows who to `tell_agent` back to.
 
 2. If the user provided context, include it in the prompt to help focus the review.
 
@@ -42,7 +43,8 @@ Review the recent changes in this repository. Think critically:
 [Your context about what you've been working on]
 [User context if provided]
 
-When done, use `tell_agent` to send your review back to the agent that spawned you (their name is in the "[Spawned by agent '...']" header above).
+When done, use `tell_agent` to send your review back to the agent that spawned you.
+IMPORTANT: Your spawning agent's name is in the "[Spawned by agent '<NAME>']" header at the top of this conversation. Use that exact name.
 If asked for a follow-up review, check that previous issues were addressed and look for any new concerns.
 When everything looks good, say so clearly so we can wrap up.
 ```
