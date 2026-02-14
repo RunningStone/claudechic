@@ -649,7 +649,7 @@ def _handle_review(app: "ChatApp", context: str | None) -> bool:
         app.notify(f"Skill file not found: {skill_path}", severity="error")
         return True
 
-    instructions += f"\n\nYour agent name is: {agent.name}\n"
+    instructions = instructions.replace("{agent_name}", agent.name)
 
     if context:
         instructions += f"\nUser-provided focus: {context}\n"
