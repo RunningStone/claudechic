@@ -1435,6 +1435,32 @@ class ChatApp(App):
                 pass
         self.set_timer(0.05, self._check_and_copy_selection)
 
+    def copy_to_clipboard(self, text: str) -> None:
+        """Copy to both CLIPBOARD (OSC 52) and PRIMARY (xclip/xsel) on Linux."""
+        super().copy_to_clipboard(text)
+        if not sys.platform.startswith("linux"):
+            return
+        import shutil
+        import subprocess
+
+        for cmd in (
+            ["xclip", "-selection", "primary"],
+            ["xsel", "--primary", "--input"],
+        ):
+            if shutil.which(cmd[0]):
+                try:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    proc.stdin.write(text.encode())  # type: ignore[union-attr]
+                    proc.stdin.close()  # type: ignore[union-attr]
+                except Exception:
+                    pass
+                return
+
     def _check_and_copy_selection(self) -> None:
         selected = self.screen.get_selected_text()
         if selected and len(selected.strip()) > 0:
