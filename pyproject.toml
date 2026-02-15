@@ -61,6 +61,9 @@ include = ["claudechic*"]
 [tool.setuptools.package-data]
 claudechic = ["*.tcss", "*.md", "prompts/*.md"]
 
+[tool.pyright]
+exclude = ["build"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
