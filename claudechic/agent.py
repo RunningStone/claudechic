@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from claude_agent_sdk import (
     AssistantMessage,
+    CLIJSONDecodeError,
     ClaudeAgentOptions,
     ClaudeSDKClient,
     ResultMessage,
@@ -502,6 +503,15 @@ Key Rules:
 
         except asyncio.CancelledError:
             raise
+        except CLIJSONDecodeError as e:
+            # Feed the error back to the agent so it can recover.
+            log.warning("CLIJSONDecodeError: %s", e)
+            if self.observer:
+                self.observer.on_error(self, str(e), e)
+            create_safe_task(
+                self._send_followup(f"Error: {e}"), name="json-decode-retry"
+            )
+            return
         except Exception as e:
             # Check if this is a connection error (SDK process died)
             # Be specific: only actual connection failures, not API errors mentioning "connection"
