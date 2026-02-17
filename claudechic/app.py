@@ -99,7 +99,7 @@ from claudechic.errors import setup_logging  # noqa: F401 - used at startup
 from claudechic.errors import set_notify_callback as set_log_notify_callback
 from claudechic.profiling import profile
 from claudechic.tasks import create_safe_task
-from claudechic.sampling import start_sampler
+from claudechic.sampling import start_sampler, get_sampler
 
 log = logging.getLogger(__name__)
 
@@ -654,8 +654,11 @@ class ChatApp(App):
             lambda msg, severity: self.notify(msg, severity=severity, timeout=5)
         )
 
-        # Start CPU sampling profiler
+        # Start CPU sampling profiler + event loop lag monitor
         start_sampler()
+        self._monitor_lag_task = create_safe_task(
+            self._monitor_event_loop_lag(), name="event-loop-lag"
+        )
 
         # Preload shell executable cache in background
         from claudechic.shell_complete import preload_executables
@@ -693,6 +696,19 @@ class ChatApp(App):
         self._cwd = Path.cwd()
         self.file_index = FileIndex(root=self._cwd)
         self._refresh_file_index()
+
+    async def _monitor_event_loop_lag(self) -> None:
+        """Continuously measure event loop lag for episode diagnostics."""
+        sampler = get_sampler()
+        if not sampler:
+            return
+        metrics = sampler.async_metrics
+        while True:
+            t0 = time.perf_counter()
+            await asyncio.sleep(0.05)
+            lag = time.perf_counter() - t0 - 0.05
+            if lag > 0.001:
+                metrics.record_lag(lag)
 
     def on_chat_screen_ready(self, event: ChatScreen.Ready) -> None:
         """Handle chat screen ready - now safe to create agent and access widgets."""
@@ -2517,12 +2533,18 @@ class ChatApp(App):
         self, agent: Agent, text: str, new_message: bool, parent_tool_use_id: str | None
     ) -> None:
         """Handle text chunk from agent - update UI directly (bypasses message queue)."""
+        sampler = get_sampler()
+        if sampler:
+            sampler.async_metrics.text_chunks += 1
         chat_view = self._chat_views.get(agent.id)
         if chat_view:
             chat_view.append_text(text, new_message, parent_tool_use_id)
 
     def on_tool_use(self, agent: Agent, tool: ToolUse) -> None:
         """Handle tool use from agent - post Textual Message for UI."""
+        sampler = get_sampler()
+        if sampler:
+            sampler.async_metrics.tool_uses += 1
         # Clear pending slash command if Skill tool was invoked (valid command)
         if tool.name == ToolName.SKILL:
             self._pending_slash_commands.pop(agent.id, None)
@@ -2536,6 +2558,9 @@ class ChatApp(App):
 
     def on_tool_result(self, agent: Agent, tool: ToolUse) -> None:
         """Handle tool result from agent - post Textual Message for UI."""
+        sampler = get_sampler()
+        if sampler:
+            sampler.async_metrics.tool_results += 1
         from claude_agent_sdk import ToolResultBlock
 
         block = ToolResultBlock(
