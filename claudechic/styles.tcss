@@ -106,6 +106,10 @@ ModelLabel:hover {
     color: $error;
 }
 
+.footer-label.readonly-mode {
+    color: $warning;
+}
+
 /* Shared block styling - all content blocks */
 ChatMessage, BaseToolWidget, ThinkingIndicator, ErrorMessage, SystemInfo, #input-container {
     background: transparent;

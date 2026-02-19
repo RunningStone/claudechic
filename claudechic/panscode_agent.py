@@ -284,5 +284,7 @@ def _map_permission_mode(chic_mode: str) -> str:
         "acceptEdits": "build",
         "plan": "plan",
         "planSwarm": "plan",
+        "explore": "explore",
+        "understand": "understand",
     }
     return mapping.get(chic_mode, "build")

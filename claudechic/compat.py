@@ -38,6 +38,8 @@ class ResultMessage:
     """Sent when a response completes."""
 
     session_id: str = ""
+    is_error: bool = False
+    result: str | None = None
 
 
 @dataclass

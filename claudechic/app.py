@@ -506,20 +506,23 @@ class ChatApp(App):
                 self.input_container.remove_class("hidden")
 
     def action_cycle_permission_mode(self) -> None:
-        """Cycle permission mode: default -> acceptEdits -> plan -> default.
+        """Cycle permission mode: default -> acceptEdits -> plan -> explore -> understand -> default.
 
         planSwarm is not in the cycle - use /plan-swarm to enter, shift-tab to exit.
         """
         if self._agent:
             agent = self._agent  # Capture for closure
-            modes = ["default", "acceptEdits", "plan"]
+            modes = ["default", "acceptEdits", "plan", "explore", "understand"]
             current = agent.permission_mode
 
             # If in planSwarm, exit to default (not in normal cycle)
             if current == "planSwarm":
                 next_mode = "default"
             else:
-                next_idx = (modes.index(current) + 1) % len(modes)
+                try:
+                    next_idx = (modes.index(current) + 1) % len(modes)
+                except ValueError:
+                    next_idx = 0
                 next_mode = modes[next_idx]
 
             # Schedule the async call
@@ -529,8 +532,14 @@ class ChatApp(App):
             self.run_worker(set_mode(), exclusive=False)
 
             # Show notification with friendly names
-            display = {"default": "Default", "acceptEdits": "Auto-edit", "plan": "Plan"}
-            self.notify(f"Mode: {display[next_mode]}")
+            display = {
+                "default": "Build",
+                "acceptEdits": "Auto-edit",
+                "plan": "Plan",
+                "explore": "Explore",
+                "understand": "Understand",
+            }
+            self.notify(f"Mode: {display.get(next_mode, next_mode)}")
 
     def _update_footer_permission_mode(self) -> None:
         """Update footer to reflect current agent's permission mode."""
