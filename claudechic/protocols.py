@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from claude_agent_sdk import ResultMessage, SystemMessage
+    from claudechic.compat import ResultMessage, SystemMessage
 
     from claudechic.agent import Agent, ImageAttachment, ToolUse
     from claudechic.permissions import PermissionRequest, PermissionResponse

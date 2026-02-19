@@ -14,7 +14,7 @@ from textual.widgets import Markdown, Static
 from claudechic.widgets.primitives.button import Button
 from claudechic.widgets.primitives.collapsible import QuietCollapsible
 
-from claude_agent_sdk import ToolUseBlock, ToolResultBlock
+from claudechic.compat import ToolUseBlock, ToolResultBlock
 
 from claudechic.enums import ToolName
 from claudechic.formatting import (

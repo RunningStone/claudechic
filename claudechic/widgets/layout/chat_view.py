@@ -28,7 +28,7 @@ from claudechic.widgets.content.tools import ToolUseWidget, TaskWidget, AgentToo
 from claudechic.widgets.content.collapsed_turn import CollapsedTurn
 
 if TYPE_CHECKING:
-    from claude_agent_sdk import ToolUseBlock, ToolResultBlock
+    from claudechic.compat import ToolUseBlock, ToolResultBlock
 
 # Tools to collapse by default
 COLLAPSE_BY_DEFAULT = {
@@ -247,7 +247,7 @@ class ChatView(AutoHideScroll):
         Iterates over blocks in order to preserve text/tool interleaving.
         Returns (widgets, updated_tool_index).
         """
-        from claude_agent_sdk import ToolUseBlock
+        from claudechic.compat import ToolUseBlock
 
         widgets: list[Widget] = []
         pending_tools = self._agent.pending_tools if self._agent else {}
@@ -288,7 +288,7 @@ class ChatView(AutoHideScroll):
         self, tool: ToolUse, completed: bool = False, collapsed: bool = False
     ) -> ToolUseWidget | TaskWidget | AgentToolWidget:
         """Create a tool widget (without mounting)."""
-        from claude_agent_sdk import ToolUseBlock
+        from claudechic.compat import ToolUseBlock
 
         block = ToolUseBlock(id=tool.id, name=tool.name, input=tool.input)
         should_collapse = collapsed or tool.name in COLLAPSE_BY_DEFAULT

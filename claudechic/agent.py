@@ -1,4 +1,4 @@
-"""Agent: autonomous Claude agent with SDK connection and message history."""
+"""Agent: autonomous Claude agent with PansCode backend and message history."""
 
 from __future__ import annotations
 
@@ -14,33 +14,31 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from claude_agent_sdk import (
+from claudechic.compat import (
     AssistantMessage,
     CLIJSONDecodeError,
     ClaudeAgentOptions,
     ClaudeSDKClient,
+    PermissionResult,
+    PermissionResultAllow,
+    PermissionResultDeny,
     ResultMessage,
+    StreamEvent,
     SystemMessage,
+    ToolPermissionContext,
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
 )
-from claude_agent_sdk.types import (
-    PermissionResult,
-    PermissionResultAllow,
-    PermissionResultDeny,
-    StreamEvent,
-    ToolPermissionContext,
-)
 
 from claudechic.enums import AgentStatus, PermissionChoice, ToolName
-from claudechic.features.worktree.git import FinishState
 from claudechic.file_index import FileIndex
 from claudechic.permissions import PermissionRequest
 from claudechic.sessions import get_plan_path_for_session
 from claudechic.tasks import create_safe_task
 
 if TYPE_CHECKING:
+    from claudechic.features.worktree.git import FinishState
     from claudechic.protocols import AgentObserver, PermissionHandler
 
 log = logging.getLogger(__name__)
@@ -113,10 +111,10 @@ class ChatItem:
 
 
 class Agent:
-    """Autonomous Claude agent with its own SDK connection and state.
+    """Autonomous Claude agent with PansCode backend and state.
 
     The Agent owns:
-    - SDK client and connection lifecycle
+    - PansCode backend connection lifecycle
     - Message history (list of ChatItem)
     - Permission request queue
     - Per-agent state (images, todos, file index, etc.)
@@ -149,7 +147,9 @@ class Agent:
         self.cwd = cwd
         self.worktree = worktree
 
-        # SDK
+        # PansCode backend (replaces SDK client)
+        self.backend: Any = None  # PansCodeBackend, lazily imported
+        # Keep client as a property alias for backward compatibility
         self.client: ClaudeSDKClient | None = None
         self.session_id: str | None = None
         self._response_task: asyncio.Task | None = None
@@ -186,7 +186,7 @@ class Agent:
         self.model: str | None = None  # Model override (None = SDK default)
 
         # Worktree finish state (for /worktree finish flow)
-        self.finish_state: FinishState | None = None
+        self.finish_state: Any = None  # FinishState | None
 
         # Plan file path (cached after first lookup)
         self.plan_path: Path | None = None
@@ -198,7 +198,7 @@ class Agent:
         self.observer: AgentObserver | None = None
         self.permission_handler: PermissionHandler | None = None
 
-        # Background process tracking (PID of claude binary)
+        # Background process tracking (not used in PansCode mode)
         self._claude_pid: int | None = None
         # Background task output files: command -> output_file path
         self._background_outputs: dict[str, str] = {}
@@ -223,25 +223,25 @@ class Agent:
         options: ClaudeAgentOptions,
         resume: str | None = None,
     ) -> None:
-        """Connect to SDK.
+        """Connect to PansCode backend.
 
         Args:
-            options: SDK options (should have can_use_tool set to self._handle_permission)
+            options: Agent options (kept for API compatibility with AgentManager)
             resume: Optional session ID to resume
         """
-        # Inject our permission handler
-        options.can_use_tool = self._handle_permission
+        from claudechic.panscode_agent import PansCodeBackend
 
-        self.client = ClaudeSDKClient(options)
-        await self.client.connect()
+        # Create and initialize PansCode backend
+        self.backend = PansCodeBackend(cwd=self.cwd)
+        await self.backend.initialize()
 
-        # Capture the claude process PID for background process tracking
-        from claudechic.processes import get_claude_pid_from_client
-
-        self._claude_pid = get_claude_pid_from_client(self.client)
+        # Connect and get session_id
+        session_id = await self.backend.connect(self)
 
         if resume:
             self.session_id = resume
+        elif not self.session_id:
+            self.session_id = session_id
 
         # Initialize file index
         self.file_index = FileIndex(root=self.cwd)
@@ -256,43 +256,14 @@ class Agent:
             except asyncio.CancelledError:
                 pass
 
-        if self.client:
+        if self.backend:
             try:
-                # disconnect() terminates gracefully and waits for session flush
-                await self.client.disconnect()
+                await self.backend.disconnect()
             except Exception:
                 pass
-            self.client = None
-        self._claude_pid = None
+            self.backend = None
 
-        # IMPORTANT: This cleanup is critical - do not remove!
-        # See .ai-docs/anyio-cancel-scope-bug.md for full explanation.
-        # Yields to event loop so task_done callbacks can clean up cancel scopes,
-        # then forces cleanup of any remaining stale scopes.
-        # Without this, cancelled anyio CancelScopes retain done tasks,
-        # causing _deliver_cancellation to spin at ~56k calls/sec (25% CPU).
         await asyncio.sleep(0)
-        self._cleanup_stale_cancel_scopes()
-
-    def _cleanup_stale_cancel_scopes(self) -> None:
-        """Remove done tasks from cancelled anyio CancelScopes.
-
-        Works around a bug where cancelled scopes keep retrying _deliver_cancellation
-        for tasks that are already done, causing 25% CPU spin.
-        """
-        import gc
-
-        try:
-            from anyio._backends._asyncio import CancelScope
-
-            for obj in gc.get_objects():
-                if isinstance(obj, CancelScope) and obj._cancel_called:
-                    if hasattr(obj, "_tasks"):
-                        done = [t for t in obj._tasks if t.done()]
-                        for t in done:
-                            obj._tasks.discard(t)
-        except Exception:
-            pass  # Best effort cleanup
 
     async def load_history(self, cwd: Path | None = None) -> None:
         """Load message history from session file into self.messages.
@@ -381,7 +352,7 @@ class Agent:
             prompt: The prompt to send to Claude
             display_as: Optional shorter text to show in UI instead of full prompt
         """
-        if not self.client:
+        if not self.backend:
             raise RuntimeError("Agent not connected")
 
         # Add user message to history (store display text if provided)
@@ -399,7 +370,6 @@ class Agent:
         if self.observer:
             self.observer.on_prompt_sent(self, display_text, list(self.pending_images))
 
-        self._set_status(AgentStatus.BUSY)
         self.response_had_tools = False
         self._current_assistant = None
         self._current_text_buffer = ""
@@ -407,9 +377,12 @@ class Agent:
         self._thinking_hidden = False  # Reset for new response
         self._interrupted = False  # Clear interrupt flag for new query
 
-        # Start response processing
+        # Clear pending images after sending
+        self.pending_images.clear()
+
+        # Start response processing via PansCode backend
         self._response_task = asyncio.create_task(
-            self._process_response(prompt),
+            self.backend.send(self, prompt),
             name=f"agent-{self.id}-response",
         )
 
@@ -423,9 +396,9 @@ class Agent:
             except asyncio.CancelledError:
                 pass
 
-        if self.client:
+        if self.backend:
             try:
-                await self.client.interrupt()
+                await self.backend.interrupt()
             except Exception:
                 pass
 
@@ -437,162 +410,8 @@ class Agent:
         await self.send(message)
 
     # -----------------------------------------------------------------------
-    # Response processing
+    # Response processing (handled by PansCodeBackend.send())
     # -----------------------------------------------------------------------
-
-    def _get_plan_mode_instructions(self) -> str:
-        """Get plan mode instructions with the plan file path.
-
-        Note: These are prepended to every message in plan mode (~400 tokens).
-        This is acceptable overhead for ensuring the agent follows the workflow.
-        """
-        plan_file_info = ""
-        if self.plan_path:
-            plan_file_info = f"\nPlan file: {self.plan_path}\nYou may ONLY write to this file. All other writes are blocked."
-        else:
-            plan_file_info = "\nPlan file: Will be created in ~/.claude/plans/ when you first write to it."
-
-        return f"""<system-reminder>
-PLAN MODE ACTIVE
-
-Workflow Phases:
-1. Initial Understanding - Launch up to 3 Explore agents in parallel to understand the codebase. Focus on comprehension.
-2. Design - Launch Plan agent(s) to design implementation based on exploration. Up to 3 agents for complex tasks.
-3. Review - Read critical files, ensure alignment with user intent, use AskUserQuestion for clarifications.
-4. Final Plan - Write concise but complete plan to the plan file. Include file paths and verification steps.
-5. Exit - Call ExitPlanMode when done. Your turn should only end with either AskUserQuestion or ExitPlanMode.
-
-Key Rules:
-- Use Explore subagent type in Phase 1
-- Don't make large assumptions - ask questions
-- Use AskUserQuestion for requirement clarification
-- Use ExitPlanMode for plan approval (never ask "is this plan okay?" via text)
-- Build plan incrementally by writing/editing the plan file
-- Edit, Write, Bash, and NotebookEdit are NOT available (except writing to the plan file)
-{plan_file_info}
-</system-reminder>
-"""
-
-    async def _process_response(self, prompt: str) -> None:
-        """Process SDK response stream."""
-        try:
-            # Prepend plan mode instructions if in plan mode
-            if self.permission_mode == "plan":
-                prompt = self._get_plan_mode_instructions() + prompt
-
-            # Send message with images if any
-            if self.pending_images:
-                message = self._build_message_with_images(prompt)
-                if self.client and self.client._transport:
-                    await self.client._transport.write(json.dumps(message) + "\n")
-                self.pending_images.clear()
-            else:
-                await self.client.query(prompt)  # type: ignore[union-attr]
-
-            had_tool_use: dict[str | None, bool] = {}
-
-            async for message in self.client.receive_response():  # type: ignore[union-attr]
-                await self._handle_sdk_message(message, had_tool_use)
-
-            # Check for pending follow-up (from "do something else" permission response)
-            if self._pending_followup:
-                followup = self._pending_followup
-                self._pending_followup = None
-                # Schedule follow-up query after a brief delay to let UI update
-                create_safe_task(self._send_followup(followup), name="send-followup")
-
-        except asyncio.CancelledError:
-            raise
-        except CLIJSONDecodeError as e:
-            # Feed the error back to the agent so it can recover.
-            log.warning("CLIJSONDecodeError: %s", e)
-            if self.observer:
-                self.observer.on_error(self, str(e), e)
-            create_safe_task(
-                self._send_followup(f"Error: {e}"), name="json-decode-retry"
-            )
-            return
-        except Exception as e:
-            # Check if this is a connection error (SDK process died)
-            # Be specific: only actual connection failures, not API errors mentioning "connection"
-            error_type = type(e).__name__
-            error_str = str(e).lower()
-            is_connection_error = (
-                "ConnectionError" in error_type
-                or "BrokenPipeError" in error_type
-                or ("connection" in error_str and "api" not in error_str)
-            )
-
-            if self._interrupted:
-                log.info("Suppressed error after interrupt: %s", e)
-            else:
-                log.exception("Response processing failed")
-                if self.observer:
-                    self.observer.on_error(self, "Response failed", e)
-
-            # Auto-reconnect on connection errors
-            if is_connection_error and self.observer:
-                self.observer.on_connection_lost(self)
-
-            if self.observer:
-                self.observer.on_complete(self, None)
-        finally:
-            self._flush_current_text()
-            self._set_status(AgentStatus.IDLE)
-
-    async def _handle_sdk_message(
-        self, message: Any, had_tool_use: dict[str | None, bool]
-    ) -> None:
-        """Handle a single SDK message."""
-        if isinstance(message, AssistantMessage):
-            parent_id = message.parent_tool_use_id
-            for block in message.content:
-                # Skip TextBlock - handled via StreamEvent for streaming
-                if isinstance(block, ToolUseBlock):
-                    self._handle_tool_use(block, parent_id)
-                    had_tool_use[parent_id] = True
-                elif isinstance(block, ToolResultBlock):
-                    self._handle_tool_result(block)
-
-        elif isinstance(message, UserMessage):
-            # Capture UUID for checkpoints (needed for /rewind file restoration)
-            if message.uuid:
-                self.checkpoint_uuids.append(message.uuid)
-
-            # UserMessage can contain tool results or command output
-            content = getattr(message, "content", "")
-            if isinstance(content, str):
-                # Handle local command output (e.g., /context)
-                if "<local-command-stdout>" in content:
-                    self._handle_command_output(content)
-                # Detect SDK-loaded skills (e.g., /cleanup -> <command-name>/cleanup</command-name>)
-                if "<command-name>/" in content:
-                    match = re.search(
-                        r"<command-name>(/[\w:-]+)</command-name>", content
-                    )
-                    if match and self.observer:
-                        self.observer.on_skill_loaded(self, match.group(1))
-            elif isinstance(content, list):
-                for block in content:
-                    if isinstance(block, ToolResultBlock):
-                        self._handle_tool_result(block)
-
-        elif isinstance(message, StreamEvent):
-            self._handle_stream_event(message)
-
-        elif isinstance(message, SystemMessage):
-            # Capture session_id from init message (earlier than ResultMessage)
-            if message.subtype == "init" and not self.session_id:
-                if isinstance(message.data, dict) and "session_id" in message.data:
-                    self.session_id = message.data["session_id"]
-            if self.observer:
-                self.observer.on_system_message(self, message)
-
-        elif isinstance(message, ResultMessage):
-            self._flush_current_text()
-            self.session_id = message.session_id
-            if self.observer:
-                self.observer.on_complete(self, message)
 
     def _handle_text_chunk(
         self, text: str, new_message: bool, parent_tool_use_id: str | None
@@ -619,22 +438,6 @@ Key Rules:
         if self.observer:
             self.observer.on_message_updated(self)
             self.observer.on_text_chunk(self, text, new_message, parent_tool_use_id)
-
-    def _handle_stream_event(self, event: StreamEvent) -> None:
-        """Handle streaming event from SDK."""
-        ev = event.event
-        ev_type = ev.get("type")
-        parent_id = event.parent_tool_use_id
-
-        if ev_type == "content_block_delta":
-            delta = ev.get("delta", {})
-            if delta.get("type") == "text_delta":
-                text = delta.get("text", "")
-                if text:
-                    # Start new message after tool use or at start of response
-                    new_msg = self._needs_new_message
-                    self._needs_new_message = False
-                    self._handle_text_chunk(text, new_msg, parent_id)
 
     def _update_current_text_block(self) -> None:
         """Update the current TextBlock with accumulated text (for streaming)."""
@@ -907,7 +710,7 @@ Key Rules:
             )
 
     async def set_permission_mode(self, mode: str) -> None:
-        """Update permission mode via SDK and emit event.
+        """Update permission mode and emit event.
 
         Args:
             mode: One of 'default', 'acceptEdits', 'plan'
@@ -918,50 +721,13 @@ Key Rules:
             # Fetch plan path when entering plan mode
             if mode == "plan":
                 await self.ensure_plan_path()
-            # Only call SDK if connected (client exists and has active connection)
-            if self.client and self.session_id:
-                await self.client.set_permission_mode(mode)
             if self.observer:
                 self.observer.on_permission_mode_changed(self)
-
-    def _build_message_with_images(self, prompt: str) -> dict[str, Any]:
-        """Build SDK message with text and images."""
-        content: list[dict[str, Any]] = []
-        if prompt.strip():
-            content.append({"type": "text", "text": prompt})
-        for img in self.pending_images:
-            content.append(
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": img.media_type,
-                        "data": img.base64_data,
-                    },
-                }
-            )
-        return {
-            "type": "user",
-            "message": {"role": "user", "content": content},
-            "parent_tool_use_id": None,
-        }
 
     def get_background_processes(self) -> list:
         """Get list of background processes for this agent.
 
         Returns:
-            List of BackgroundProcess objects (with output_file if known)
+            Empty list in PansCode mode (no subprocess tracking needed).
         """
-        if not self._claude_pid:
-            return []
-        from claudechic.processes import get_child_processes
-
-        processes = get_child_processes(self._claude_pid)
-
-        # Enrich with output files if we have them
-        for proc in processes:
-            if proc.command in self._background_outputs:
-                # Create new instance with output_file set
-                proc.output_file = self._background_outputs[proc.command]
-
-        return processes
+        return []

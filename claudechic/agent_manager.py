@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Callable, Iterator
 
-from claude_agent_sdk import ClaudeAgentOptions
+from claudechic.compat import ClaudeAgentOptions
 
 from claudechic.agent import Agent
 from claudechic.protocols import AgentManagerObserver, AgentObserver, PermissionHandler

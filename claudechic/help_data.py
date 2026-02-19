@@ -118,21 +118,12 @@ def discover_skills() -> list[tuple[str, str]]:
 
 
 async def get_sdk_commands(agent: "Agent | None") -> list[tuple[str, str]]:
-    """Get commands from SDK server info."""
-    if not agent or not agent.client:
+    """Get commands from backend (returns empty in PansCode mode)."""
+    if not agent or not agent.backend:
         return []
 
-    try:
-        info = await agent.client.get_server_info()
-        if not info:
-            return []
-
-        return [
-            (f"/{cmd['name']}", cmd.get("description", ""))
-            for cmd in info.get("commands", [])
-        ]
-    except Exception:
-        return []
+    # PansCode mode does not have SDK server info
+    return []
 
 
 async def format_help(agent: "Agent | None") -> str:

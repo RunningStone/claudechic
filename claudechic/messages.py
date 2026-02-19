@@ -2,7 +2,7 @@
 
 from textual.message import Message
 
-from claude_agent_sdk import (
+from claudechic.compat import (
     ToolUseBlock,
     ToolResultBlock,
     ResultMessage,

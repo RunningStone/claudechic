@@ -9,11 +9,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
-from importlib.metadata import version
-
 from claudechic.config import CONFIG
 
-VERSION = version("claudechic")
+try:
+    from importlib.metadata import version as _version
+    VERSION = _version("claudechic")
+except Exception:
+    VERSION = "0.0.0-panscode"
 SESSION_ID = str(uuid_mod.uuid4())  # Unique per process
 
 POSTHOG_HOST = "https://us.i.posthog.com"

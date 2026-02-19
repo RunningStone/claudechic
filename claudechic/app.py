@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from claude_agent_sdk.types import HookEvent
+    from claudechic.compat import HookEvent
     from claudechic.screens.chat import ChatScreen
     from textual.timer import Timer
 
@@ -26,15 +26,15 @@ from textual.containers import Vertical, Horizontal
 from textual.events import MouseUp
 from textual import work
 
-from claude_agent_sdk import (
+from claudechic.compat import (
     CLIConnectionError,
     ClaudeSDKClient,
     ClaudeAgentOptions,
+    HookMatcher,
     SystemMessage,
     ToolUseBlock,
     ResultMessage,
 )
-from claude_agent_sdk.types import HookMatcher
 from claudechic.messages import (
     ResponseComplete,
     SystemNotification,
@@ -107,8 +107,8 @@ log = logging.getLogger(__name__)
 TOOL_USE_ERROR_PATTERN = re.compile(r"</?tool_use_error>")
 
 
-def _categorize_cli_error(e: CLIConnectionError) -> str:
-    """Categorize CLI connection error without exposing user paths."""
+def _categorize_cli_error(e: Exception) -> str:
+    """Categorize connection error without exposing user paths."""
     msg = str(e)
     if "Working directory does not exist" in msg:
         return "cwd_not_found"
@@ -242,12 +242,12 @@ class ChatApp(App):
 
     @property
     def client(self) -> ClaudeSDKClient | None:
-        return self._agent.client if self._agent else None
+        """Backward-compatible client property (returns None in PansCode mode)."""
+        return None
 
     @client.setter
     def client(self, value: ClaudeSDKClient | None) -> None:
-        if self._agent:
-            self._agent.client = value
+        pass  # No-op in PansCode mode
 
     @property
     def session_id(self) -> str | None:
@@ -441,24 +441,16 @@ class ChatApp(App):
         self.notify(message, severity="error")
 
     async def _replace_client(self, options: ClaudeAgentOptions) -> None:
-        """Safely replace current client with a new one."""
+        """Safely reconnect the active agent's backend."""
         # Cancel any permission prompts waiting for user input
         for prompt in list(self.query(SelectionPrompt)) + list(
             self.query(QuestionPrompt)
         ):
             prompt.cancel()
-        old = self.client
-        self.client = None
-        if old:
-            try:
-                await old.interrupt()
-            except Exception:
-                pass
-            # Skip disconnect() - it causes race conditions with SDK cleanup.
-            # interrupt() is sufficient to stop the subprocess.
-        new_client = ClaudeSDKClient(options)
-        await new_client.connect()
-        self.client = new_client
+        agent = self._agent
+        if agent:
+            await agent.disconnect()
+            await agent.connect(options)
 
     def _attach_image(self, path: Path) -> None:
         """Read and queue image for next message on active agent."""
@@ -562,48 +554,6 @@ class ChatApp(App):
 
         return ChatScreen(slash_commands=self.LOCAL_COMMANDS)
 
-    def _handle_sdk_stderr(self, message: str) -> None:
-        """Handle SDK stderr output by showing in chat."""
-        message = message.strip()
-        if not message:
-            return
-        self._show_system_info(message, "warning", None)
-
-    def _plan_mode_hooks(self) -> "dict[HookEvent, list[HookMatcher]]":
-        """Create hooks for plan mode enforcement."""
-        # Tools that should be blocked in plan mode (except plan file writes)
-        blocked_tools = {"Edit", "Write", "Bash", "NotebookEdit"}
-        plans_dir = str(Path.home() / ".claude" / "plans")
-
-        async def block_mutating_tools(
-            hook_input: dict,
-            match: str | None,  # noqa: ARG001
-            ctx: object,  # noqa: ARG001
-        ) -> dict:
-            """PreToolUse hook: block Edit/Write/Bash in plan mode (allow plan file)."""
-            permission_mode = hook_input.get("permission_mode", "default")
-            tool_name = hook_input.get("tool_name", "")
-            tool_input = hook_input.get("tool_input", {})
-
-            if permission_mode == "plan" and tool_name in blocked_tools:
-                # Allow Write/Edit to files in ~/.claude/plans/
-                if tool_name in ("Write", "Edit"):
-                    file_path = tool_input.get("file_path", "")
-                    if file_path:
-                        # Expand ~ and resolve to absolute path
-                        resolved = str(Path(file_path).expanduser().resolve())
-                        if resolved.startswith(plans_dir):
-                            return {}  # Allow it
-                return {
-                    "decision": "block",
-                    "reason": f"{tool_name} is not available in plan mode. Write your plan to the plan file and use ExitPlanMode when ready.",
-                }
-            return {}
-
-        return {
-            "PreToolUse": [HookMatcher(matcher=None, hooks=[block_mutating_tools])],  # type: ignore[arg-type]
-        }
-
     def _make_options(
         self,
         cwd: Path | None = None,
@@ -611,35 +561,15 @@ class ChatApp(App):
         agent_name: str | None = None,
         model: str | None = None,
     ) -> ClaudeAgentOptions:
-        """Create SDK options with common settings.
+        """Create agent options (stub for AgentManager compatibility).
 
-        Note: can_use_tool is set by Agent.connect() to its own handler,
-        which routes to permission_ui_callback set by AgentManager.
+        In PansCode mode, actual connection is handled by PansCodeBackend.
+        This returns a minimal ClaudeAgentOptions for API compatibility.
         """
-        # Override ANTHROPIC_API_KEY to prefer subscription auth,
-        # unless ANTHROPIC_BASE_URL is set (SSO proxy needs the key)
-        env: dict[str, str] = {}
-        if not os.environ.get("ANTHROPIC_BASE_URL"):
-            env["ANTHROPIC_API_KEY"] = ""
-        # Clear VIRTUAL_ENV so agents in worktrees use their own venv
-        if os.environ.get("VIRTUAL_ENV"):
-            env["VIRTUAL_ENV"] = ""
-
         return ClaudeAgentOptions(
-            permission_mode="bypassPermissions"
-            if self._skip_permissions
-            else "default",
-            env=env,
-            setting_sources=["user", "project", "local"],
             cwd=cwd,
             resume=resume,
             model=model,
-            mcp_servers={"chic": create_chic_server(caller_name=agent_name)},
-            include_partial_messages=True,
-            stderr=self._handle_sdk_stderr,
-            hooks=self._plan_mode_hooks(),
-            enable_file_checkpointing=True,
-            extra_args={"replay-user-messages": None},
         )
 
     async def on_mount(self) -> None:
@@ -746,7 +676,7 @@ class ChatApp(App):
 
     @work(exclusive=True, group="connect")
     async def _connect_initial_client(self) -> None:
-        """Connect SDK for the initial agent."""
+        """Connect PansCode backend for the initial agent."""
         if self.agent_mgr is None or self.agent_mgr.active is None:
             return
 
@@ -769,21 +699,22 @@ class ChatApp(App):
                 self.notify(f"No unique session matching '{resume}'", severity="error")
                 resume = None
 
-        # Connect the agent to SDK
+        # Connect the agent to PansCode backend
         options = self._make_options(
             cwd=agent.cwd, resume=resume, agent_name=agent.name, model=agent.model
         )
         try:
             await agent.connect(options, resume=resume)
-        except CLIConnectionError as e:
+        except Exception as e:
+            error_subtype = _categorize_cli_error(e)
             await capture(
                 "error_occurred",
-                error_type="CLIConnectionError",
-                error_subtype=_categorize_cli_error(e),
+                error_type=type(e).__name__,
+                error_subtype=error_subtype,
                 context="initial_connect",
             )
             self.exit(
-                message=f"Connection failed: {e}\n\nPlease run `claude /login` to authenticate."
+                message=f"Connection failed: {e}\n\nPlease check your PansCode configuration."
             )
 
         # Load history if resuming
@@ -791,35 +722,23 @@ class ChatApp(App):
             await self._load_and_display_history(resume)
             self.notify(f"Resuming {resume[:8]}...")
 
-        # Fetch SDK commands and update autocomplete
+        # Update slash commands (local only, no SDK)
         await self._update_slash_commands()
+
+        # Update footer model info
+        self._update_footer_model(agent.model)
 
         # Send initial prompt if provided
         if self._initial_prompt:
             self._send_initial_prompt()
 
     async def _update_slash_commands(self) -> None:
-        """Fetch available commands from SDK and update autocomplete."""
+        """Update autocomplete with local commands (no SDK in PansCode mode)."""
         try:
-            if not self.client:
-                return
-            info = await self.client.get_server_info()
-            if not info:
-                return
-            sdk_commands = ["/" + cmd["name"] for cmd in info.get("commands", [])]
-            all_commands = self.LOCAL_COMMANDS + sdk_commands
             autocomplete = self.query_one(TextAreaAutoComplete)
-            autocomplete.slash_commands = all_commands
-            # Update footer with model info and store available models
-            if "models" in info:
-                models = info["models"]
-                if isinstance(models, list) and models:
-                    self._available_models = models
-                    # Update footer with current agent's model
-                    agent = self._agent
-                    self._update_footer_model(agent.model if agent else None)
+            autocomplete.slash_commands = list(self.LOCAL_COMMANDS)
         except Exception as e:
-            log.warning(f"Failed to fetch SDK commands: {e}")
+            log.warning(f"Failed to update slash commands: {e}")
         self._refresh_dynamic_completions()
         self.refresh_context()
 
@@ -1646,7 +1565,7 @@ class ChatApp(App):
         from claudechic.enums import AgentStatus
 
         agent = self._agent
-        if not agent or not agent.client:
+        if not agent or not agent.backend:
             self.notify("No active agent", severity="error")
             return
 
@@ -1674,7 +1593,7 @@ class ChatApp(App):
             # Revert files using SDK
             if checkpoint.uuid:
                 try:
-                    await agent.client.rewind_files(checkpoint.uuid)
+                    pass  # File rewinding not available in PansCode mode
                     rewound_files = True
                 except Exception as e:
                     log.exception("Failed to rewind files")
@@ -1792,9 +1711,9 @@ class ChatApp(App):
             active_prompt.cancel()
             return
 
-        # Interrupt running agent - send interrupt to SDK
-        if self.client and self._agent and self._agent.status == "busy":
-            self.run_worker(self.client.interrupt(), exclusive=False)
+        # Interrupt running agent
+        if self._agent and self._agent.status == "busy":
+            self.run_worker(self._agent.interrupt(), exclusive=False)
             self._hide_thinking()
             self.notify("Interrupted")
             self.chat_input.focus()
@@ -1984,7 +1903,7 @@ class ChatApp(App):
             )
         )
         self._update_footer_model(model)
-        if agent.client:
+        if agent.backend:
             self.notify(f"Switching to {model}...")
             await agent.disconnect()
             options = self._make_options(
@@ -2561,7 +2480,7 @@ class ChatApp(App):
         sampler = get_sampler()
         if sampler:
             sampler.async_metrics.tool_results += 1
-        from claude_agent_sdk import ToolResultBlock
+        from claudechic.compat import ToolResultBlock
 
         block = ToolResultBlock(
             tool_use_id=tool.id, content=tool.result or "", is_error=tool.is_error

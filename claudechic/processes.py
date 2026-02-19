@@ -127,18 +127,8 @@ def parse_background_task_output(result: str) -> str | None:
 
 
 def get_claude_pid_from_client(client) -> int | None:
-    """Extract the claude process PID from an SDK client.
+    """Extract the process PID from a client.
 
-    Args:
-        client: ClaudeSDKClient instance
-
-    Returns:
-        PID of the claude subprocess, or None if not available
+    In PansCode mode, there is no subprocess — always returns None.
     """
-    try:
-        transport = client._transport
-        if transport and hasattr(transport, "_process") and transport._process:
-            return transport._process.pid
-    except Exception:
-        pass
     return None

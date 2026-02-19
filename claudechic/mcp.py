@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from claude_agent_sdk import tool, create_sdk_mcp_server
+from claudechic.compat import tool, create_sdk_mcp_server
 
 from claudechic.analytics import capture
 from claudechic.config import CONFIG
@@ -119,7 +119,7 @@ def _send_prompt_fire_and_forget(
             prompt = f"[Message from agent '{caller_name}']\n\n{prompt}"
 
     async def do_send():
-        if agent.client is None:
+        if agent.backend is None:
             log.warning(f"Agent '{agent.name}' not connected, skipping prompt")
             return
         await agent.send(prompt)

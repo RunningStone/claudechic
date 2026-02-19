@@ -1,10 +1,25 @@
-"""Claude Chic - A stylish terminal UI for Claude Code."""
+"""Claude Chic - A stylish terminal UI for PansCode."""
 
-from importlib.metadata import version
 
-from claudechic.app import ChatApp
-from claudechic.theme import CHIC_THEME
-from claudechic.protocols import AgentManagerObserver, AgentObserver, PermissionHandler
+def __getattr__(name: str):
+    """Lazy imports to avoid requiring textual at module level."""
+    if name == "ChatApp":
+        from claudechic.app import ChatApp
+        return ChatApp
+    if name == "CHIC_THEME":
+        from claudechic.theme import CHIC_THEME
+        return CHIC_THEME
+    if name in ("AgentManagerObserver", "AgentObserver", "PermissionHandler"):
+        from claudechic import protocols
+        return getattr(protocols, name)
+    if name == "__version__":
+        try:
+            from importlib.metadata import version
+            return version("claudechic")
+        except Exception:
+            return "0.0.0"
+    raise AttributeError(f"module 'claudechic' has no attribute {name!r}")
+
 
 __all__ = [
     "ChatApp",
@@ -13,4 +28,3 @@ __all__ = [
     "AgentObserver",
     "PermissionHandler",
 ]
-__version__ = version("claudechic")
